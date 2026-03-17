@@ -2,7 +2,7 @@
 -- M4: The cross term in E[p_e] vanishes because E[e₂] = 0.
 --     Derives the expanded form: E[p_e] = f₂ · p_ideal + (1-f₂) · E[|⟨w|e₂⟩|²]
 --
--- SORRY BUDGET: 7
+-- SORRY BUDGET: 6
 --   sorry 1 (perpSphereMeasure): construction of the uniform probability measure
 --     on the unit sphere of V_perp (needs sphere measure API)
 --   sorry 2 (perpSphereMeasure_isProbMeasure): normalization
@@ -10,7 +10,6 @@
 --   sorry 4 (perpSphereMeasure_neg_invariant): antipodal symmetry of sphere measure
 --   sorry 5 (inner_integrable): |⟨e₂,y⟩| ≤ ‖y‖ on sphere → finite integral
 --   sorry 6 (succProb_integrable): continuity + compact support
---   sorry 7 (expanded_E_pe): full Fubini + θ-integration argument
 
 import Mathlib.Analysis.InnerProductSpace.Projection.Basic
 import Mathlib.Analysis.Normed.Lp.MeasurableSpace
@@ -207,17 +206,53 @@ lemma integral_e₂_succProb (Φ : E n) (θ : ℝ) (w : Fin (2 ^ n)) :
     2. Integrate over e₂ using integral_e₂_succProb (cross term = 0)
     3. Integrate over θ: ∫cos²θ dθ = f₂, ∫sin²θ dθ = 1 - f₂ (from isProbMeasure + f₂ def)
     4. Collect terms -/
-theorem expanded_E_pe (G : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
+theorem expanded_E_pe (G : ℕ) (hG : 0 < G) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
     (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) :
     ∫ θ, ∫ e₂, succProb n (isotropicError Φ e₂ θ) w
           ∂(perpSphereMeasure Φ) ∂(composedMeasure (d n) G σ) =
     f₂ (d n) G σ * succProb n Φ w +
     (1 - f₂ (d n) G σ) * ∫ e₂, succProb n e₂ w ∂(perpSphereMeasure Φ) := by
-  -- Reduce inner integral using integral_e₂_succProb
+  have hd : 2 ≤ d n := by simp only [d]; have := @Nat.one_le_two_pow n; omega
+  haveI : IsProbabilityMeasure (composedMeasure (d n) G σ) :=
+    composedMeasure_isProbMeasure (d n) G σ hσ hG hd
   simp_rw [integral_e₂_succProb Φ _ w]
-  -- Now: ∫ θ, (cos²θ · p_Φ + sin²θ · ∫p_{e₂}) dθ = f₂ · p_Φ + (1-f₂) · ∫p_{e₂}
-  -- This requires: ∫cos²θ dθ = f₂ and ∫sin²θ dθ = 1 - f₂ over composedMeasure
-  sorry -- Blocked: needs ∫cos²θ = f₂ and ∫sin²θ = 1 - f₂ over composedMeasure + integral_add
+  -- Goal: ∫ θ, (cos²θ · p + sin²θ · q) ∂μ = f₂·p + (1-f₂)·q
+  -- where f₂ = ∫ cos²θ ∂μ definitionally
+  set μ := composedMeasure (d n) G σ
+  have hcos_int : Integrable (fun θ => cos θ ^ 2) μ := by
+    apply Integrable.mono' (integrable_const (1 : ℝ))
+    · exact (continuous_cos.pow 2).measurable.aestronglyMeasurable
+    · filter_upwards with θ
+      rw [Real.norm_eq_abs, abs_of_nonneg (sq_nonneg _)]
+      nlinarith [Real.sin_sq_add_cos_sq θ, sq_nonneg (Real.sin θ)]
+  have hsin_int : Integrable (fun θ => sin θ ^ 2) μ := by
+    apply Integrable.mono' (integrable_const (1 : ℝ))
+    · exact (continuous_sin.pow 2).measurable.aestronglyMeasurable
+    · filter_upwards with θ
+      rw [Real.norm_eq_abs, abs_of_nonneg (sq_nonneg _)]
+      nlinarith [Real.sin_sq_add_cos_sq θ, sq_nonneg (Real.cos θ)]
+  have hf₂_def : f₂ (d n) G σ = ∫ θ, cos θ ^ 2 ∂μ := rfl
+  have hsin_f₂ : ∫ θ, sin θ ^ 2 ∂μ = 1 - f₂ (d n) G σ := by
+    have hsum : ∫ θ, (cos θ ^ 2 + sin θ ^ 2) ∂μ = 1 := by
+      simp_rw [Real.cos_sq_add_sin_sq]
+      simp
+    rw [integral_add hcos_int hsin_int] at hsum
+    linarith [hf₂_def]
+  -- Rewrite integrand and do the integration
+  have hfun : (fun θ => cos θ ^ 2 * succProb n Φ w +
+      sin θ ^ 2 * ∫ e₂, succProb n e₂ w ∂(perpSphereMeasure Φ)) =
+      fun θ => succProb n Φ w * cos θ ^ 2 +
+               (∫ e₂, succProb n e₂ w ∂(perpSphereMeasure Φ)) * sin θ ^ 2 := by
+    ext θ; ring
+  rw [hfun]
+  rw [integral_add (hcos_int.const_mul _) (hsin_int.const_mul _)]
+  rw [show (∫ a, succProb n Φ w * cos a ^ 2 ∂μ) = succProb n Φ w * ∫ a, cos a ^ 2 ∂μ from
+        integral_const_mul _ _,
+      show (∫ a, (∫ e₂, succProb n e₂ w ∂perpSphereMeasure Φ) * sin a ^ 2 ∂μ) =
+        (∫ e₂, succProb n e₂ w ∂perpSphereMeasure Φ) * ∫ a, sin a ^ 2 ∂μ from
+        integral_const_mul _ _]
+  rw [hsin_f₂, ← hf₂_def]
+  ring
 
 /-! ## TDD spot-checks -/
 
