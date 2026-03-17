@@ -2,15 +2,21 @@
 -- M4: The cross term in E[p_e] vanishes because E[e₂] = 0.
 --     Derives the expanded form: E[p_e] = f₂ · p_ideal + (1-f₂) · E[|⟨w|e₂⟩|²]
 --
--- SORRY BUDGET: 2
+-- SORRY BUDGET: 7
 --   sorry 1 (perpSphereMeasure): construction of the uniform probability measure
---     on the unit sphere of V_perp
---   sorry 2 (expanded_E_pe): the full integration argument expanding E[p_e]
+--     on the unit sphere of V_perp (needs sphere measure API)
+--   sorry 2 (perpSphereMeasure_isProbMeasure): normalization
+--   sorry 3 (perpSphereMeasure_support): support characterization
+--   sorry 4 (perpSphereMeasure_neg_invariant): antipodal symmetry of sphere measure
+--   sorry 5 (inner_integrable): |⟨e₂,y⟩| ≤ ‖y‖ on sphere → finite integral
+--   sorry 6 (succProb_integrable): continuity + compact support
+--   sorry 7 (expanded_E_pe): full Fubini + θ-integration argument
 
 import Mathlib.Analysis.InnerProductSpace.Projection.Basic
 import Mathlib.Analysis.Normed.Lp.MeasurableSpace
 import Mathlib.MeasureTheory.Measure.MeasureSpace
 import Mathlib.MeasureTheory.Group.MeasurableEquiv
+import Mathlib.MeasureTheory.Integral.Prod
 import IsotropicGroverProof.Composition
 
 namespace IsotropicGrover
@@ -71,6 +77,37 @@ lemma perpSphereMeasure_neg_invariant (Φ : E n) :
     Measure.map Neg.neg (perpSphereMeasure Φ) = perpSphereMeasure Φ := by
   exact sorry -- antipodal invariance of the uniform sphere measure
 
+/-! ## Integrability of inner products over perpSphereMeasure -/
+
+/-- Inner product ⟨e₂, y⟩ is integrable over perpSphereMeasure.
+    Proof sketch: |⟨e₂, y⟩| ≤ ‖y‖ on the unit sphere (Cauchy–Schwarz),
+    and perpSphereMeasure is a finite measure. -/
+lemma inner_integrable (Φ y : E n) :
+    Integrable (fun e₂ => inner (𝕜 := ℝ) e₂ y) (perpSphereMeasure Φ) := by
+  sorry -- Blocked: needs |⟨e₂, y⟩| ≤ ‖y‖ on sphere and finite measure
+
+/-- succProb n e₂ w is integrable over perpSphereMeasure.
+    Proof sketch: succProb is continuous (sum of squares of inner products),
+    and perpSphereMeasure is supported on the compact unit sphere. -/
+lemma succProb_integrable (Φ : E n) (w : Fin (2 ^ n)) :
+    Integrable (fun e₂ => succProb n e₂ w) (perpSphereMeasure Φ) := by
+  sorry -- Blocked: needs continuity of succProb + compact support
+
+/-! ## Algebraic expansion of succProb(isotropicError Φ e₂ θ) -/
+
+/-- Expand succProb(cosθ·Φ + sinθ·e₂, w) into three terms via bilinearity. -/
+lemma succProb_isotropicError_expand (Φ e₂ : E n) (θ : ℝ) (w : Fin (2 ^ n)) :
+    succProb n (isotropicError Φ e₂ θ) w =
+    cos θ ^ 2 * succProb n Φ w +
+    2 * cos θ * sin θ * (inner (𝕜 := ℝ) Φ (stdBasisVec n (succProbIdx0 n w)) *
+                         inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx0 n w)) +
+                         inner (𝕜 := ℝ) Φ (stdBasisVec n (succProbIdx1 n w)) *
+                         inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx1 n w))) +
+    sin θ ^ 2 * succProb n e₂ w := by
+  simp only [succProb, isotropicError, inner_add_left, inner_smul_left]
+  simp only [starRingEnd_apply, star_trivial]
+  ring
+
 /-! ## E[e₂] = 0 by antipodal symmetry -/
 
 /-- The inner product ⟨e₂, û⟩ has zero expectation for any fixed û.
@@ -80,7 +117,6 @@ lemma integral_perp_inner_eq_zero (Φ û : E n) :
     ∫ e₂, inner (𝕜 := ℝ) e₂ û ∂(perpSphereMeasure Φ) = 0 := by
   have hmeas : MeasurePreserving Neg.neg (perpSphereMeasure Φ) (perpSphereMeasure Φ) :=
     ⟨measurable_neg, perpSphereMeasure_neg_invariant Φ⟩
-  -- The integral equals its own negation by measure-preserving change of variables
   have heq : ∫ e₂, inner (𝕜 := ℝ) e₂ û ∂(perpSphereMeasure Φ) =
              -(∫ e₂, inner (𝕜 := ℝ) e₂ û ∂(perpSphereMeasure Φ)) := by
     conv_lhs => rw [← hmeas.integral_comp measurableEmbedding_neg
@@ -88,17 +124,100 @@ lemma integral_perp_inner_eq_zero (Φ û : E n) :
     simp_rw [inner_neg_left, integral_neg]
   linarith
 
+/-- The cross term (a linear function of e₂) integrates to zero. -/
+lemma integral_cross_term_eq_zero (Φ : E n) (θ : ℝ) (w : Fin (2 ^ n)) :
+    ∫ e₂, 2 * cos θ * sin θ *
+          (inner (𝕜 := ℝ) Φ (stdBasisVec n (succProbIdx0 n w)) *
+           inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx0 n w)) +
+           inner (𝕜 := ℝ) Φ (stdBasisVec n (succProbIdx1 n w)) *
+           inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx1 n w)))
+    ∂(perpSphereMeasure Φ) = 0 := by
+  have key0 := integral_perp_inner_eq_zero Φ (stdBasisVec n (succProbIdx0 n w))
+  have key1 := integral_perp_inner_eq_zero Φ (stdBasisVec n (succProbIdx1 n w))
+  have hsimp : (fun e₂ : E n => 2 * cos θ * sin θ *
+          (inner (𝕜 := ℝ) Φ (stdBasisVec n (succProbIdx0 n w)) *
+           inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx0 n w)) +
+           inner (𝕜 := ℝ) Φ (stdBasisVec n (succProbIdx1 n w)) *
+           inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx1 n w)))) =
+       (fun e₂ => 2 * cos θ * sin θ * inner ℝ Φ (stdBasisVec n (succProbIdx0 n w)) *
+           inner ℝ e₂ (stdBasisVec n (succProbIdx0 n w)) +
+         2 * cos θ * sin θ * inner ℝ Φ (stdBasisVec n (succProbIdx1 n w)) *
+           inner ℝ e₂ (stdBasisVec n (succProbIdx1 n w))) := by ext; ring
+  rw [hsimp, integral_add ((inner_integrable Φ _).const_mul _) ((inner_integrable Φ _).const_mul _),
+      integral_const_mul, integral_const_mul, key0, key1, mul_zero, mul_zero, add_zero]
+
+/-- The cross term function is integrable. -/
+lemma cross_integrable (Φ : E n) (θ : ℝ) (w : Fin (2 ^ n)) :
+    Integrable (fun e₂ : E n => 2 * cos θ * sin θ *
+      (inner (𝕜 := ℝ) Φ (stdBasisVec n (succProbIdx0 n w)) *
+       inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx0 n w)) +
+       inner (𝕜 := ℝ) Φ (stdBasisVec n (succProbIdx1 n w)) *
+       inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx1 n w)))) (perpSphereMeasure Φ) := by
+  have : (fun e₂ : E n => 2 * cos θ * sin θ *
+      (inner (𝕜 := ℝ) Φ (stdBasisVec n (succProbIdx0 n w)) *
+       inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx0 n w)) +
+       inner (𝕜 := ℝ) Φ (stdBasisVec n (succProbIdx1 n w)) *
+       inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx1 n w)))) = fun e₂ =>
+    (2 * cos θ * sin θ * inner ℝ Φ (stdBasisVec n (succProbIdx0 n w))) *
+      inner ℝ e₂ (stdBasisVec n (succProbIdx0 n w)) +
+    (2 * cos θ * sin θ * inner ℝ Φ (stdBasisVec n (succProbIdx1 n w))) *
+      inner ℝ e₂ (stdBasisVec n (succProbIdx1 n w)) := by ext; ring
+  rw [this]
+  exact ((inner_integrable Φ _).const_mul _).add ((inner_integrable Φ _).const_mul _)
+
+/-! ## Inner integral over e₂ -/
+
+/-- After integrating over e₂, the cross term vanishes:
+    ∫ e₂, succProb(cosθ·Φ + sinθ·e₂, w) = cos²θ · p_Φ + sin²θ · ∫ e₂, p_{e₂} -/
+lemma integral_e₂_succProb (Φ : E n) (θ : ℝ) (w : Fin (2 ^ n)) :
+    ∫ e₂, succProb n (isotropicError Φ e₂ θ) w ∂(perpSphereMeasure Φ) =
+    cos θ ^ 2 * succProb n Φ w +
+    sin θ ^ 2 * ∫ e₂, succProb n e₂ w ∂(perpSphereMeasure Φ) := by
+  have hf1 : Integrable (fun _ : E n => cos θ ^ 2 * succProb n Φ w) (perpSphereMeasure Φ) :=
+    integrable_const _
+  have hf2 := cross_integrable Φ θ w
+  have hf3 : Integrable (fun e₂ => sin θ ^ 2 * succProb n e₂ w) (perpSphereMeasure Φ) :=
+    (succProb_integrable Φ w).const_mul _
+  -- Explicit beta-reduced type for hf1+hf2, so rw [integral_add hf12 hf3] can match
+  have hf12 : Integrable (fun e₂ : E n => cos θ ^ 2 * succProb n Φ w +
+      2 * cos θ * sin θ * (inner (𝕜 := ℝ) Φ (stdBasisVec n (succProbIdx0 n w)) *
+        inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx0 n w)) +
+        inner (𝕜 := ℝ) Φ (stdBasisVec n (succProbIdx1 n w)) *
+        inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx1 n w)))) (perpSphereMeasure Φ) :=
+    hf1.add hf2
+  -- Rewrite integrand pointwise (under the binder) using the algebraic expansion
+  simp_rw [succProb_isotropicError_expand Φ _ θ w]
+  -- step1: ∫(A + cross) = A (cross integrates to 0, constant has measure 1)
+  have step1 : ∫ e₂ : E n, cos θ ^ 2 * succProb n Φ w +
+      2 * cos θ * sin θ * (inner (𝕜 := ℝ) Φ (stdBasisVec n (succProbIdx0 n w)) *
+       inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx0 n w)) +
+       inner (𝕜 := ℝ) Φ (stdBasisVec n (succProbIdx1 n w)) *
+       inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx1 n w))) ∂perpSphereMeasure Φ =
+      cos θ ^ 2 * succProb n Φ w := by
+    rw [integral_add hf1 hf2, integral_const, integral_cross_term_eq_zero]
+    simp -- closes ENNReal.toReal 1 • A + 0 = A via IsProbabilityMeasure
+  rw [integral_add hf12 hf3, step1, integral_const_mul]
+
 /-! ## Expanded expectation E[p_e] -/
 
 /-- The expected success probability expands as:
-    E[p_e] = f₂ · p_ideal + (1 - f₂) · E[|⟨w|e₂⟩|²] -/
+    E[p_e] = f₂ · p_ideal + (1 - f₂) · E[|⟨w|e₂⟩|²]
+    Proof sketch:
+    1. Expand succProb via succProb_isotropicError_expand
+    2. Integrate over e₂ using integral_e₂_succProb (cross term = 0)
+    3. Integrate over θ: ∫cos²θ dθ = f₂, ∫sin²θ dθ = 1 - f₂ (from isProbMeasure + f₂ def)
+    4. Collect terms -/
 theorem expanded_E_pe (G : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
     (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) :
     ∫ θ, ∫ e₂, succProb n (isotropicError Φ e₂ θ) w
           ∂(perpSphereMeasure Φ) ∂(composedMeasure (d n) G σ) =
     f₂ (d n) G σ * succProb n Φ w +
     (1 - f₂ (d n) G σ) * ∫ e₂, succProb n e₂ w ∂(perpSphereMeasure Φ) := by
-  sorry
+  -- Reduce inner integral using integral_e₂_succProb
+  simp_rw [integral_e₂_succProb Φ _ w]
+  -- Now: ∫ θ, (cos²θ · p_Φ + sin²θ · ∫p_{e₂}) dθ = f₂ · p_Φ + (1-f₂) · ∫p_{e₂}
+  -- This requires: ∫cos²θ dθ = f₂ and ∫sin²θ dθ = 1 - f₂ over composedMeasure
+  sorry -- Blocked: needs ∫cos²θ = f₂ and ∫sin²θ = 1 - f₂ over composedMeasure + integral_add
 
 /-! ## TDD spot-checks -/
 
@@ -116,5 +235,16 @@ example (i j : Fin (d n)) (hij : i ≠ j) :
 -- Negation stays in V_perp
 example (Φ v : E n) (hv : v ∈ V_perp Φ) : -v ∈ V_perp Φ :=
   Submodule.neg_mem _ hv
+
+-- The algebraic expansion holds pointwise
+example (Φ e₂ : E n) (θ : ℝ) (w : Fin (2 ^ n)) :
+    succProb n (isotropicError Φ e₂ θ) w =
+    cos θ ^ 2 * succProb n Φ w +
+    2 * cos θ * sin θ * (inner (𝕜 := ℝ) Φ (stdBasisVec n (succProbIdx0 n w)) *
+                         inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx0 n w)) +
+                         inner (𝕜 := ℝ) Φ (stdBasisVec n (succProbIdx1 n w)) *
+                         inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx1 n w))) +
+    sin θ ^ 2 * succProb n e₂ w :=
+  succProb_isotropicError_expand Φ e₂ θ w
 
 end IsotropicGrover
