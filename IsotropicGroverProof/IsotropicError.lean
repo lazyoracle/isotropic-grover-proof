@@ -27,18 +27,23 @@ noncomputable def poissonKernelDensity (d : ℕ) (σ θ : ℝ) : ℝ :=
   (1 - σ ^ 2) * sin θ ^ (d - 2) /
   (1 + σ ^ 2 - 2 * σ * cos θ) ^ ((d : ℝ) / 2)
 
+/-- Normalization constant: the integral of the unnormalized Poisson kernel over [0, π]. -/
+noncomputable def poissonNormConst (d : ℕ) (σ : ℝ) : ℝ :=
+  ∫ θ in Set.Icc 0 Real.pi, poissonKernelDensity d σ θ
+
 /-- The Poisson kernel marginal probability measure on [0, π].
     This is the distribution of the perturbation angle θ in a single isotropic error.
-    Definition deferred (sorry) until M2 session when the full measure plumbing is built. -/
-noncomputable def poissonMarginal (d : ℕ) (σ : ℝ) : Measure ℝ := by
-  exact sorry -- Placeholder: will be (volume.restrict (Icc 0 π)).withDensity (normalized density)
+    The density is poissonKernelDensity / poissonNormConst, restricted to [0, π]. -/
+noncomputable def poissonMarginal (d : ℕ) (σ : ℝ) : Measure ℝ :=
+  (volume.restrict (Set.Icc 0 Real.pi)).withDensity
+    (fun θ => ENNReal.ofReal (poissonKernelDensity d σ θ / poissonNormConst d σ))
 
 /-! ## Probability measure instance (sorry — filled in M6) -/
 
 /-- The Poisson marginal is a probability measure when σ ∈ (0,1). -/
 theorem poissonMarginal_isProbMeasure (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
     (hd : 2 ≤ d) : IsProbabilityMeasure (poissonMarginal d σ) := by
-  sorry -- Blocked on M6: requires showing ∫ poissonKernelDensity = poissonNormConst > 0
+  sorry -- Blocked on M6: requires showing poissonNormConst d σ > 0 and ∫ normalized = 1
 
 /-! ## Key moment property (sorry — filled in M6) -/
 
@@ -61,12 +66,26 @@ noncomputable def isotropicError (Φ e₂ : E n) (θ : ℝ) : E n :=
 lemma isotropicError_norm (Φ e₂ : E n) (θ : ℝ)
     (hΦ : ‖Φ‖ = 1) (he₂ : ‖e₂‖ = 1) (hperp : inner (𝕜 := ℝ) Φ e₂ = 0) :
     ‖isotropicError Φ e₂ θ‖ = 1 := by
-  sorry -- M2: cos²θ·‖Φ‖² + sin²θ·‖e₂‖² + cross = 1·1 + 1·1·0 = 1
+  have hsq : ‖isotropicError Φ e₂ θ‖ ^ 2 = 1 := by
+    rw [isotropicError, norm_add_sq_real]
+    have h1 : ‖cos θ • Φ‖ ^ 2 = cos θ ^ 2 := by
+      rw [norm_smul, mul_pow]; simp [Real.norm_eq_abs, sq_abs, hΦ]
+    have h2 : ‖sin θ • e₂‖ ^ 2 = sin θ ^ 2 := by
+      rw [norm_smul, mul_pow]; simp [Real.norm_eq_abs, sq_abs, he₂]
+    have h3 : inner (𝕜 := ℝ) (cos θ • Φ) (sin θ • e₂) = 0 := by
+      simp [inner_smul_left, inner_smul_right, hperp]
+    rw [h1, h2, h3]
+    linarith [Real.sin_sq_add_cos_sq θ]
+  nlinarith [norm_nonneg (isotropicError Φ e₂ θ), sq_nonneg (‖isotropicError Φ e₂ θ‖ - 1)]
 
 /-! ## TDD spot-checks -/
 
 -- isotropicError with θ=0 returns Φ (only the cos term survives)
 example (Φ e₂ : E n) : isotropicError Φ e₂ 0 = Φ := by
   simp [isotropicError, cos_zero, sin_zero]
+
+-- isotropicError with θ=π/2 returns e₂ (only the sin term survives)
+example (Φ e₂ : E n) : isotropicError Φ e₂ (Real.pi / 2) = e₂ := by
+  simp [isotropicError, Real.cos_pi_div_two, Real.sin_pi_div_two]
 
 end IsotropicGrover
