@@ -10,6 +10,7 @@
 import Mathlib.Analysis.InnerProductSpace.Projection.Basic
 import Mathlib.Analysis.Normed.Lp.MeasurableSpace
 import Mathlib.MeasureTheory.Measure.MeasureSpace
+import Mathlib.MeasureTheory.Group.MeasurableEquiv
 import IsotropicGroverProof.Composition
 
 namespace IsotropicGrover
@@ -34,6 +35,19 @@ lemma mem_V_perp_iff (Φ v : E n) : v ∈ V_perp Φ ↔ inner (𝕜 := ℝ) Φ v
     obtain ⟨c, rfl⟩ := hu
     simp [inner_smul_left, h]
 
+/-- V_perp is a closed subspace. -/
+lemma V_perp_isClosed (Φ : E n) : IsClosed (V_perp Φ : Set (E n)) :=
+  Submodule.isClosed_orthogonal _
+
+/-- Negation maps V_perp to itself. -/
+lemma neg_mem_V_perp (Φ v : E n) (hv : v ∈ V_perp Φ) : -v ∈ V_perp Φ :=
+  (V_perp Φ).neg_mem hv
+
+/-- Inner product with a negated vector. -/
+lemma inner_neg_V_perp (û v : E n) :
+    inner (𝕜 := ℝ) (-v) û = -inner (𝕜 := ℝ) v û :=
+  inner_neg_left v û
+
 /-! ## Uniform measure on the sphere of V_perp
     We model this as a Measure (E n) supported on {v | v ∈ V_perp Φ ∧ ‖v‖ = 1}. -/
 
@@ -52,6 +66,11 @@ lemma perpSphereMeasure_support (Φ v : E n) :
     perpSphereMeasure Φ {v} ≠ 0 → v ∈ V_perp Φ ∧ ‖v‖ = 1 := by
   exact sorry
 
+/-- The perpSphereMeasure is invariant under negation (antipodal symmetry). -/
+lemma perpSphereMeasure_neg_invariant (Φ : E n) :
+    Measure.map Neg.neg (perpSphereMeasure Φ) = perpSphereMeasure Φ := by
+  exact sorry -- antipodal invariance of the uniform sphere measure
+
 /-! ## E[e₂] = 0 by antipodal symmetry -/
 
 /-- The inner product ⟨e₂, û⟩ has zero expectation for any fixed û.
@@ -59,7 +78,15 @@ lemma perpSphereMeasure_support (Φ v : E n) :
     and negates ⟨e₂, û⟩, so ∫ ⟨e₂, û⟩ = -∫ ⟨e₂, û⟩ = 0. -/
 lemma integral_perp_inner_eq_zero (Φ û : E n) :
     ∫ e₂, inner (𝕜 := ℝ) e₂ û ∂(perpSphereMeasure Φ) = 0 := by
-  sorry -- Antipodal symmetry of perpSphereMeasure
+  have hmeas : MeasurePreserving Neg.neg (perpSphereMeasure Φ) (perpSphereMeasure Φ) :=
+    ⟨measurable_neg, perpSphereMeasure_neg_invariant Φ⟩
+  -- The integral equals its own negation by measure-preserving change of variables
+  have heq : ∫ e₂, inner (𝕜 := ℝ) e₂ û ∂(perpSphereMeasure Φ) =
+             -(∫ e₂, inner (𝕜 := ℝ) e₂ û ∂(perpSphereMeasure Φ)) := by
+    conv_lhs => rw [← hmeas.integral_comp measurableEmbedding_neg
+                       (fun e₂ => inner (𝕜 := ℝ) e₂ û)]
+    simp_rw [inner_neg_left, integral_neg]
+  linarith
 
 /-! ## Expanded expectation E[p_e] -/
 
@@ -75,11 +102,16 @@ theorem expanded_E_pe (G : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
 
 /-! ## TDD spot-checks -/
 
--- V_perp contains vectors orthogonal to Φ (proof deferred to M4)
+-- V_perp contains vectors orthogonal to Φ
 example (i j : Fin (d n)) (hij : i ≠ j) :
     stdBasisVec n j ∈ V_perp (stdBasisVec n i) := by
   rw [mem_V_perp_iff]
-  sorry -- M4: EuclideanSpace.inner_single_left + EuclideanSpace.single_apply + hij
+  have h := (orthonormal_iff_ite (𝕜 := ℝ)).mp
+              (EuclideanSpace.orthonormal_single (𝕜 := ℝ) (ι := Fin (d n)))
+  have key : inner (𝕜 := ℝ) (stdBasisVec n i) (stdBasisVec n j) = if i = j then 1 else 0 := by
+    simp only [stdBasisVec]
+    exact h i j
+  rw [key, if_neg hij]
 
 -- Negation stays in V_perp
 example (Φ v : E n) (hv : v ∈ V_perp Φ) : -v ∈ V_perp Φ :=
