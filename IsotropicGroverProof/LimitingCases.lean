@@ -55,7 +55,15 @@ theorem tendsto_random_as_fidelity_zero (p : ℝ) (N : ℕ) :
     provided p_ideal ≥ 1/N (which is guaranteed for Grover at optimal iterations). -/
 lemma mixtureProb_mono (p : ℝ) (N : ℕ) (hN : 0 < N)
     (hp : 1 / (N : ℝ) ≤ p) : Monotone (mixtureProb p N) := by
-  sorry -- M8: (f₂-f₁)*(p - 1/N) ≥ 0; needs field_simp to handle ℕ cast division
+  intro f₁ f₂ hf
+  simp only [mixtureProb]
+  have hN' : (N : ℝ) > 0 := Nat.cast_pos.mpr hN
+  have hN'' : (N : ℝ) ≠ 0 := hN'.ne'
+  suffices h : 0 ≤ f₂ * p + (1 - f₂) / ↑N - (f₁ * p + (1 - f₁) / ↑N) by linarith
+  have key : f₂ * p + (1 - f₂) / ↑N - (f₁ * p + (1 - f₁) / ↑N) =
+             (f₂ - f₁) * (p - 1 / ↑N) := by field_simp; ring
+  rw [key]
+  exact mul_nonneg (sub_nonneg.mpr hf) (sub_nonneg.mpr hp)
 
 /-! ## TDD spot-checks -/
 
