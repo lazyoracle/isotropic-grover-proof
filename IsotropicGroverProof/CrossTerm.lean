@@ -2,25 +2,26 @@
 -- M4: The cross term in E[p_e] vanishes because E[e₂] = 0.
 --     Derives the expanded form: E[p_e] = f₂ · p_ideal + (1-f₂) · E[|⟨w|e₂⟩|²]
 --
--- SORRY BUDGET: 6
---   sorry 1 (perpSphereMeasure): construction of the uniform probability measure
---     on the unit sphere of V_perp (needs sphere measure API)
---   sorry 2 (perpSphereMeasure_isProbMeasure): normalization
---   sorry 3 (perpSphereMeasure_support): support characterization
---   sorry 4 (perpSphereMeasure_neg_invariant): antipodal symmetry of sphere measure
---   sorry 5 (inner_integrable): |⟨e₂,y⟩| ≤ ‖y‖ on sphere → finite integral
---   sorry 6 (succProb_integrable): continuity + compact support
+-- SORRY BUDGET: 2
+--   sorry 1 (perpSphereMeasure_neg_invariant): antipodal symmetry of sphere measure
+--   sorry 2 (stub for future): (none currently)
 
 import Mathlib.Analysis.InnerProductSpace.Projection.Basic
+import Mathlib.Analysis.InnerProductSpace.Continuous
 import Mathlib.Analysis.Normed.Lp.MeasurableSpace
 import Mathlib.MeasureTheory.Measure.MeasureSpace
 import Mathlib.MeasureTheory.Group.MeasurableEquiv
 import Mathlib.MeasureTheory.Integral.Prod
+import Mathlib.MeasureTheory.Constructions.HaarToSphere
+import Mathlib.MeasureTheory.Measure.Haar.InnerProductSpace
+import Mathlib.MeasureTheory.Measure.Haar.OfBasis
+import Mathlib.Analysis.InnerProductSpace.Projection.FiniteDimensional
+import Mathlib.LinearAlgebra.Dimension.Finite
 import IsotropicGroverProof.Composition
 
 namespace IsotropicGrover
 
-open MeasureTheory Real
+open MeasureTheory Real Metric
 
 variable {n : ℕ}
 
@@ -56,20 +57,102 @@ lemma inner_neg_V_perp (û v : E n) :
 /-! ## Uniform measure on the sphere of V_perp
     We model this as a Measure (E n) supported on {v | v ∈ V_perp Φ ∧ ‖v‖ = 1}. -/
 
+private lemma V_perp_finrank_pos (Φ : E n) : 0 < Module.finrank ℝ ↥(V_perp Φ) := by
+  have hd : 2 ≤ d n := by simp [d]; linarith [Nat.one_le_two_pow (n := n)]
+  have horth := Submodule.finrank_add_finrank_orthogonal (𝕜 := ℝ) (E := E n)
+    (Submodule.span ℝ {Φ})
+  have hfin : Module.finrank ℝ (E n) = d n := by simp [E]
+  have hspan : Module.finrank ℝ (Submodule.span ℝ {Φ} : Submodule ℝ (E n)) ≤ 1 :=
+    (finrank_span_le_card ({Φ} : Set (E n))).trans (by simp)
+  show 0 < Module.finrank ℝ ↥(Submodule.span ℝ {Φ} : Submodule ℝ (E n))ᗮ
+  have h2 : Module.finrank ℝ ↥(Submodule.span ℝ {Φ} : Submodule ℝ (E n)) +
+            Module.finrank ℝ ↥(Submodule.span ℝ {Φ} : Submodule ℝ (E n))ᗮ = d n := by
+    linarith [horth]
+  omega
+
+private instance V_perp_nontrivial (Φ : E n) : Nontrivial ↥(V_perp Φ) :=
+  Module.nontrivial_of_finrank_pos (V_perp_finrank_pos Φ)
+
+-- The additive Haar measure on V_perp (using a let binding for BorelSpace
+-- to work around an instance-synthesis limitation with noncomputable defs).
+private noncomputable def V_perp_haar (Φ : E n) : Measure ↥(V_perp Φ) :=
+  let hb : BorelSpace ↥(V_perp Φ) := inferInstance
+  @Module.Basis.addHaar _ _ _ _ _ _ hb (stdOrthonormalBasis ℝ ↥(V_perp Φ)).toBasis
+
+private lemma V_perp_haar_isAddHaar (Φ : E n) :
+    Measure.IsAddHaarMeasure (V_perp_haar Φ) := by
+  have hb : BorelSpace ↥(V_perp Φ) := inferInstance
+  exact @isAddHaarMeasure_basis_addHaar _ _ _ _ _ _ hb
+      (stdOrthonormalBasis ℝ ↥(V_perp Φ)).toBasis
+
+-- The uniform (unnormalized) sphere measure on the unit sphere of V_perp.
+private noncomputable def V_perp_rawSph (Φ : E n) :
+    Measure (Metric.sphere (0 : ↥(V_perp Φ)) 1) :=
+  (V_perp_haar Φ).toSphere
+
+private lemma V_perp_rawSph_ne_zero (Φ : E n) : V_perp_rawSph Φ ≠ 0 := by
+  have hb : BorelSpace ↥(V_perp Φ) := inferInstance
+  have hhaar := V_perp_haar_isAddHaar Φ
+  change (V_perp_haar Φ).toSphere ≠ 0
+  exact @Measure.toSphere_ne_zero _ _ _ _ (V_perp_haar Φ) hb _ hhaar _
+
+private lemma V_perp_rawSph_isFinite (Φ : E n) :
+    IsFiniteMeasure (V_perp_rawSph Φ) := by
+  have hb : BorelSpace ↥(V_perp Φ) := inferInstance
+  have hhaar := V_perp_haar_isAddHaar Φ
+  show IsFiniteMeasure (V_perp_haar Φ).toSphere
+  exact @Measure.instIsFiniteMeasureElemSphereOfNatRealToSphere _ _ _ _ (V_perp_haar Φ) hb _ hhaar
+
 /-- The uniform probability measure on the unit sphere of V_perp, modeled as a
     measure on the ambient space E n supported on V_perp ∩ S^{d-1}. -/
-noncomputable def perpSphereMeasure (Φ : E n) : Measure (E n) := by
-  exact sorry -- M4: addHaar on V_perp subspace, normalized to sphere
+noncomputable def perpSphereMeasure (Φ : E n) : Measure (E n) :=
+  let rawSph := V_perp_rawSph Φ
+  let totalMass := rawSph Set.univ
+  let toEn := fun (x : Metric.sphere (0 : ↥(V_perp Φ)) 1) =>
+      ((x.val : ↥(V_perp Φ)) : E n)
+  (totalMass⁻¹ • rawSph).map toEn
 
 /-- The perpSphereMeasure is a probability measure. -/
 instance perpSphereMeasure_isProbMeasure (Φ : E n) :
     IsProbabilityMeasure (perpSphereMeasure Φ) := by
-  exact sorry
+  have htoEn_meas : Measurable
+      (fun x : Metric.sphere (0 : ↥(V_perp Φ)) 1 => ((x.val : ↥(V_perp Φ)) : E n)) :=
+    measurable_subtype_coe.comp measurable_subtype_coe
+  have hrawSph_ne_zero : V_perp_rawSph Φ ≠ 0 := V_perp_rawSph_ne_zero Φ
+  have htotalMass_ne_zero : (V_perp_rawSph Φ) Set.univ ≠ 0 := by
+    intro h; exact hrawSph_ne_zero (Measure.measure_univ_eq_zero.mp h)
+  have htotalMass_ne_top : (V_perp_rawSph Φ) Set.univ ≠ ⊤ := by
+    haveI := V_perp_rawSph_isFinite Φ; exact (measure_lt_top _ _).ne
+  constructor
+  show perpSphereMeasure Φ Set.univ = 1
+  simp only [perpSphereMeasure]
+  rw [Measure.map_apply htoEn_meas MeasurableSet.univ, Set.preimage_univ,
+      Measure.smul_apply, smul_eq_mul]
+  exact ENNReal.inv_mul_cancel htotalMass_ne_zero htotalMass_ne_top
 
-/-- The perpSphereMeasure is supported on V_perp. -/
-lemma perpSphereMeasure_support (Φ v : E n) :
-    perpSphereMeasure Φ {v} ≠ 0 → v ∈ V_perp Φ ∧ ‖v‖ = 1 := by
-  exact sorry
+/-- Almost all e₂ w.r.t. perpSphereMeasure lie in V_perp Φ with unit norm. -/
+lemma perpSphereMeasure_norm_ae (Φ : E n) :
+    ∀ᵐ e₂ ∂(perpSphereMeasure Φ), e₂ ∈ V_perp Φ ∧ ‖e₂‖ = 1 := by
+  have htoEn_meas : Measurable
+      (fun x : Metric.sphere (0 : ↥(V_perp Φ)) 1 => ((x.val : ↥(V_perp Φ)) : E n)) :=
+    measurable_subtype_coe.comp measurable_subtype_coe
+  haveI := V_perp_rawSph_isFinite Φ
+  have htotalMass_inv_ne_zero : (V_perp_rawSph Φ Set.univ)⁻¹ ≠ 0 :=
+    ENNReal.inv_ne_zero.mpr (measure_lt_top _ _).ne
+  simp only [perpSphereMeasure]
+  have hmeasSet : MeasurableSet {e₂ : E n | e₂ ∈ V_perp Φ ∧ ‖e₂‖ = 1} := by
+    have hV : MeasurableSet (V_perp Φ : Set (E n)) := (V_perp_isClosed Φ).measurableSet
+    have hS : MeasurableSet (Metric.sphere (0 : E n) 1) := isClosed_sphere.measurableSet
+    convert hV.inter hS using 1
+    ext e₂; simp
+  rw [ae_map_iff htoEn_meas.aemeasurable hmeasSet,
+      Measure.ae_ennreal_smul_measure_iff htotalMass_inv_ne_zero]
+  apply ae_of_all
+  intro ⟨x, hx⟩
+  have hx' : ‖x‖ = 1 := mem_sphere_zero_iff_norm.mp hx
+  constructor
+  · exact x.property
+  · rw [Submodule.norm_coe]; exact hx'
 
 /-- The perpSphereMeasure is invariant under negation (antipodal symmetry). -/
 lemma perpSphereMeasure_neg_invariant (Φ : E n) :
@@ -83,14 +166,41 @@ lemma perpSphereMeasure_neg_invariant (Φ : E n) :
     and perpSphereMeasure is a finite measure. -/
 lemma inner_integrable (Φ y : E n) :
     Integrable (fun e₂ => inner (𝕜 := ℝ) e₂ y) (perpSphereMeasure Φ) := by
-  sorry -- Blocked: needs |⟨e₂, y⟩| ≤ ‖y‖ on sphere and finite measure
+  apply Integrable.mono' (integrable_const ‖y‖)
+  · exact (continuous_id.inner continuous_const (𝕜 := ℝ)).aestronglyMeasurable
+  · filter_upwards [perpSphereMeasure_norm_ae Φ] with e₂ ⟨_, he₂⟩
+    rw [Real.norm_eq_abs]
+    calc |inner (𝕜 := ℝ) e₂ y|
+        ≤ ‖e₂‖ * ‖y‖ := abs_real_inner_le_norm e₂ y
+      _ = 1 * ‖y‖   := by rw [he₂]
+      _ = ‖y‖       := one_mul _
 
 /-- succProb n e₂ w is integrable over perpSphereMeasure.
     Proof sketch: succProb is continuous (sum of squares of inner products),
     and perpSphereMeasure is supported on the compact unit sphere. -/
 lemma succProb_integrable (Φ : E n) (w : Fin (2 ^ n)) :
     Integrable (fun e₂ => succProb n e₂ w) (perpSphereMeasure Φ) := by
-  sorry -- Blocked: needs continuity of succProb + compact support
+  apply Integrable.mono' (integrable_const (2 : ℝ))
+  · apply Continuous.aestronglyMeasurable
+    simp only [succProb]
+    exact (((continuous_id.inner continuous_const (𝕜 := ℝ)).pow 2).add
+           ((continuous_id.inner continuous_const (𝕜 := ℝ)).pow 2))
+  · filter_upwards [perpSphereMeasure_norm_ae Φ] with e₂ ⟨_, he₂⟩
+    simp only [Real.norm_eq_abs, succProb]
+    have hnn : 0 ≤ inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx0 n w)) ^ 2 +
+                   inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx1 n w)) ^ 2 :=
+      add_nonneg (sq_nonneg _) (sq_nonneg _)
+    rw [abs_of_nonneg hnn]
+    have bound : ∀ û : E n, ‖û‖ = 1 → inner (𝕜 := ℝ) e₂ û ^ 2 ≤ 1 := by
+      intro û hû
+      have h := abs_real_inner_le_norm e₂ û
+      rw [he₂, hû, mul_one] at h
+      have := sq_abs (inner (𝕜 := ℝ) e₂ û)
+      nlinarith [abs_nonneg (inner (𝕜 := ℝ) e₂ û)]
+    linarith [bound (stdBasisVec n (succProbIdx0 n w)) (stdBasisVec_norm n _),
+              bound (stdBasisVec n (succProbIdx1 n w)) (stdBasisVec_norm n _),
+              sq_nonneg (inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx0 n w))),
+              sq_nonneg (inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx1 n w)))]
 
 /-! ## Algebraic expansion of succProb(isotropicError Φ e₂ θ) -/
 
