@@ -2,19 +2,23 @@
 -- M2: The isotropic error model — Poisson kernel marginal density g(θ;σ),
 --     the error state Ψ = cos θ · Φ + sin θ · e₂, and the key property E[cos θ] = σ.
 --
--- SORRY BUDGET: 2
---   sorry 1 (poissonMarginal_isProbMeasure): normalization — blocked on M6 Gegenbauer machinery
+-- SORRY BUDGET: 1  (was 2; sorry 1 proved below)
+--   sorry 1 (poissonMarginal_isProbMeasure): PROVED — normalization via interval integral positivity
 --   sorry 2 (poissonMarginal_mean_cos): E[cos θ] = σ — blocked on M6 moment theorem
 
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
+import Mathlib.Analysis.SpecialFunctions.Pow.Continuity
 import Mathlib.MeasureTheory.Measure.WithDensity
 import Mathlib.MeasureTheory.Integral.Bochner.Basic
+import Mathlib.MeasureTheory.Integral.Bochner.Set
+import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
 import Mathlib.MeasureTheory.Measure.Lebesgue.Basic
+import Mathlib.MeasureTheory.Function.LocallyIntegrable
 import IsotropicGroverProof.Defs
 
 namespace IsotropicGrover
 
-open MeasureTheory Real
+open MeasureTheory Real Set
 
 variable {n : ℕ}
 
@@ -38,14 +42,74 @@ noncomputable def poissonMarginal (d : ℕ) (σ : ℝ) : Measure ℝ :=
   (volume.restrict (Set.Icc 0 Real.pi)).withDensity
     (fun θ => ENNReal.ofReal (poissonKernelDensity d σ θ / poissonNormConst d σ))
 
-/-! ## Probability measure instance (sorry — filled in M6) -/
+/-! ## Private helpers for the probability measure proof -/
+
+private lemma denom_pos (σ θ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
+    0 < 1 + σ ^ 2 - 2 * σ * cos θ := by
+  have hcos : cos θ ≤ 1 := Real.cos_le_one θ
+  nlinarith [sq_nonneg (σ - cos θ), sq_nonneg (1 - σ), hσ.1, hσ.2]
+
+private lemma poissonKernelDensity_nonneg (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
+    (θ : ℝ) (hθ : θ ∈ Set.Icc 0 Real.pi) (hd : 2 ≤ d) :
+    0 ≤ poissonKernelDensity d σ θ := by
+  simp only [poissonKernelDensity]
+  apply div_nonneg
+  · apply mul_nonneg
+    · nlinarith [hσ.1, hσ.2, mul_pos hσ.1 hσ.1]
+    · exact pow_nonneg (Real.sin_nonneg_of_mem_Icc hθ) _
+  · exact Real.rpow_nonneg (by linarith [denom_pos σ θ hσ]) _
+
+private lemma poissonKernelDensity_continuousOn (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
+    ContinuousOn (poissonKernelDensity d σ) (Set.Icc 0 Real.pi) := by
+  unfold poissonKernelDensity
+  apply ContinuousOn.div
+  · exact continuousOn_const.mul (Real.continuous_sin.continuousOn.pow _)
+  · apply ContinuousOn.rpow_const
+    · exact (continuousOn_const.add continuousOn_const).sub
+        (continuousOn_const.mul Real.continuous_cos.continuousOn)
+    · intro θ _; left; exact (denom_pos σ θ hσ).ne'
+  · intro θ hθ; exact (Real.rpow_pos_of_pos (denom_pos σ θ hσ) _).ne'
+
+private lemma poissonNormConst_pos (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
+    (hd : 2 ≤ d) : 0 < poissonNormConst d σ := by
+  unfold poissonNormConst
+  have hf_cont := poissonKernelDensity_continuousOn d σ hσ
+  have hf_nonneg : ∀ θ ∈ Set.Ioc 0 Real.pi, 0 ≤ poissonKernelDensity d σ θ :=
+    fun θ hθ => poissonKernelDensity_nonneg d σ hσ θ (Set.Ioc_subset_Icc_self hθ) hd
+  have hpi2_mem : Real.pi / 2 ∈ Set.Icc 0 Real.pi :=
+    ⟨by linarith [Real.pi_pos], by linarith [Real.pi_pos]⟩
+  have hf_pos_pi2 : 0 < poissonKernelDensity d σ (Real.pi / 2) := by
+    simp only [poissonKernelDensity, Real.sin_pi_div_two, Real.cos_pi_div_two, one_pow]
+    apply div_pos
+    · exact mul_pos (by nlinarith [hσ.1, hσ.2, mul_pos hσ.1 hσ.1]) one_pos
+    · apply Real.rpow_pos_of_pos
+      simp only [mul_zero, sub_zero]
+      nlinarith [hσ.1, hσ.2, mul_pos hσ.1 hσ.1]
+  rw [integral_Icc_eq_integral_Ioc, ← intervalIntegral.integral_of_le (le_of_lt Real.pi_pos)]
+  exact intervalIntegral.integral_pos Real.pi_pos hf_cont hf_nonneg
+    ⟨Real.pi / 2, hpi2_mem, hf_pos_pi2⟩
+
+/-! ## Probability measure instance -/
 
 /-- The Poisson marginal is a probability measure when σ ∈ (0,1). -/
 theorem poissonMarginal_isProbMeasure (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
     (hd : 2 ≤ d) : IsProbabilityMeasure (poissonMarginal d σ) := by
-  sorry -- Blocked on M6: requires showing poissonNormConst d σ > 0 and ∫ normalized = 1
+  rw [isProbabilityMeasure_iff]
+  simp only [poissonMarginal, withDensity_apply _ MeasurableSet.univ, setLIntegral_univ]
+  have hc := poissonNormConst_pos d σ hσ hd
+  have hnonneg : 0 ≤ᵐ[volume.restrict (Icc 0 Real.pi)]
+      (fun θ => poissonKernelDensity d σ θ / poissonNormConst d σ) :=
+    (ae_restrict_iff' measurableSet_Icc).mpr (ae_of_all _ fun θ hθ =>
+      div_nonneg (poissonKernelDensity_nonneg d σ hσ θ hθ hd) hc.le)
+  have hintbl : Integrable (fun θ => poissonKernelDensity d σ θ / poissonNormConst d σ)
+      (volume.restrict (Icc 0 Real.pi)) :=
+    (poissonKernelDensity_continuousOn d σ hσ |>.div_const _).integrableOn_Icc.integrable
+  rw [← ofReal_integral_eq_lintegral_ofReal hintbl hnonneg, integral_div,
+    show (∫ θ, poissonKernelDensity d σ θ ∂volume.restrict (Icc 0 Real.pi)) =
+        poissonNormConst d σ from rfl,
+    div_self hc.ne', ENNReal.ofReal_one]
 
-/-! ## Key moment property (sorry — filled in M6) -/
+/-! ## Key moment property (sorry — requires Poisson kernel moment theorem) -/
 
 /-- The mean of cos θ under the Poisson marginal equals σ.
     σ = E[cos θ] = average amplitude overlap between perturbed and ideal state.

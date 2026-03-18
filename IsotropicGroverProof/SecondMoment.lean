@@ -51,7 +51,40 @@ theorem secondMoment_eq_scalar_perp (Φ : E n) (hΦ : ‖Φ‖ = 1) :
 lemma trace_secondMoment_eq_one (Φ : E n) (hΦ : ‖Φ‖ = 1) :
     ∑ i : Fin (d n),
       ∫ e₂, ⟪(e₂ : E n), stdBasisVec n i⟫_ℝ ^ 2 ∂(perpSphereMeasure Φ) = 1 := by
-  sorry -- ∫ ‖e₂‖² dμ = 1 since μ is supported on unit sphere
+  -- Integrability: ⟨e₂, eᵢ⟩² ≤ 1 on the unit sphere
+  have hint : ∀ i : Fin (d n),
+      Integrable (fun e₂ : E n => inner (𝕜 := ℝ) e₂ (stdBasisVec n i) ^ 2)
+        (perpSphereMeasure Φ) := by
+    intro i
+    apply Integrable.mono' (integrable_const (1 : ℝ))
+    · exact ((inner_integrable Φ (stdBasisVec n i)).aestronglyMeasurable).pow 2
+    · filter_upwards [perpSphereMeasure_norm_ae Φ] with e₂ ⟨_, he₂⟩
+      have h := abs_real_inner_le_norm e₂ (stdBasisVec n i)
+      rw [he₂, stdBasisVec_norm, mul_one] at h
+      have hnn : 0 ≤ inner (𝕜 := ℝ) e₂ (stdBasisVec n i) ^ 2 := sq_nonneg _
+      rw [Real.norm_eq_abs, abs_of_nonneg hnn]
+      nlinarith [sq_abs (inner (𝕜 := ℝ) e₂ (stdBasisVec n i)),
+                 abs_nonneg (inner (𝕜 := ℝ) e₂ (stdBasisVec n i))]
+  -- Exchange sum and integral
+  rw [← integral_finset_sum Finset.univ (fun i _ => hint i)]
+  -- Parseval identity: ∑ ⟨e₂, eᵢ⟩² = ‖e₂‖²
+  have hparseval : ∀ e₂ : E n,
+      ∑ i : Fin (d n), inner (𝕜 := ℝ) e₂ (stdBasisVec n i) ^ 2 = ‖e₂‖ ^ 2 := by
+    intro e₂
+    have hi : ∀ i : Fin (d n), inner (𝕜 := ℝ) e₂ (stdBasisVec n i) = e₂ i := fun i => by
+      simp [stdBasisVec, ← EuclideanSpace.basisFun_apply]
+    simp_rw [hi]
+    exact (EuclideanSpace.real_norm_sq_eq e₂).symm
+  simp_rw [hparseval]
+  -- ‖e₂‖² = 1 a.e. (supported on unit sphere)
+  have hae : ∀ᵐ e₂ ∂(perpSphereMeasure Φ), ‖e₂‖ ^ 2 = 1 := by
+    filter_upwards [perpSphereMeasure_norm_ae Φ] with e₂ ⟨_, he₂⟩
+    rw [he₂, one_pow]
+  rw [integral_congr_ae hae]
+  -- ∫ 1 dμ = 1 (probability measure)
+  haveI : IsProbabilityMeasure (perpSphereMeasure Φ) := perpSphereMeasure_isProbMeasure Φ
+  rw [integral_const]
+  simp [Measure.real, IsProbabilityMeasure.measure_univ]
 
 /-- The trace of P_perp equals d - 1 (the dimension of V_perp). -/
 lemma trace_P_perp (Φ : E n) (hΦ : ‖Φ‖ = 1) :
