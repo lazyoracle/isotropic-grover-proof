@@ -72,8 +72,7 @@ theorem isotropicGrover_main (G : ℕ) (hG : 0 < G) (σ : ℝ) (hσ : σ ∈ Set
 -- The algebraic identity at the heart of the proof (no sorrys needed here):
 -- f₂ · p + (1-f₂) · (2-p)/(d-1) = σ^{2G} · p + (1-σ^{2G})/N
 -- when f₂ = ((d-1)σ^{2G}+1)/d and d = 2N.
-example (p σ2G : ℝ) (N : ℕ) (hN : 0 < N)
-    (hd_eq : True) : -- d = 2N
+example (p σ2G : ℝ) (N : ℕ) (hN : 0 < N) : -- d = 2N
     let d : ℝ := 2 * N
     let f₂ : ℝ := ((d - 1) * σ2G + 1) / d
     f₂ * p + (1 - f₂) * (2 - p) / (d - 1) =

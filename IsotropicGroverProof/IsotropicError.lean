@@ -50,7 +50,7 @@ private lemma denom_pos (σ θ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
   nlinarith [sq_nonneg (σ - cos θ), sq_nonneg (1 - σ), hσ.1, hσ.2]
 
 private lemma poissonKernelDensity_nonneg (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
-    (θ : ℝ) (hθ : θ ∈ Set.Icc 0 Real.pi) (hd : 2 ≤ d) :
+    (θ : ℝ) (hθ : θ ∈ Set.Icc 0 Real.pi) (_hd : 2 ≤ d) :
     0 ≤ poissonKernelDensity d σ θ := by
   simp only [poissonKernelDensity]
   apply div_nonneg

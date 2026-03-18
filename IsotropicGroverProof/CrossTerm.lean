@@ -64,7 +64,7 @@ private lemma V_perp_finrank_pos (Φ : E n) : 0 < Module.finrank ℝ ↥(V_perp 
   have hfin : Module.finrank ℝ (E n) = d n := by simp [E]
   have hspan : Module.finrank ℝ (Submodule.span ℝ {Φ} : Submodule ℝ (E n)) ≤ 1 :=
     (finrank_span_le_card ({Φ} : Set (E n))).trans (by simp)
-  show 0 < Module.finrank ℝ ↥(Submodule.span ℝ {Φ} : Submodule ℝ (E n))ᗮ
+  change 0 < Module.finrank ℝ ↥(Submodule.span ℝ {Φ} : Submodule ℝ (E n))ᗮ
   have h2 : Module.finrank ℝ ↥(Submodule.span ℝ {Φ} : Submodule ℝ (E n)) +
             Module.finrank ℝ ↥(Submodule.span ℝ {Φ} : Submodule ℝ (E n))ᗮ = d n := by
     linarith [horth]
@@ -100,7 +100,7 @@ private lemma V_perp_rawSph_isFinite (Φ : E n) :
     IsFiniteMeasure (V_perp_rawSph Φ) := by
   have hb : BorelSpace ↥(V_perp Φ) := inferInstance
   have hhaar := V_perp_haar_isAddHaar Φ
-  show IsFiniteMeasure (V_perp_haar Φ).toSphere
+  change IsFiniteMeasure (V_perp_haar Φ).toSphere
   exact @Measure.instIsFiniteMeasureElemSphereOfNatRealToSphere _ _ _ _ (V_perp_haar Φ) hb _ hhaar
 
 /-- The uniform probability measure on the unit sphere of V_perp, modeled as a
@@ -317,7 +317,7 @@ lemma integral_e₂_succProb (Φ : E n) (θ : ℝ) (w : Fin (2 ^ n)) :
     3. Integrate over θ: ∫cos²θ dθ = f₂, ∫sin²θ dθ = 1 - f₂ (from isProbMeasure + f₂ def)
     4. Collect terms -/
 theorem expanded_E_pe (G : ℕ) (hG : 0 < G) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
-    (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) :
+    (Φ : E n) (_hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) :
     ∫ θ, ∫ e₂, succProb n (isotropicError Φ e₂ θ) w
           ∂(perpSphereMeasure Φ) ∂(composedMeasure (d n) G σ) =
     f₂ (d n) G σ * succProb n Φ w +

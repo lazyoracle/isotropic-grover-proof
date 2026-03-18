@@ -48,7 +48,7 @@ theorem secondMoment_eq_scalar_perp (Φ : E n) (hΦ : ‖Φ‖ = 1) :
   sorry -- Schur-type: rotational invariance of perpSphereMeasure forces scalar × P_perp
 
 /-- The trace of the second moment operator equals 1 (since ‖e₂‖ = 1 a.s.). -/
-lemma trace_secondMoment_eq_one (Φ : E n) (hΦ : ‖Φ‖ = 1) :
+lemma trace_secondMoment_eq_one (Φ : E n) (_hΦ : ‖Φ‖ = 1) :
     ∑ i : Fin (d n),
       ∫ e₂, ⟪(e₂ : E n), stdBasisVec n i⟫_ℝ ^ 2 ∂(perpSphereMeasure Φ) = 1 := by
   -- Integrability: ⟨e₂, eᵢ⟩² ≤ 1 on the unit sphere
@@ -103,7 +103,7 @@ lemma trace_P_perp (Φ : E n) (hΦ : ‖Φ‖ = 1) :
   linarith
 
 /-- The second moment operator is (1/(d-1)) · P_perp. -/
-theorem secondMoment_coeff (Φ : E n) (hΦ : ‖Φ‖ = 1) (hn : 2 ≤ d n) :
+theorem secondMoment_coeff (Φ : E n) (hΦ : ‖Φ‖ = 1) (_hn : 2 ≤ d n) :
     ∀ u : E n,
       ∫ e₂, ⟪(e₂ : E n), u⟫_ℝ • (e₂ : E n) ∂(perpSphereMeasure Φ) =
       (1 / ((d n : ℝ) - 1)) • P_perp Φ u := by
@@ -215,7 +215,8 @@ theorem decoherent_floor (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) (hn :
   have hû₀ : ‖stdBasisVec n (succProbIdx0 n w)‖ = 1 := stdBasisVec_norm n _
   have hû₁ : ‖stdBasisVec n (succProbIdx1 n w)‖ = 1 := stdBasisVec_norm n _
   -- Integrability of each squared inner product
-  have sq_int₀ : Integrable (fun e₂ : E n => inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx0 n w)) ^ 2)
+  have sq_int₀ : Integrable (fun e₂ : E n =>
+      inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx0 n w)) ^ 2)
       (perpSphereMeasure Φ) := by
     apply Integrable.mono (succProb_integrable Φ w)
     · exact (inner_integrable Φ _).aestronglyMeasurable.pow 2
@@ -223,7 +224,8 @@ theorem decoherent_floor (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) (hn :
       rw [Real.norm_eq_abs, abs_of_nonneg (sq_nonneg _),
           Real.norm_eq_abs, abs_of_nonneg (succProb_nonneg n e₂ w)]
       exact le_add_of_nonneg_right (sq_nonneg _)
-  have sq_int₁ : Integrable (fun e₂ : E n => inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx1 n w)) ^ 2)
+  have sq_int₁ : Integrable (fun e₂ : E n =>
+      inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx1 n w)) ^ 2)
       (perpSphereMeasure Φ) := by
     apply Integrable.mono (succProb_integrable Φ w)
     · exact (inner_integrable Φ _).aestronglyMeasurable.pow 2
@@ -239,7 +241,7 @@ theorem decoherent_floor (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) (hn :
 /-! ## TDD spot-checks -/
 
 -- P_perp is idempotent
-example (n : ℕ) (Φ : E n) (hΦ : ‖Φ‖ = 1) (v : E n) :
+example (n : ℕ) (Φ : E n) (_ : ‖Φ‖ = 1) (v : E n) :
     P_perp Φ (P_perp Φ v) = P_perp Φ v := by
   rw [show P_perp Φ = (V_perp Φ).starProjection from rfl]
   exact congrFun (congrArg DFunLike.coe (V_perp Φ).isIdempotentElem_starProjection) v

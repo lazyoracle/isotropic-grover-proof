@@ -40,9 +40,9 @@ noncomputable def gegenAt1 (μ : ℝ) : ℕ → ℝ
 /-! ## Key values -/
 
 @[simp] lemma gegen_zero (μ x : ℝ) : gegen μ 0 x = 1 := rfl
-@[simp] lemma gegen_one  (μ x : ℝ) : gegen μ 1 x = 2 * μ * x := rfl
+@[simp] lemma gegen_one (μ x : ℝ) : gegen μ 1 x = 2 * μ * x := rfl
 @[simp] lemma gegenAt1_zero (μ : ℝ) : gegenAt1 μ 0 = 1 := rfl
-@[simp] lemma gegenAt1_one  (μ : ℝ) : gegenAt1 μ 1 = 2 * μ := rfl
+@[simp] lemma gegenAt1_one (μ : ℝ) : gegenAt1 μ 1 = 2 * μ := rfl
 
 /-- C_2^μ(x) = 2μ(μ+1)x² - μ -/
 lemma gegen_two (μ x : ℝ) : gegen μ 2 x = 2 * μ * (μ + 1) * x ^ 2 - μ := by
@@ -140,7 +140,7 @@ example (μ : ℝ) : gegen μ 2 1 = gegenAt1 μ 2 := by
 example (x : ℝ) : gegen 1 2 x = 4 * x ^ 2 - 1 := by rw [gegen_two]; ring
 
 -- f₂ at σ=0: f₂ = 1/d (uniform over sphere)
-example (d_val G : ℕ) (hd : 2 ≤ d_val) (hG : 0 < G) :
+example (d_val G : ℕ) (_ : 2 ≤ d_val) (hG : 0 < G) :
     ((d_val - 1 : ℝ) * (0 : ℝ) ^ (2 * G) + 1) / d_val = 1 / d_val := by
   have hGne : 2 * G ≠ 0 := by omega
   simp only [zero_pow hGne, mul_zero, zero_add]
@@ -149,7 +149,7 @@ example (d_val G : ℕ) (hd : 2 ≤ d_val) (hG : 0 < G) :
 example (d_val G : ℕ) (hd : 0 < d_val) :
     ((d_val - 1 : ℝ) * (1 : ℝ) ^ (2 * G) + 1) / d_val = 1 := by
   have hd' : (d_val : ℝ) ≠ 0 := Nat.cast_pos.mpr hd |>.ne'
-  field_simp [hd']; push_cast; ring
+  field_simp [hd']; ring
 
 -- Numeric check: n=2 (d=8), G=1, σ=1/2: f₂ = (7 * 1/4 + 1) / 8 = 11/32
 example : (((8 : ℝ) - 1) * (1/2 : ℝ) ^ 2 + 1) / 8 = 11/32 := by norm_num
