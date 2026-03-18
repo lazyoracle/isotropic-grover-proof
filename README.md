@@ -1,13 +1,35 @@
 # isotropic-grover-proof
 
-## GitHub configuration
+This is an attempt to formalise a proof for studying the impact of Isotropic Errors on Grover's Algorithm using Lean 4, Mathlib and agentic AI tools. 
 
-To set up your new GitHub repository, follow these steps:
+## Goal
 
-* Under your repository name, click **Settings**.
-* In the **Actions** section of the sidebar, click "General".
-* Check the box **Allow GitHub Actions to create and approve pull requests**.
-* Click the **Pages** section of the settings sidebar.
-* In the **Source** dropdown menu, select "GitHub Actions".
+We want a closed-form expression for $\mathrm{E}[p_e(n)]$, the **expected success probability** of Grover's algorithm on $n$ qubits when every gate is subject to an independent isotropic error with per-gate fidelity parameter $\sigma \in (0,1)$. Once we have this, the repetition overhead
 
-After following the steps above, you can remove this section from the README file.
+$$k(n) = \frac{\log(1-p_\mathrm{ideal})}{\log(1-\mathrm{E}[p_e])}$$
+
+can be fit as an exponential in $n$.
+
+The result we will derive is the mixture model
+
+$$\boxed{\mathrm{E}[p_e] = \sigma^{2G(n)} \cdot p_\mathrm{ideal} + \frac{1-\sigma^{2G(n)}}{N},}$$
+
+where $N = 2^n$ is the database size and $G(n)$ is the gate count at optimal Grover iterations (taken directly from simulation data). This formula is **exact** for the isotropic error model — no approximations are made and all finite-size corrections cancel.
+
+More details are available in [english-proof.md](english-proof.md).
+
+## Repository structure
+
+- The english language proof is in `english-proof.md`
+- AI session logs are in `sessions/`
+- The main Lean submodules are under `IsotropicGroverProof` 
+```
+  Defs.lean          — M1: Core types, stdBasisVec, succProb, Parseval identity
+  IsotropicError.lean — M2: Poisson kernel marginal, isotropicError state
+  Composition.lean   — M3: Composition axiom, composedMeasure
+  CrossTerm.lean     — M4: perpSphereMeasure, cross-term cancellation
+  SecondMoment.lean  — M5: P_perp, second moment = (1/(d-1))·P_perp, decoherent floor
+  Gegenbauer.lean    — M6: Gegenbauer polynomials, f₂ formula
+  MainTheorem.lean   — M7: isotropicGrover_main (the final theorem)
+  LimitingCases.lean — M8: Limiting corollaries (σ→1 and σ→0)
+```
