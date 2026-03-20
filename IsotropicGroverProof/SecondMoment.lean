@@ -184,7 +184,8 @@ theorem secondMoment_eq_scalar_perp (Φ : E n) (hΦ : ‖Φ‖ = 1) :
   · -- After exchange, use off-diagonal vanishing and diagonal equality
     -- ∑ᵢ ∑ⱼ aᵢ bⱼ ∫ ⟨e₂, bᵢ⟩⟨e₂, bⱼ⟩ = ∑ᵢ aᵢ bᵢ * c (diagonal only)
     -- First: the inner product ⟪P_perp u, P_perp w⟫ via ONB
-    have inner_onb : ⟪u', w'⟫_ℝ = ∑ i, ⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪(b i : ↥(V_perp Φ)), wV⟫_ℝ := by
+    have inner_onb : ⟪u', w'⟫_ℝ =
+        ∑ i, ⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪(b i : ↥(V_perp Φ)), wV⟫_ℝ := by
       have h := b.sum_inner_mul_inner (𝕜 := ℝ) uV wV
       simp only [Submodule.coe_inner] at h ⊢
       rw [← h]
@@ -192,21 +193,30 @@ theorem secondMoment_eq_scalar_perp (Φ : E n) (hΦ : ‖Φ‖ = 1) :
     rw [inner_onb, Finset.mul_sum]
     congr 1; ext i
     rw [integral_finset_sum _ (fun j _ => ?_)]
-    · -- For each (i,j): ∫ aᵢ bⱼ ⟨e₂, bᵢ⟩⟨e₂, bⱼ⟩ = aᵢ bⱼ ∫ ⟨e₂, bᵢ⟩⟨e₂, bⱼ⟩
-      -- Use integral_perpSphere_inner_mul_ortho for i ≠ j, integral_perpSphere_inner_sq_eq for i = j
+    · -- For each (i,j): ∫ aᵢ bⱼ ⟨e₂, bᵢ⟩⟨e₂, bⱼ⟩ =
+      --   aᵢ bⱼ ∫ ⟨e₂, bᵢ⟩⟨e₂, bⱼ⟩
+      -- Use integral_perpSphere_inner_mul_ortho for i ≠ j,
+      --   integral_perpSphere_inner_sq_eq for i = j
       -- Split into diagonal and off-diagonal
       -- ∑ⱼ aᵢ bⱼ ∫ ⟨e₂, bᵢ⟩⟨e₂, bⱼ⟩ = aᵢ bᵢ * ∫ ⟨e₂, bᵢ⟩² + ∑_{j≠i} aᵢ bⱼ * 0
       -- Pull constant factors out of the integral
       have pull_const : ∀ j,
           ∫ e₂, ⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪e₂, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ *
-            (⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ * ⟪e₂, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ) ∂(perpSphereMeasure Φ) =
-          ⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ *
-            ∫ e₂, ⟪e₂, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ * ⟪e₂, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ ∂(perpSphereMeasure Φ) := by
+            (⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ *
+              ⟪e₂, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ)
+            ∂(perpSphereMeasure Φ) =
+          ⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ *
+            ⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ *
+            ∫ e₂, ⟪e₂, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ *
+              ⟪e₂, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ
+            ∂(perpSphereMeasure Φ) := by
         intro j
         rw [show (fun e₂ => ⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪e₂, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ *
               (⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ * ⟪e₂, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ)) =
             (fun e₂ => (⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ) *
-              (⟪e₂, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ * ⟪e₂, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ)) from by ext; ring]
+              (⟪e₂, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ *
+                ⟪e₂, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ))
+            from by ext; ring]
         rw [integral_const_mul]
       simp_rw [pull_const]
       -- For j ≠ i: ∫ ⟨e₂, bᵢ⟩⟨e₂, bⱼ⟩ = 0

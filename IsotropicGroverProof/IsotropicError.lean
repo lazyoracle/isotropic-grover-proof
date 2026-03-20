@@ -144,8 +144,10 @@ private lemma norm_sq_exp_sub_d2 (σ θ : ℝ) :
   have h2 : (Complex.exp (↑θ * Complex.I) - ↑σ).im = sin θ := by
     simp [Complex.exp_mul_I, Complex.sin_ofReal_re]
   rw [RCLike.norm_sq_eq_def]
-  rw [← show (Complex.exp (↑θ * Complex.I) - ↑σ).re = RCLike.re (Complex.exp (↑θ * Complex.I) - ↑σ) from rfl]
-  rw [← show (Complex.exp (↑θ * Complex.I) - ↑σ).im = RCLike.im (Complex.exp (↑θ * Complex.I) - ↑σ) from rfl]
+  rw [← show (Complex.exp (↑θ * Complex.I) - ↑σ).re =
+    RCLike.re (Complex.exp (↑θ * Complex.I) - ↑σ) from rfl]
+  rw [← show (Complex.exp (↑θ * Complex.I) - ↑σ).im =
+    RCLike.im (Complex.exp (↑θ * Complex.I) - ↑σ) from rfl]
   rw [h1, h2]; nlinarith [Real.sin_sq_add_cos_sq θ]
 
 private lemma pK_is_pKDens_d2 (σ θ : ℝ) :
@@ -171,9 +173,11 @@ private lemma pK_id_intbl_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
     volume 0 (2 * Real.pi) := by
   apply ContinuousOn.intervalIntegrable; apply Continuous.continuousOn
   have hfun : (fun θ : ℝ => (poissonKernel (0:ℂ) (σ:ℂ) • id) (circleMap 0 1 θ))
-      = fun θ : ℝ => (↑(poissonKernel (0:ℂ) (σ:ℂ) (circleMap 0 1 θ)) : ℂ) * circleMap (0:ℂ) 1 θ := by
+      = fun θ : ℝ =>
+        (↑(poissonKernel (0:ℂ) (σ:ℂ) (circleMap 0 1 θ)) : ℂ) *
+          circleMap (0:ℂ) 1 θ := by
     funext θ
-    show poissonKernel (0:ℂ) (↑σ) (circleMap 0 1 θ) • id (circleMap 0 1 θ) = _
+    change poissonKernel (0:ℂ) (↑σ) (circleMap 0 1 θ) • id (circleMap 0 1 θ) = _
     rw [Function.id_def]; exact RCLike.real_smul_eq_coe_mul _ _
   rw [hfun]
   exact (Complex.continuous_ofReal.comp (pK_circ_cont_d2 σ hσ)).mul (continuous_circleMap 0 1)
@@ -185,13 +189,13 @@ private lemma pK_const_intbl_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
   have hfun : (fun θ : ℝ => (poissonKernel (0:ℂ) (σ:ℂ) • (fun _ => (1:ℂ))) (circleMap 0 1 θ))
       = fun θ : ℝ => (↑(poissonKernel (0:ℂ) (σ:ℂ) (circleMap 0 1 θ)) : ℂ) := by
     funext θ
-    show poissonKernel (0:ℂ) (↑σ) (circleMap 0 1 θ) • (1:ℂ) = _
+    change poissonKernel (0:ℂ) (↑σ) (circleMap 0 1 θ) • (1:ℂ) = _
     exact (RCLike.real_smul_eq_coe_mul _ 1).trans (mul_one _)
   rw [hfun]; exact Complex.continuous_ofReal.comp (pK_circ_cont_d2 σ hσ)
 
 private lemma fullcircle_re_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (f : ℂ → ℂ)
-    (hf : DiffContOnCl ℂ f (Metric.ball (0:ℂ) 1))
-    (hf_intbl : IntervalIntegrable (fun θ => (poissonKernel (0:ℂ) (σ:ℂ) • f) (circleMap 0 1 θ))
+    (hf : DiffContOnCl ℂ f (Metric.ball (0 : ℂ) 1))
+    (hf_intbl : IntervalIntegrable (fun θ => (poissonKernel (0 : ℂ) (σ : ℂ) • f) (circleMap 0 1 θ))
       volume 0 (2 * Real.pi)) :
     (2 * Real.pi)⁻¹ * ∫ θ in (0:ℝ)..2 * Real.pi,
       ((poissonKernel (0:ℂ) (σ:ℂ) • f) (circleMap 0 1 θ)).re = (f (σ : ℂ)).re := by
@@ -216,7 +220,7 @@ private lemma fullcircle_cos_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
   have heq : ∀ θ : ℝ, ((poissonKernel (0:ℂ) (↑σ) • (id : ℂ → ℂ)) (circleMap 0 1 θ)).re =
       poissonKernelDensity 2 σ θ * cos θ := by
     intro θ
-    show (poissonKernel (0:ℂ) (↑σ) (circleMap 0 1 θ) • circleMap 0 1 θ).re = _
+    change (poissonKernel (0:ℂ) (↑σ) (circleMap 0 1 θ) • circleMap 0 1 θ).re = _
     have hcm : circleMap (0:ℂ) 1 θ = Complex.exp (↑θ * Complex.I) := by simp [circleMap]
     rw [hcm]; simp only [Complex.smul_re]
     rw [pK_is_pKDens_d2, Complex.exp_mul_I]
@@ -278,7 +282,8 @@ private lemma halfcircle_cos_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
   have hfull := fullcircle_cos_d2 σ hσ
   have hfold := fold_sym_d2 _ sym hcont
   have h2pi : (2 * Real.pi) > 0 := by linarith [Real.pi_pos]
-  have hfull' : ∫ θ in (0:ℝ)..2 * Real.pi, poissonKernelDensity 2 σ θ * cos θ = 2 * Real.pi * σ := by
+  have hfull' : ∫ θ in (0:ℝ)..2 * Real.pi,
+      poissonKernelDensity 2 σ θ * cos θ = 2 * Real.pi * σ := by
     field_simp [h2pi.ne'] at hfull ⊢; linarith
   rw [hfold] at hfull'; linarith
 
@@ -311,7 +316,8 @@ theorem poissonMarginal_mean_cos (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
     unfold poissonMarginal
     have hnc : poissonNormConst 2 σ = Real.pi := poissonNormConst_d2 σ hσ
     have hnc_pos : 0 < poissonNormConst 2 σ := by rw [hnc]; exact Real.pi_pos
-    have h_meas : Measurable (fun θ => ENNReal.ofReal (poissonKernelDensity 2 σ θ / poissonNormConst 2 σ)) :=
+    have h_meas : Measurable (fun θ =>
+        ENNReal.ofReal (poissonKernelDensity 2 σ θ / poissonNormConst 2 σ)) :=
       ((poissonKernelDensity_d2_cont σ hσ).measurable.div_const _).ennreal_ofReal
     have h_lt_top : ∀ᵐ θ ∂MeasureTheory.volume.restrict (Set.Icc 0 Real.pi),
         ENNReal.ofReal (poissonKernelDensity 2 σ θ / poissonNormConst 2 σ) < ⊤ :=
@@ -321,7 +327,9 @@ theorem poissonMarginal_mean_cos (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
         0 ≤ poissonKernelDensity 2 σ θ / poissonNormConst 2 σ := by
       rw [ae_restrict_iff' measurableSet_Icc]
       exact ae_of_all _ (fun θ _ => div_nonneg (poissonKernelDensity_d2_pos σ θ hσ).le hnc_pos.le)
-    have step1 : ∫ θ, (ENNReal.ofReal (poissonKernelDensity 2 σ θ / poissonNormConst 2 σ)).toReal • cos θ
+    have step1 : ∫ θ,
+          (ENNReal.ofReal (poissonKernelDensity 2 σ θ /
+            poissonNormConst 2 σ)).toReal • cos θ
           ∂MeasureTheory.volume.restrict (Set.Icc 0 Real.pi) =
         ∫ θ in Set.Icc 0 Real.pi, poissonKernelDensity 2 σ θ / poissonNormConst 2 σ * cos θ := by
       apply MeasureTheory.integral_congr_ae

@@ -8,8 +8,6 @@ import Mathlib.MeasureTheory.Integral.Bochner.ContinuousLinearMap
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
 import IsotropicGroverProof.IsotropicError
 
-set_option maxHeartbeats 400000
-
 namespace IsotropicGrover
 
 open Real MeasureTheory Complex Set MeasureTheory.Measure intervalIntegral
@@ -51,7 +49,7 @@ private lemma norm_ofReal_eq (σ : ℝ) : ‖(σ : ℂ)‖ = |σ| := by
   rw [Complex.norm_real, Real.norm_eq_abs]
 
 -- On unit circle: poissonKernel 0 σ (exp(iθ)) = poissonKernelDensity 2 σ θ
-private lemma poissonKernel_eq_density_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (θ : ℝ) :
+private lemma poissonKernel_eq_density_d2 (σ : ℝ) (_hσ : σ ∈ Set.Ioo 0 1) (θ : ℝ) :
     poissonKernel 0 (σ : ℂ) (Complex.exp (↑θ * I)) = poissonKernelDensity 2 σ θ := by
   simp only [poissonKernel_def, poissonKernelDensity, sub_zero]
   have hnorm1 : ‖Complex.exp (↑θ * I)‖ ^ 2 = 1 := by
@@ -88,7 +86,7 @@ private lemma poissonKernel_contOn_sphere (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) 
   intro z hz
   simp only [Metric.mem_sphere, dist_zero_right] at hz
   apply ContinuousAt.continuousWithinAt
-  show ContinuousAt (fun w : ℂ =>
+  change ContinuousAt (fun w : ℂ =>
       (‖w - 0‖ ^ 2 - ‖(σ:ℂ) - 0‖ ^ 2) / ‖(w - 0) - ((σ:ℂ) - 0)‖ ^ 2) z
   simp only [sub_zero]
   apply ContinuousAt.div
@@ -126,7 +124,7 @@ private lemma circleAverage_poissonKernel_re_sq (σ : ℝ) (hσ : σ ∈ Set.Ioo
   have hFσ : ((σ : ℂ) ^ 2 / 2 + 1/2 : ℂ).re = (1 + σ^2) / 2 := by
     have h1 : ((σ : ℂ)^2/2 : ℂ).re = σ^2/2 := by
       have h1a : ((σ : ℂ)^2/2 : ℂ).re = ((σ : ℂ)^2).re / 2 := by
-        rw [Complex.div_re]; simp [Complex.normSq_ofReal]; ring
+        rw [Complex.div_re]; simp; ring
       rw [h1a]; norm_cast
     have h2 : (1/2 : ℂ).re = 1/2 := by norm_num
     simp only [Complex.add_re, h1, h2]; ring
@@ -137,7 +135,7 @@ private lemma circleAverage_poissonKernel_re_sq (σ : ℝ) (hσ : σ ∈ Set.Ioo
     apply circleAverage_congr_sphere
     intro z hz
     simp only [Metric.mem_sphere, dist_zero_right, abs_one] at hz
-    show poissonKernel 0 (↑σ) z * z.re ^ 2 =
+    change poissonKernel 0 (↑σ) z * z.re ^ 2 =
         (poissonKernel 0 ↑σ z • (z ^ 2 / 2 + 1 / 2 : ℂ)).re
     rw [Complex.smul_re, smul_eq_mul, re_F_on_sphere z hz]
   rw [hlhs_eq]
@@ -216,8 +214,8 @@ private lemma poissonKernelDensity_two_symm (σ θ : ℝ) :
   simp only [poissonKernelDensity, Nat.sub_self, pow_zero, mul_one, Real.cos_two_pi_sub]
 
 -- For f symmetric under 2π-reflection: ∫_π^{2π} f = ∫_0^π f
-private lemma fold_integral {f : ℝ → ℝ} (hf : ∀ θ, f (2*π - θ) = f θ)
-    (hf_cont : ContinuousOn f (Set.Icc 0 (2*π))) :
+private lemma fold_integral {f : ℝ → ℝ} (hf : ∀ θ, f (2 * π - θ) = f θ)
+    (_hf_cont : ContinuousOn f (Set.Icc 0 (2 * π))) :
     ∫ θ in (π:ℝ)..2*π, f θ = ∫ θ in (0:ℝ)..π, f θ := by
   rw [show ∫ θ in (π:ℝ)..2*π, f θ = ∫ θ in (π:ℝ)..2*π, f (2*π - θ) from
     integral_congr (fun θ _ => (hf θ).symm)]
@@ -250,8 +248,9 @@ private lemma intervalIntegral_kernel_cos_sq_pi (σ : ℝ) (hσ : σ ∈ Set.Ioo
       (Real.continuous_cos.pow 2).continuousOn
   have hKcos_ibl1 : IntervalIntegrable (fun θ => poissonKernelDensity 2 σ θ * Real.cos θ ^ 2)
       volume 0 π :=
-    (hKcos_cont.mono (Set.Icc_subset_Icc_right (by linarith [Real.pi_pos]))).intervalIntegrable_of_Icc
-      Real.pi_pos.le
+    (hKcos_cont.mono
+      (Set.Icc_subset_Icc_right (by linarith [Real.pi_pos]))).intervalIntegrable_of_Icc
+        Real.pi_pos.le
   have hKcos_ibl2 : IntervalIntegrable (fun θ => poissonKernelDensity 2 σ θ * Real.cos θ ^ 2)
       volume π (2*π) :=
     (hKcos_cont.mono (Set.Icc_subset_Icc_left Real.pi_pos.le)).intervalIntegrable_of_Icc
