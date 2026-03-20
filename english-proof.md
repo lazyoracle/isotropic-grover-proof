@@ -21,7 +21,7 @@ The derivation proceeds in six steps:
 3. Collapse all $G(n)$ per-gate errors to a single effective error (composition).
 4. Expand $\mathrm{E}[p_e]$ and show the cross term vanishes.
 5. Compute the "decoherent floor" $\mathrm{E}[|\langle w|\mathbf{e}_2\rangle|^2]$.
-6. Compute the second moment $f_2 = \mathrm{E}[\cos^2\!\theta_G]$ using Gegenbauer polynomials.
+6. Compute the second moment $f_2 = \mathrm{E}[\cos^2\!\theta_G]$ via harmonic extension and induction.
 
 ---
 
@@ -85,15 +85,21 @@ so $P(\sigma\mathbf{e}_1,\xi) = (1-\sigma^2)/(1+\sigma^2-2\sigma\cos\theta)^{d/2
 
 The Poisson kernel is now a distribution over all of $S^{d-1}$, but it only depends on $\xi$ through the single angle $\theta$. To obtain a 1D density over $\theta$ alone — the "marginal" — we integrate over all boundary points at each fixed $\theta$. For a given $\theta$, those points form a $(d-2)$-sphere (a "latitude circle" on $S^{d-1}$), whose surface area element is proportional to $\sin^{d-2}\theta\,d\theta$. Multiplying and normalizing gives $g(\theta;\sigma) \propto (1-\sigma^2)\sin^{d-2}\theta/(1+\sigma^2-2\sigma\cos\theta)^{d/2}$. (The formula above has exponents shifted by $\tfrac{1}{2}$ because Lacalle & Pozo Coronado (2019) define the isotropic normal distribution via the Poisson kernel on $S^d$ rather than $S^{d-1}$; this does not affect any of the calculations below.)
 
-**Why $\mathrm{E}[\cos\theta] = \sigma$.** This is the $l=1$ case of the Gegenbauer moment theorem stated and used in §6. Briefly: the Poisson kernel is the generating function for Gegenbauer polynomials (the zonal spherical harmonics on $S^{d-1}$) [[Axler, Bourdon & Ramey (2001)](#references), Ch. 5], and its $l$-th Gegenbauer moment equals $\sigma^l$. The first Gegenbauer polynomial is $C_1^\lambda(\cos\theta) = 2\lambda\cos\theta$ (see §6), so the $l=1$ moment gives
+**Why $\mathrm{E}[\cos\theta] = \sigma$.** The Poisson kernel has the following key property (the Poisson integral formula [[Axler, Bourdon & Ramey (2001)](#references), Ch. 5]): for any continuous $h$ on $S^{d-1}$,
 
-$$\mathrm{E}[2\lambda\cos\theta] = \sigma^1\cdot 2\lambda \implies \mathrm{E}[\cos\theta] = \sigma.$$
+$$\mathrm{E}[h(\Psi)] = \tilde{h}(\sigma\Phi),$$
+
+where $\tilde{h}: B^d\to\mathbb{R}$ is the unique harmonic function on the open unit ball $B^d$ that extends $h$ continuously to the boundary $S^{d-1}$.
+
+Take $h(\xi) = \xi\cdot\Phi$. The function $\tilde{h}(\mathbf{x}) = \mathbf{x}\cdot\Phi$ is already harmonic ($\Delta(\mathbf{x}\cdot\Phi) = 0$ since it is linear) and equals $h$ on $S^{d-1}$. Therefore:
+
+$$\mathrm{E}[\cos\theta] = \tilde{h}(\sigma\Phi) = \sigma\Phi\cdot\Phi = \sigma.$$
 
 Physically: $\sigma = \mathrm{E}[\cos\theta]$ is the **average amplitude overlap** between the perturbed state $\Psi$ and the ideal state $\Phi$. This is the precise definition of the fidelity parameter — $\sigma=1$ means no rotation (perfect gate), $\sigma=0$ means a uniformly random final state.
 
 ---
 
-#### §3 — Composition: $G(n)$ gates reduce to a single effective error
+#### §3 — $G(n)$ gate errors reduce to a single effective rotation
 
 **Commutativity with gates.** Isotropic errors commute with unitary quantum gates [[Lacalle & Pozo Coronado (2019)](#references)]:
 
@@ -101,15 +107,11 @@ $$U \circ E = E' \circ U,$$
 
 where $E'$ has the same distribution as $E$. Physically, an isotropic error has no preferred axis — it perturbs the state in all equatorial directions equally — so it cannot "know" which gate acts before or after it, and the order is irrelevant. This means every per-gate error can be commuted past all subsequent gates to the end of the circuit, just before measurement.
 
-**Composition of errors.** Two independent isotropic errors with parameters $\sigma_1$ and $\sigma_2$ compose to a single isotropic error with parameter $\sigma_1\sigma_2$ [[Lacalle & Pozo Coronado (2019)](#references)]. This is a consequence of the Gegenbauer moment property: composing two distributions with $l$-th moments $\sigma_1^l$ and $\sigma_2^l$ gives a distribution with $l$-th moment $(\sigma_1\sigma_2)^l$, which is the Poisson kernel distribution with parameter $\sigma_1\sigma_2$. Therefore $G(n)$ independent per-gate errors each with parameter $\sigma$ compose to a single effective error with parameter
+**Effective accumulated rotation.** After commuting all $G(n)$ errors to the end, the final state is the ideal state $\Phi$ rotated by $G(n)$ successive isotropic perturbations. Because every individual error is isotropic — it has no preferred axis — the accumulated rotation direction is also isotropic [[Lacalle & Pozo Coronado (2019)](#references)]: the noise direction $\mathbf{e}_2$ is uniform in $V_\perp$ and independent of the accumulated angle $\theta_G$, exactly as for a single gate (§2). The final noisy state therefore has the same structural form:
 
-$$\sigma_\mathrm{eff} = \sigma^{G(n)}.$$
+$$\Psi = \cos\theta_G\;\Phi + \sin\theta_G\;\mathbf{e}_2.$$
 
-From this point forward we work with a single effective error applied to the ideal final state $\Phi$:
-
-$$\Psi = \cos\theta_G\;\Phi + \sin\theta_G\;\mathbf{e}_2,$$
-
-where $\theta_G$ has density $g(\theta;\sigma^{G(n)})$ and $\mathrm{E}[\cos\theta_G] = \sigma^{G(n)}$.
+By linearity of expectation and the per-gate property $\mathrm{E}[\cos\theta] = \sigma$ (§2), a simple induction gives $\mathrm{E}[\cos\theta_G] = \sigma^{G(n)}$. The second moment $f_2 = \mathrm{E}[\cos^2\!\theta_G]$ — the key quantity for §4–§7 — is computed in §6.
 
 ---
 
@@ -135,7 +137,7 @@ $$\mathrm{E}[\mathbf{e}_2] = \mathrm{E}[-\mathbf{e}_2] = -\mathrm{E}[\mathbf{e}_
 
 Therefore the cross term contributes zero to the expectation.
 
-*Remaining terms.* By the independence of $\theta_G$ and $\mathbf{e}_2$ (stated in §2), the expectation of their product factors:
+*Remaining terms.* By the independence of $\theta_G$ and $\mathbf{e}_2$ (stated in §3), the expectation of their product factors:
 
 $$\mathrm{E}\!\left[\cos^2\!\theta_G\,(\Phi\cdot\hat{u})^2\right] = \mathrm{E}[\cos^2\!\theta_G]\,(\Phi\cdot\hat{u})^2 = f_2\,(\Phi\cdot\hat{u})^2,$$
 $$\mathrm{E}\!\left[\sin^2\!\theta_G\,(\mathbf{e}_2\cdot\hat{u})^2\right] = \mathrm{E}[\sin^2\!\theta_G]\,\mathrm{E}\!\left[(\mathbf{e}_2\cdot\hat{u})^2\right] = (1-f_2)\,\mathrm{E}\!\left[(\mathbf{e}_2\cdot\hat{u})^2\right],$$
@@ -190,45 +192,43 @@ $$\mathrm{E}\!\left[|\langle w|\mathbf{e}_2\rangle|^2\right] = \frac{(1-(\hat{u}
 
 ---
 
-#### §6 — The second moment $f_2$ from Gegenbauer polynomials
+#### §6 — The second moment $f_2$ via harmonic extension and induction
 
-We need $f_2 = \mathrm{E}[\cos^2\!\theta_G]$. Note that this is not the same as $(\mathrm{E}[\cos\theta_G])^2 = \sigma^{2G}$; the second moment of a distribution is generally not the square of its first moment. We need the Gegenbauer polynomial machinery to relate the two.
+We need $f_2 = \mathrm{E}[\cos^2\!\theta_G]$. Note that this is not the same as $(\mathrm{E}[\cos\theta_G])^2 = \sigma^{2G}$; the second moment of a distribution is generally not the square of its first moment.
 
-**Gegenbauer polynomials.** The Gegenbauer polynomials $C_l^\lambda(x)$, $\lambda>0$, are a family of polynomials orthogonal on $[-1,1]$ with weight $(1-x^2)^{\lambda-1/2}$ [[Axler, Bourdon & Ramey (2001)](#references), Ch. 5]. They arise naturally on spheres: $C_l^\lambda(\cos\theta)$ are the rotationally symmetric ("zonal") eigenfunctions of the Laplacian on $S^{d-1}$, with $\lambda = (d-2)/2$. The first three, at the value $\lambda = (d-2)/2$, are:
+**Single-gate second moment.** For one gate, let $f_1 = \mathrm{E}[\cos^2\!\theta]$. Apply the Poisson integral formula from §2 with $h(\xi) = (\xi\cdot\Phi)^2$. The polynomial $(\mathbf{x}\cdot\Phi)^2$ is not harmonic: $\Delta((\mathbf{x}\cdot\Phi)^2) = 2|\Phi|^2 = 2$. Since $\Delta(|\mathbf{x}|^2/d) = 2$, the function
 
-$$C_0^\lambda(x) = 1, \qquad C_1^\lambda(x) = 2\lambda x, \qquad C_2^\lambda(x) = 2\lambda(\lambda+1)x^2 - \lambda.$$
+$$H(\mathbf{x}) = (\mathbf{x}\cdot\Phi)^2 - \frac{|\mathbf{x}|^2}{d}$$
 
-These can be verified by the recurrence $C_l^\lambda(x) = \frac{1}{l}\bigl[2x(\lambda+l-1)C_{l-1}^\lambda(x) - (2\lambda+l-2)C_{l-2}^\lambda(x)\bigr]$ starting from $C_0^\lambda = 1$, $C_1^\lambda(x) = 2\lambda x$.
+is harmonic: $\Delta H = 2 - 2 = 0$. On $S^{d-1}$ (where $|\xi|=1$), $H(\xi) = (\xi\cdot\Phi)^2 - 1/d = h(\xi) - 1/d$, so the harmonic extension of $h$ is $\tilde{h}(\mathbf{x}) = H(\mathbf{x}) + 1/d$. Evaluating at $\mathbf{x} = \sigma\Phi$ (so $\mathbf{x}\cdot\Phi = \sigma$ and $|\mathbf{x}|^2 = \sigma^2$):
 
-**Key theorem: Poisson kernel moments [[Axler, Bourdon & Ramey (2001)](#references), Ch. 5].** For $\theta$ distributed according to $g(\theta;\sigma)$:
+$$f_1 = \tilde{h}(\sigma\Phi) = \sigma^2 - \frac{\sigma^2}{d} + \frac{1}{d} = \frac{(d-1)\sigma^2 + 1}{d}.$$
 
-$$\mathrm{E}\!\left[C_l^\lambda(\cos\theta)\right] = \sigma^l \cdot C_l^\lambda(1), \qquad l = 0,1,2,\ldots$$
+**Induction over $G$ gates.** Let $f_k = \mathrm{E}[(\Psi_k\cdot\Phi)^2]$ after $k$ gate errors. We prove $f_k = ((d-1)\sigma^{2k}+1)/d$ by induction.
 
-This holds because the Poisson kernel $P(\sigma\mathbf{e}_1,\xi)$, as a function of $\cos\theta$, has a series expansion in Gegenbauer polynomials whose $l$-th coefficient is precisely $\sigma^l$. Integrating $C_l^\lambda(\cos\theta)$ against the Poisson kernel marginal $g(\theta;\sigma)$ then picks out this coefficient.
+*Base case.* $f_1 = ((d-1)\sigma^2+1)/d$ from above.
 
-*Consistency check at $l=1$:* $C_1^\lambda(\cos\theta) = 2\lambda\cos\theta$ and $C_1^\lambda(1) = 2\lambda$, so the theorem gives $\mathrm{E}[2\lambda\cos\theta] = \sigma\cdot 2\lambda$, confirming $\mathrm{E}[\cos\theta] = \sigma$ as stated in §2.
+*Inductive step.* The $(k+1)$-th error acts on the current state $\Psi_k$:
 
-**Applying the theorem at $l=2$.** With $\lambda = (d-2)/2$, evaluate $C_2^\lambda$ at $x=1$:
+$$\Psi_{k+1} = \cos\theta_{k+1}\,\Psi_k + \sin\theta_{k+1}\,\mathbf{e}_{2,k+1},$$
 
-$$C_2^\lambda(1) = 2\lambda(\lambda+1)(1)^2 - \lambda = 2\lambda(\lambda+1) - \lambda = \lambda\bigl(2(\lambda+1)-1\bigr) = \lambda(2\lambda+1).$$
+where $\theta_{k+1}$ has the same per-gate distribution (parameter $\sigma$) and $\mathbf{e}_{2,k+1}$ is uniform in $V_\perp^{(\Psi_k)}$, the equatorial subspace orthogonal to $\Psi_k$. Expanding $(\Psi_{k+1}\cdot\Phi)^2$, the cross term vanishes by the same argument as §4. Applying the §5 result to $\mathbf{e}_{2,k+1}$ (uniform in a $(d-1)$-dimensional sphere orthogonal to $\Psi_k$):
 
-Now substitute $2\lambda = d-2$, so $2\lambda+1 = d-1$:
+$$\mathrm{E}\!\left[(\mathbf{e}_{2,k+1}\cdot\Phi)^2\,\big|\,\Psi_k\right] = \frac{1 - (\Psi_k\cdot\Phi)^2}{d-1}.$$
 
-$$C_2^\lambda(1) = \lambda(d-1).$$
+Taking the full expectation:
 
-The theorem gives:
+$$f_{k+1} = f_1\cdot f_k + (1-f_1)\cdot\frac{1-f_k}{d-1}.$$
 
-$$\mathrm{E}\!\left[2\lambda(\lambda+1)\cos^2\!\theta - \lambda\right] = \sigma^2\cdot\lambda(d-1).$$
+*Closing the induction.* Let $f = f_1 = ((d-1)\sigma^2+1)/d$ and assume $f_k = ((d-1)\sigma^{2k}+1)/d$:
 
-Apply linearity of expectation:
+$$d\cdot f_{k+1} = f\bigl((d-1)\sigma^{2k}+1\bigr) + (1-f)(1-\sigma^{2k}) = \sigma^{2k}(fd-1) + 1.$$
 
-$$2\lambda(\lambda+1)\,\mathrm{E}[\cos^2\!\theta] - \lambda = \sigma^2\lambda(d-1).$$
+Since $fd - 1 = (d-1)\sigma^2$:
 
-Isolate $\mathrm{E}[\cos^2\!\theta]$ (dividing through by $2\lambda(\lambda+1)$, using $2(\lambda+1) = d$):
+$$d\cdot f_{k+1} = (d-1)\sigma^{2k}\cdot\sigma^2 + 1 = (d-1)\sigma^{2(k+1)} + 1.$$
 
-$$\mathrm{E}[\cos^2\!\theta] = \frac{\sigma^2\lambda(d-1)+\lambda}{2\lambda(\lambda+1)} = \frac{(d-1)\sigma^2+1}{2(\lambda+1)} = \frac{(d-1)\sigma^2+1}{d}.$$
-
-After $G$ gates, the composed error has $\sigma\to\sigma^G$:
+Setting $k = G$:
 
 $$f_2 = \mathrm{E}[\cos^2\!\theta_G] = \frac{(d-1)\sigma^{2G}+1}{d}.$$
 
@@ -264,7 +264,7 @@ No approximations were made. All finite-$d$ corrections cancel exactly.
 
 ---
 
-#### §8 — Limiting cases
+#### §8 — Limiting cases and code
 
 **When $\sigma^{2G}\to 1$** (near-perfect gates or very short circuit): $\mathrm{E}[p_e]\to p_\mathrm{ideal}$. The noisy algorithm recovers the ideal Grover result.
 
@@ -276,6 +276,6 @@ No approximations were made. All finite-$d$ corrections cancel exactly.
 
 - L. K. Grover, "A fast quantum mechanical algorithm for database search," *Proc. 28th Annual ACM Symposium on Theory of Computing (STOC)*, pp. 212–219, 1996. [arXiv:quant-ph/9605043](https://arxiv.org/abs/quant-ph/9605043) · [DOI:10.1145/237814.237866](https://doi.org/10.1145/237814.237866)
 - J. Lacalle and L. M. Pozo Coronado, "Variance of the sum of independent quantum computing errors," *Quantum Information and Computation*, vol. 19, no. 15–16, pp. 1294–1312, 2019. [DOI:10.26421/QIC19.15-16-3](https://doi.org/10.26421/QIC19.15-16-3)
-- S. Axler, P. Bourdon, and W. Ramey, *Harmonic Function Theory*, 2nd ed., Graduate Texts in Mathematics vol. 137, Springer, 2001. [DOI:10.1007/978-1-4757-8137-3](https://doi.org/10.1007/978-1-4757-8137-3) (Ch. 5: Poisson kernel and its Gegenbauer expansion into zonal spherical harmonics.)
+- S. Axler, P. Bourdon, and W. Ramey, *Harmonic Function Theory*, 2nd ed., Graduate Texts in Mathematics vol. 137, Springer, 2001. [DOI:10.1007/978-1-4757-8137-3](https://doi.org/10.1007/978-1-4757-8137-3) (Ch. 5: Poisson kernel and its harmonic extension property.)
 - R. J. Muirhead, *Aspects of Multivariate Statistical Theory*, Wiley Series in Probability and Statistics, Wiley, New York, 1982. [DOI:10.1002/9780470316559](https://doi.org/10.1002/9780470316559) (Second moment matrix of the uniform distribution on $S^{n-1}$.)
 - K. V. Mardia and P. E. Jupp, *Directional Statistics*, Wiley Series in Probability and Statistics, Wiley, Chichester, 2000. [DOI:10.1002/9780470316979](https://doi.org/10.1002/9780470316979) (Moments of uniform distributions on spheres.)

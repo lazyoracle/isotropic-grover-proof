@@ -45,7 +45,216 @@ theorem secondMoment_eq_scalar_perp (Φ : E n) (hΦ : ‖Φ‖ = 1) :
     ∃ c : ℝ, ∀ u : E n,
       ∫ e₂, ⟪(e₂ : E n), u⟫_ℝ • (e₂ : E n) ∂(perpSphereMeasure Φ) =
       c • P_perp Φ u := by
-  sorry -- Schur-type: rotational invariance of perpSphereMeasure forces scalar × P_perp
+  -- Setup: ONB of V_perp, define c as ∫ ⟨e₂, b₀⟩²
+  let b := stdOrthonormalBasis ℝ ↥(V_perp Φ)
+  have hVfr : 0 < Module.finrank ℝ ↥(V_perp Φ) := by
+    have hd : 2 ≤ d n := by simp [d]; linarith [Nat.one_le_two_pow (n := n)]
+    have horth := Submodule.finrank_add_finrank_orthogonal (𝕜 := ℝ) (E := E n)
+      (Submodule.span ℝ {Φ})
+    have hfin : Module.finrank ℝ (E n) = d n := by simp [E]
+    have hspan : Module.finrank ℝ (Submodule.span ℝ {Φ} : Submodule ℝ (E n)) ≤ 1 :=
+      (finrank_span_le_card ({Φ} : Set (E n))).trans (by simp)
+    change 0 < Module.finrank ℝ ↥(Submodule.span ℝ {Φ} : Submodule ℝ (E n))ᗮ
+    have h2 : Module.finrank ℝ ↥(Submodule.span ℝ {Φ} : Submodule ℝ (E n)) +
+              Module.finrank ℝ ↥(Submodule.span ℝ {Φ} : Submodule ℝ (E n))ᗮ = d n := by
+      linarith [horth]
+    omega
+  let i₀ : Fin (Module.finrank ℝ ↥(V_perp Φ)) := ⟨0, hVfr⟩
+  use ∫ e₂, ⟪e₂, ((b i₀ : ↥(V_perp Φ)) : E n)⟫_ℝ ^ 2 ∂(perpSphereMeasure Φ)
+  set c := ∫ e₂, ⟪e₂, ((b i₀ : ↥(V_perp Φ)) : E n)⟫_ℝ ^ 2 ∂(perpSphereMeasure Φ) with hc_def
+  -- Integrability helpers
+  have norm_sq_int : Integrable (fun e₂ : E n => ‖e₂‖ ^ 2) (perpSphereMeasure Φ) := by
+    have : (fun e₂ : E n => ‖e₂‖ ^ 2) = fun e₂ => ∑ w : Fin (2 ^ n), succProb n e₂ w := by
+      ext e₂; exact (sum_succProb_eq_norm_sq n e₂).symm
+    rw [this]
+    exact integrable_finset_sum _ (fun w _ => succProb_integrable Φ w)
+  have smul_int : ∀ v : E n, Integrable (fun e₂ : E n => inner (𝕜 := ℝ) e₂ v • e₂)
+      (perpSphereMeasure Φ) := by
+    intro v
+    apply Integrable.mono' (norm_sq_int.const_mul ‖v‖)
+    · exact ((inner_integrable Φ v).aestronglyMeasurable).smul aestronglyMeasurable_id
+    · filter_upwards with e₂
+      rw [norm_smul]
+      calc ‖inner (𝕜 := ℝ) e₂ v‖ * ‖e₂‖
+          ≤ ‖e₂‖ * ‖v‖ * ‖e₂‖ := by
+              apply mul_le_mul_of_nonneg_right
+              · rw [Real.norm_eq_abs]; exact abs_real_inner_le_norm e₂ v
+              · exact norm_nonneg _
+        _ = ‖v‖ * ‖e₂‖ ^ 2 := by ring
+  -- Product integrability helper
+  have prod_int : ∀ (y z : E n),
+      Integrable (fun e₂ : E n => ⟪e₂, y⟫_ℝ * ⟪e₂, z⟫_ℝ) (perpSphereMeasure Φ) := by
+    intro y z
+    apply Integrable.mono' (norm_sq_int.const_mul (‖y‖ * ‖z‖))
+    · exact ((inner_integrable Φ y).aestronglyMeasurable.mul
+        (inner_integrable Φ z).aestronglyMeasurable)
+    · filter_upwards with e₂
+      rw [Real.norm_eq_abs, abs_mul]
+      calc |⟪e₂, y⟫_ℝ| * |⟪e₂, z⟫_ℝ|
+          ≤ (‖e₂‖ * ‖y‖) * (‖e₂‖ * ‖z‖) := by
+            apply mul_le_mul (abs_real_inner_le_norm _ _) (abs_real_inner_le_norm _ _)
+              (abs_nonneg _) (mul_nonneg (norm_nonneg _) (norm_nonneg _))
+        _ = (‖y‖ * ‖z‖) * ‖e₂‖ ^ 2 := by ring
+  intro u
+  -- Show equality via ext_inner_right: suffices ∀ w, ⟪LHS, w⟫ = ⟪RHS, w⟫
+  apply ext_inner_right ℝ
+  intro w
+  -- RHS: ⟪c • P_perp Φ u, w⟫ = c * ⟪P_perp Φ u, w⟫
+  rw [real_inner_smul_left]
+  -- LHS: ⟪∫ ⟨e₂, u⟩ e₂, w⟫ = ∫ ⟨e₂, u⟩⟨e₂, w⟩
+  have lhs_rw : ⟪∫ e₂, ⟪(e₂ : E n), u⟫_ℝ • (e₂ : E n) ∂(perpSphereMeasure Φ), w⟫_ℝ =
+      ∫ e₂, ⟪(e₂ : E n), u⟫_ℝ * ⟪(e₂ : E n), w⟫_ℝ ∂(perpSphereMeasure Φ) := by
+    rw [real_inner_comm, ← integral_inner (smul_int u) w]
+    congr 1; ext e₂
+    rw [real_inner_smul_right, real_inner_comm w]
+  rw [lhs_rw]
+  -- Goal: ∫ ⟨e₂, u⟩⟨e₂, w⟩ dμ = c * ⟪P_perp Φ u, w⟫
+  -- Step: use a.e. membership to replace u → P_perp u and w → P_perp w
+  -- Since e₂ ∈ V_perp a.e., ⟪e₂, u⟫ = ⟪e₂, P_perp u⟫ a.e.
+  have ae_u : ∀ᵐ e₂ ∂(perpSphereMeasure Φ),
+      ⟪e₂, u⟫_ℝ = ⟪e₂, P_perp Φ u⟫_ℝ := by
+    filter_upwards [perpSphereMeasure_norm_ae Φ] with e₂ ⟨he₂_mem, _⟩
+    rw [P_perp_apply Φ u hΦ, inner_sub_right, inner_smul_right]
+    have : ⟪e₂, Φ⟫_ℝ = 0 := by
+      rw [real_inner_comm]; exact (mem_V_perp_iff Φ e₂).mp he₂_mem
+    simp [this]
+  have ae_w : ∀ᵐ e₂ ∂(perpSphereMeasure Φ),
+      ⟪e₂, w⟫_ℝ = ⟪e₂, P_perp Φ w⟫_ℝ := by
+    filter_upwards [perpSphereMeasure_norm_ae Φ] with e₂ ⟨he₂_mem, _⟩
+    rw [P_perp_apply Φ w hΦ, inner_sub_right, inner_smul_right]
+    have : ⟪e₂, Φ⟫_ℝ = 0 := by
+      rw [real_inner_comm]; exact (mem_V_perp_iff Φ e₂).mp he₂_mem
+    simp [this]
+  rw [integral_congr_ae (by filter_upwards [ae_u, ae_w] with e₂ hu hw; rw [hu, hw])]
+  -- Now goal: ∫ ⟨e₂, P_perp u⟩⟨e₂, P_perp w⟩ dμ = c * ⟪P_perp u, w⟫
+  -- P_perp u ∈ V_perp and P_perp w ∈ V_perp. Also ⟪P_perp u, w⟫ = ⟪P_perp u, P_perp w⟫
+  have hPu_mem : P_perp Φ u ∈ V_perp Φ := by
+    rw [mem_V_perp_iff, P_perp_apply Φ u hΦ, inner_sub_right, inner_smul_right,
+        real_inner_self_eq_norm_sq, hΦ, one_pow, mul_one, sub_self]
+  have hPw_mem : P_perp Φ w ∈ V_perp Φ := by
+    rw [mem_V_perp_iff, P_perp_apply Φ w hΦ, inner_sub_right, inner_smul_right,
+        real_inner_self_eq_norm_sq, hΦ, one_pow, mul_one, sub_self]
+  -- ⟪P_perp u, w⟫ = ⟪P_perp u, P_perp w⟫ (since P_perp is self-adjoint/idempotent)
+  have inner_Pu_w : ⟪P_perp Φ u, w⟫_ℝ = ⟪P_perp Φ u, P_perp Φ w⟫_ℝ := by
+    rw [P_perp_apply Φ w hΦ, inner_sub_right, inner_smul_right]
+    have : ⟪P_perp Φ u, Φ⟫_ℝ = 0 := by
+      rw [real_inner_comm]; exact (mem_V_perp_iff Φ _).mp hPu_mem
+    simp [this]
+  rw [inner_Pu_w]
+  -- Now goal: ∫ ⟨e₂, P_perp u⟩⟨e₂, P_perp w⟩ dμ = c * ⟪P_perp u, P_perp w⟫
+  -- Lift P_perp u and P_perp w to elements of V_perp
+  set u' := P_perp Φ u with hu'_def
+  set w' := P_perp Φ w with hw'_def
+  -- Lift to V_perp subtypes
+  let uV : ↥(V_perp Φ) := ⟨u', hPu_mem⟩
+  let wV : ↥(V_perp Φ) := ⟨w', hPw_mem⟩
+  -- Expand u' and w' in the ONB b of V_perp
+  -- u' = ∑ i, ⟪b i, uV⟫ • (b i : E n) (using OrthonormalBasis.sum_repr')
+  have hu'_expand : u' = ∑ i, ⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ • ((b i : ↥(V_perp Φ)) : E n) := by
+    have h := b.sum_repr' uV
+    -- h : ∑ i, ⟪b i, uV⟫ • b i = uV
+    -- Coerce both sides to E n
+    change u' = _
+    conv_lhs => rw [show u' = (uV : E n) from rfl, ← congrArg Subtype.val h]
+    simp only [Submodule.coe_sum, Submodule.coe_smul_of_tower, Submodule.coe_inner]
+  -- Similarly for w'
+  have hw'_expand : w' = ∑ j, ⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ • ((b j : ↥(V_perp Φ)) : E n) := by
+    have h := b.sum_repr' wV
+    change w' = _
+    conv_lhs => rw [show w' = (wV : E n) from rfl, ← congrArg Subtype.val h]
+    simp only [Submodule.coe_sum, Submodule.coe_smul_of_tower, Submodule.coe_inner]
+  -- Rewrite inner products using ONB expansion
+  -- ⟪e₂, u'⟫ = ∑ i, ⟪b i, uV⟫ * ⟪e₂, b i⟫
+  have inner_u'_expand : ∀ e₂ : E n,
+      ⟪e₂, u'⟫_ℝ = ∑ i, ⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪e₂, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ := by
+    intro e₂; rw [hu'_expand, inner_sum]; congr 1; ext i; rw [inner_smul_right]
+  have inner_w'_expand : ∀ e₂ : E n,
+      ⟪e₂, w'⟫_ℝ = ∑ j, ⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ * ⟪e₂, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ := by
+    intro e₂; rw [hw'_expand, inner_sum]; congr 1; ext j; rw [inner_smul_right]
+  -- Rewrite the integrand (only on LHS to avoid rewriting RHS ⟪u', w'⟫)
+  have integrand_rw : ∀ e₂ : E n,
+      ⟪e₂, u'⟫_ℝ * ⟪e₂, w'⟫_ℝ =
+      ∑ i, ∑ j, (⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪e₂, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ) *
+        (⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ * ⟪e₂, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ) := by
+    intro e₂; rw [inner_u'_expand, inner_w'_expand, Finset.sum_mul_sum]
+  simp_rw [integrand_rw]
+  -- ∫ ∑ᵢ ∑ⱼ aᵢ bⱼ ⟨e₂, bᵢ⟩ ⟨e₂, bⱼ⟩ = ∑ᵢ ∑ⱼ aᵢ bⱼ ∫ ⟨e₂, bᵢ⟩ ⟨e₂, bⱼ⟩
+  -- Exchange integral and sum
+  rw [integral_finset_sum _ (fun i _ => ?_)]
+  · -- After exchange, use off-diagonal vanishing and diagonal equality
+    -- ∑ᵢ ∑ⱼ aᵢ bⱼ ∫ ⟨e₂, bᵢ⟩⟨e₂, bⱼ⟩ = ∑ᵢ aᵢ bᵢ * c (diagonal only)
+    -- First: the inner product ⟪P_perp u, P_perp w⟫ via ONB
+    have inner_onb : ⟪u', w'⟫_ℝ =
+        ∑ i, ⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪(b i : ↥(V_perp Φ)), wV⟫_ℝ := by
+      have h := b.sum_inner_mul_inner (𝕜 := ℝ) uV wV
+      simp only [Submodule.coe_inner] at h ⊢
+      rw [← h]
+      congr 1; ext i; rw [real_inner_comm]
+    rw [inner_onb, Finset.mul_sum]
+    congr 1; ext i
+    rw [integral_finset_sum _ (fun j _ => ?_)]
+    · -- For each (i,j): ∫ aᵢ bⱼ ⟨e₂, bᵢ⟩⟨e₂, bⱼ⟩ =
+      --   aᵢ bⱼ ∫ ⟨e₂, bᵢ⟩⟨e₂, bⱼ⟩
+      -- Use integral_perpSphere_inner_mul_ortho for i ≠ j,
+      --   integral_perpSphere_inner_sq_eq for i = j
+      -- Split into diagonal and off-diagonal
+      -- ∑ⱼ aᵢ bⱼ ∫ ⟨e₂, bᵢ⟩⟨e₂, bⱼ⟩ = aᵢ bᵢ * ∫ ⟨e₂, bᵢ⟩² + ∑_{j≠i} aᵢ bⱼ * 0
+      -- Pull constant factors out of the integral
+      have pull_const : ∀ j,
+          ∫ e₂, ⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪e₂, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ *
+            (⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ *
+              ⟪e₂, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ)
+            ∂(perpSphereMeasure Φ) =
+          ⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ *
+            ⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ *
+            ∫ e₂, ⟪e₂, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ *
+              ⟪e₂, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ
+            ∂(perpSphereMeasure Φ) := by
+        intro j
+        rw [show (fun e₂ => ⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪e₂, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ *
+              (⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ * ⟪e₂, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ)) =
+            (fun e₂ => (⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ) *
+              (⟪e₂, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ *
+                ⟪e₂, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ))
+            from by ext; ring]
+        rw [integral_const_mul]
+      simp_rw [pull_const]
+      -- For j ≠ i: ∫ ⟨e₂, bᵢ⟩⟨e₂, bⱼ⟩ = 0
+      -- For j = i: ∫ ⟨e₂, bᵢ⟩⟨e₂, bᵢ⟩ = ∫ ⟨e₂, bᵢ⟩² = c
+      have ortho : ∀ j, i ≠ j →
+          ∫ e₂, ⟪e₂, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ * ⟪e₂, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ
+            ∂(perpSphereMeasure Φ) = 0 := by
+        intro j hij
+        exact integral_perpSphere_inner_mul_ortho Φ (b i) (b j)
+          (by rw [← Submodule.coe_inner]; exact b.orthonormal.2 hij)
+      have diag : ∫ e₂, ⟪e₂, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ *
+          ⟪e₂, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ ∂(perpSphereMeasure Φ) = c := by
+        have hmul_sq : ∀ e₂ : E n, ⟪e₂, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ *
+            ⟪e₂, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ = ⟪e₂, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ ^ 2 := by
+          intro e₂; ring
+        simp_rw [hmul_sq]
+        exact integral_perpSphere_inner_sq_eq Φ (b i) (b i₀)
+          (by rw [Submodule.norm_coe]; exact b.orthonormal.1 i)
+          (by rw [Submodule.norm_coe]; exact b.orthonormal.1 i₀)
+      -- Use Finset.sum_eq_single to isolate diagonal term
+      rw [Finset.sum_eq_single i]
+      · rw [diag]; ring
+      · intro j _ hij
+        rw [ortho j (Ne.symm hij), mul_zero]
+      · intro hi; exact absurd (Finset.mem_univ i) hi
+    · -- Integrability of the inner summand for each j
+      have hrw : (fun a => ⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪a, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ *
+          (⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ * ⟪a, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ)) =
+        (fun a => (⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ) *
+          (⟪a, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ * ⟪a, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ)) := by ext; ring
+      rw [hrw]; exact (prod_int _ _).const_mul _
+  · -- Integrability of the outer summand for each i (a sum over j)
+    apply integrable_finset_sum; intro j _
+    have hrw : (fun a => ⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪a, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ *
+        (⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ * ⟪a, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ)) =
+      (fun a => (⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ) *
+        (⟪a, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ * ⟪a, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ)) := by ext; ring
+    rw [hrw]; exact (prod_int _ _).const_mul _
 
 /-- The trace of the second moment operator equals 1 (since ‖e₂‖ = 1 a.s.). -/
 lemma trace_secondMoment_eq_one (Φ : E n) (_hΦ : ‖Φ‖ = 1) :

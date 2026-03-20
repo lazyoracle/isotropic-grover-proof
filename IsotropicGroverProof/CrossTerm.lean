@@ -7,21 +7,24 @@
 --   sorry 2 (stub for future): (none currently)
 
 import Mathlib.Analysis.InnerProductSpace.Projection.Basic
+import Mathlib.Analysis.InnerProductSpace.Projection.Reflection
 import Mathlib.Analysis.InnerProductSpace.Continuous
 import Mathlib.Analysis.Normed.Lp.MeasurableSpace
+import Mathlib.Analysis.Normed.Group.BallSphere
 import Mathlib.MeasureTheory.Measure.MeasureSpace
 import Mathlib.MeasureTheory.Group.MeasurableEquiv
 import Mathlib.MeasureTheory.Integral.Prod
 import Mathlib.MeasureTheory.Constructions.HaarToSphere
 import Mathlib.MeasureTheory.Measure.Haar.InnerProductSpace
 import Mathlib.MeasureTheory.Measure.Haar.OfBasis
+import Mathlib.MeasureTheory.Measure.Lebesgue.EqHaar
 import Mathlib.Analysis.InnerProductSpace.Projection.FiniteDimensional
 import Mathlib.LinearAlgebra.Dimension.Finite
 import IsotropicGroverProof.Composition
 
 namespace IsotropicGrover
 
-open MeasureTheory Real Metric
+open MeasureTheory Real Metric InnerProductSpace
 
 variable {n : ℕ}
 
@@ -154,10 +157,215 @@ lemma perpSphereMeasure_norm_ae (Φ : E n) :
   · exact x.property
   · rw [Submodule.norm_coe]; exact hx'
 
+-- Helper: the Haar measure on V_perp is invariant under negation.
+private lemma V_perp_haar_neg_invariant (Φ : E n) :
+    Measure.map Neg.neg (V_perp_haar Φ) = V_perp_haar Φ := by
+  -- Negation is the linear map (-1 : ℝ) • id, with det = (-1)^finrank, |det^{-1}| = 1
+  -- We use the BorelSpace instance explicitly (as in V_perp_haar_isAddHaar)
+  have hb : BorelSpace ↥(V_perp Φ) := inferInstance
+  have hhaar : Measure.IsAddHaarMeasure (V_perp_haar Φ) := V_perp_haar_isAddHaar Φ
+  -- The negation linear map and its det
+  let f : ↥(V_perp Φ) →ₗ[ℝ] ↥(V_perp Φ) := (-1 : ℝ) • LinearMap.id
+  have hfneg : (f : ↥(V_perp Φ) → ↥(V_perp Φ)) = Neg.neg := by ext x; simp [f]
+  have hdet : LinearMap.det f ≠ 0 := by
+    simp only [f, LinearMap.det_smul, LinearMap.det_id, mul_one]
+    exact pow_ne_zero _ (by norm_num)
+  rw [← hfneg, @Measure.map_linearMap_addHaar_eq_smul_addHaar
+      ↥(V_perp Φ) _ _ _ hb _ (V_perp_haar Φ) hhaar f hdet]
+  -- Goal: ENNReal.ofReal |(det f)^{-1}| • V_perp_haar Φ = V_perp_haar Φ
+  -- det f = (-1)^finrank, |(-1)^finrank|⁻¹ = 1⁻¹ = 1
+  simp only [f, LinearMap.det_smul, LinearMap.det_id, mul_one, abs_inv,
+             abs_neg_one_pow, inv_one, ENNReal.ofReal_one, one_smul]
+
+-- Helper: the raw sphere measure on V_perp is invariant under negation.
+-- We define negSph explicitly to avoid the InvolutiveNeg instance synthesis issue
+-- (caused by a zero-instance diamond on submodule subtypes).
+private lemma V_perp_rawSph_neg_invariant (Φ : E n) :
+    let negSph : Metric.sphere (0 : ↥(V_perp Φ)) 1 → Metric.sphere (0 : ↥(V_perp Φ)) 1 :=
+      fun x => ⟨-x.val,
+        mem_sphere_zero_iff_norm.mpr (by rw [norm_neg]; exact norm_eq_of_mem_sphere x)⟩
+    Measure.map negSph (V_perp_rawSph Φ) = V_perp_rawSph Φ := by
+  intro negSph
+  have hb : BorelSpace ↥(V_perp Φ) := inferInstance
+  -- negSph is measurable (it's continuous)
+  have hnegSph_meas : Measurable negSph :=
+    ((continuous_neg.comp continuous_subtype_val).subtype_mk _).measurable
+  -- negation on V_perp is a measurable embedding (for MeasurableEmbedding.map_apply)
+  have hmembed : MeasurableEmbedding (Neg.neg : ↥(V_perp Φ) → ↥(V_perp Φ)) :=
+    measurableEmbedding_neg
+  -- Change to a form where rw [toSphere_apply'] works without instance mismatch
+  -- by restating the goal in terms of the explicit @-applied toSphere
+  suffices h : ∀ (t : Set (Metric.sphere (0 : ↥(V_perp Φ)) 1)),
+      MeasurableSet t →
+      @Measure.toSphere _ _ _ _ (V_perp_haar Φ) (negSph ⁻¹' t) =
+      @Measure.toSphere _ _ _ _ (V_perp_haar Φ) t by
+    ext s hs
+    simp only [V_perp_rawSph, Measure.map_apply hnegSph_meas hs]
+    exact h s hs
+  intro s hs
+  -- Now use toSphere_apply' with explicit hb
+  rw [@Measure.toSphere_apply' _ _ _ _ (V_perp_haar Φ) hb _ (hs.preimage hnegSph_meas),
+      @Measure.toSphere_apply' _ _ _ _ (V_perp_haar Φ) hb _ hs]
+  -- Goal: dim * μ(Ioo • ↑'' (negSph ⁻¹' s)) = dim * μ(Ioo • ↑'' s)
+  -- Step 1: ↑'' (negSph ⁻¹' s) = -(↑'' s) [himg]
+  -- Step 2: Ioo 0 1 • -(↑'' s) = -(Ioo 0 1 • ↑'' s) [smul_neg]
+  -- Step 3: μ(-(Ioo • ↑'' s)) = μ(Ioo • ↑'' s) [neg-invariance]
+  congr 1
+  -- Goal: (V_perp_haar Φ) (Ioo 0 1 • val'' (negSph ⁻¹' s)) = (V_perp_haar Φ) (Ioo 0 1 • val'' s)
+  -- Strategy: rewrite LHS as (map Neg.neg (V_perp_haar Φ)) (Ioo • val'' s) via set equality,
+  -- then use V_perp_haar_neg_invariant.
+  have hinv := V_perp_haar_neg_invariant Φ
+  -- Rewrite using neg-invariance: sufficient to show the set arguments are equal
+  -- in the form needed by hmembed.map_apply.
+  -- We convert: (V_perp_haar Φ) (Ioo • val'' (negSph ⁻¹' s))
+  --           = (V_perp_haar Φ) (Neg.neg ⁻¹' (Ioo • val'' s))
+  -- because Ioo • val'' (negSph ⁻¹' s) = Neg.neg ⁻¹' (Ioo • val'' s)
+  -- (element membership: y = r • (-x.val) ↔ -y = r • x.val)
+  -- Then use ← hmembed.map_apply + hinv.
+  -- We avoid stating the set equality as a `have` (which requires spelling out the set type
+  -- and causes HSMul (Set ℝ) (Set ↥(V_perp Φ)) synthesis failure).
+  -- Instead, use congr_arg with a suffices.
+  suffices hsets : ∀ (T₁ T₂ : Set ↥(V_perp Φ)),
+      T₁ = Neg.neg ⁻¹' T₂ → (V_perp_haar Φ) T₁ = (V_perp_haar Φ) T₂ by
+    apply hsets
+    -- Goal: Ioo • val'' (negSph ⁻¹' s) = Neg.neg ⁻¹' (Ioo • val'' s)
+    -- (y is in the LHS iff -y ∈ Ioo • val'' s)
+    ext y
+    simp only [Set.mem_preimage]
+    constructor
+    · -- Forward: y = r • v where v ∈ val'' (negSph ⁻¹' s)
+      --   → ∃ z ∈ sphere with z ∈ negSph ⁻¹' s and v = z.val, y = r • z.val
+      --   → negSph z ∈ s (i.e. ⟨-z.val,...⟩ ∈ s)
+      --   → -(r • z.val) = r • (negSph z).val ∈ Ioo • val'' s
+      rintro ⟨r, hr, v, ⟨z, hz, rfl⟩, rfl⟩
+      -- hz : z ∈ negSph ⁻¹' s, i.e., negSph z ∈ s
+      -- goal: -(r • z.val) ∈ Ioo • val'' s
+      refine ⟨r, hr, (negSph z).val, ⟨negSph z, hz, rfl⟩, ?_⟩
+      simp [negSph, smul_neg]
+    · -- Backward: -y = r • x.val for x ∈ s, so y = r • (-x.val)
+      --   → ⟨-x.val,...⟩ ∈ negSph ⁻¹' s (since negSph maps it to x ∈ s)
+      rintro ⟨r, hr, v, ⟨x, hxs, rfl⟩, h⟩
+      -- h : r • x.val = -y, so y = -(r • x.val) = r • (-x.val)
+      -- Let w = ⟨-x.val, ...⟩
+      let w : Metric.sphere (0 : ↥(V_perp Φ)) 1 :=
+        ⟨-x.val, mem_sphere_zero_iff_norm.mpr (by rw [norm_neg]; exact norm_eq_of_mem_sphere x)⟩
+      refine ⟨r, hr, w.val, ⟨w, ?_, rfl⟩, ?_⟩
+      · -- w ∈ negSph ⁻¹' s: negSph w = ⟨-(-x.val),...⟩ which equals x ∈ s
+        simp only [Set.mem_preimage]
+        convert hxs using 1
+        ext; simp [negSph, w]
+      · -- r • w.val = y: w.val = -x.val, r • (-x.val) = -(r • x.val) = -(-y) = y
+        have h' : r • x.val = -y := h
+        -- w.val = -x.val, so r • w.val = r • (-x.val) = -(r • x.val) = -(-y) = y
+        change r • w.val = y
+        simp only [w, smul_neg, h', neg_neg]
+  intro T₁ T₂ h
+  rw [h, ← hmembed.map_apply (V_perp_haar Φ), hinv]
+
+-- Helper: V_perp Haar measure is invariant under linear isometries of V_perp.
+private lemma V_perp_haar_map_isometry (Φ : E n)
+    (f : ↥(V_perp Φ) ≃ₗᵢ[ℝ] ↥(V_perp Φ)) :
+    Measure.map f (V_perp_haar Φ) = V_perp_haar Φ := by
+  have hb : BorelSpace ↥(V_perp Φ) := inferInstance
+  have hhaar : Measure.IsAddHaarMeasure (V_perp_haar Φ) := V_perp_haar_isAddHaar Φ
+  let g : ↥(V_perp Φ) →ₗ[ℝ] ↥(V_perp Φ) := f.toLinearEquiv.toLinearMap
+  have hfg : (f : ↥(V_perp Φ) → ↥(V_perp Φ)) = g := rfl
+  have hdet : g.det ≠ 0 := f.toLinearEquiv.isUnit_det'.ne_zero
+  rw [hfg, @Measure.map_linearMap_addHaar_eq_smul_addHaar
+      ↥(V_perp Φ) _ _ _ hb _ (V_perp_haar Φ) hhaar g hdet]
+  suffices h : |g.det| = 1 by simp [abs_inv, h]
+  -- det of a linear isometry is ±1: use OrthonormalBasis.det_to_matrix_orthonormalBasis_real
+  let b := stdOrthonormalBasis ℝ ↥(V_perp Φ)
+  have hdet_eq : g.det = b.toBasis.det (b.map f) := by
+    have h1 : (b.map f : Fin _ → ↥(V_perp Φ)) = g ∘ ⇑b.toBasis := by
+      ext i; simp [g, b, OrthonormalBasis.map]
+    rw [h1, b.toBasis.det_comp g ⇑b.toBasis, b.toBasis.det_self, mul_one]
+  have hpm := b.det_to_matrix_orthonormalBasis_real (b.map f)
+  rcases hpm with h | h <;> simp [hdet_eq, h]
+
+-- Helper: the raw sphere measure is invariant under linear isometries of V_perp.
+private lemma V_perp_rawSph_isometry_invariant (Φ : E n)
+    (f : ↥(V_perp Φ) ≃ₗᵢ[ℝ] ↥(V_perp Φ)) :
+    let fSph : Metric.sphere (0 : ↥(V_perp Φ)) 1 → Metric.sphere (0 : ↥(V_perp Φ)) 1 :=
+      fun x => ⟨f x.val,
+        mem_sphere_zero_iff_norm.mpr (by rw [f.norm_map]; exact norm_eq_of_mem_sphere x)⟩
+    Measure.map fSph (V_perp_rawSph Φ) = V_perp_rawSph Φ := by
+  intro fSph
+  have hb : BorelSpace ↥(V_perp Φ) := inferInstance
+  have hfSph_meas : Measurable fSph := by
+    have hcont : Continuous fSph := (f.continuous.comp continuous_subtype_val).subtype_mk _
+    letI : BorelSpace (Metric.sphere (0 : ↥(V_perp Φ)) 1) := inferInstance
+    exact hcont.measurable
+  have hf_meas : Measurable (f : ↥(V_perp Φ) → ↥(V_perp Φ)) :=
+    @Continuous.measurable _ _ _ _ (@BorelSpace.opensMeasurable _ _ _ hb) _ _ hb
+      (f : ↥(V_perp Φ) → ↥(V_perp Φ)) f.continuous
+  have hf_symm_meas : Measurable (f.symm : ↥(V_perp Φ) → ↥(V_perp Φ)) :=
+    @Continuous.measurable _ _ _ _ (@BorelSpace.opensMeasurable _ _ _ hb) _ _ hb
+      (f.symm : ↥(V_perp Φ) → ↥(V_perp Φ)) f.symm.continuous
+  have hmembed : MeasurableEmbedding (f : ↥(V_perp Φ) → ↥(V_perp Φ)) :=
+    ⟨f.injective, hf_meas, fun {s} hs => by
+      rw [Set.image_eq_preimage_of_inverse f.symm_apply_apply f.apply_symm_apply]
+      exact hf_symm_meas hs⟩
+  have hinv := V_perp_haar_map_isometry Φ f
+  suffices h : ∀ (t : Set (Metric.sphere (0 : ↥(V_perp Φ)) 1)),
+      MeasurableSet t →
+      @Measure.toSphere _ _ _ _ (V_perp_haar Φ) (fSph ⁻¹' t) =
+      @Measure.toSphere _ _ _ _ (V_perp_haar Φ) t by
+    ext s hs
+    simp only [V_perp_rawSph, Measure.map_apply hfSph_meas hs]
+    exact h s hs
+  intro s hs
+  rw [@Measure.toSphere_apply' _ _ _ _ (V_perp_haar Φ) hb _ (hs.preimage hfSph_meas),
+      @Measure.toSphere_apply' _ _ _ _ (V_perp_haar Φ) hb _ hs]
+  congr 1
+  suffices hsets : ∀ (T₁ T₂ : Set ↥(V_perp Φ)),
+      T₁ = f ⁻¹' T₂ → (V_perp_haar Φ) T₁ = (V_perp_haar Φ) T₂ by
+    apply hsets
+    ext y
+    simp only [Set.mem_preimage]
+    constructor
+    · rintro ⟨r, hr, v, ⟨z, hz, rfl⟩, rfl⟩
+      exact ⟨r, hr, (fSph z).val, ⟨fSph z, hz, rfl⟩, by simp [fSph, map_smul]⟩
+    · rintro ⟨r, hr, v, ⟨x, hxs, rfl⟩, h⟩
+      let w : Metric.sphere (0 : ↥(V_perp Φ)) 1 :=
+        ⟨f.symm x.val, mem_sphere_zero_iff_norm.mpr
+          (by rw [f.symm.norm_map]; exact norm_eq_of_mem_sphere x)⟩
+      refine ⟨r, hr, w.val, ⟨w, ?_, rfl⟩, ?_⟩
+      · simp only [Set.mem_preimage]
+        convert hxs using 1
+        ext; simp [fSph, w, f.apply_symm_apply]
+      · have hy : r • f.symm x.val = y := by
+          have h1 := f.symm_apply_apply y
+          rw [← h, map_smul] at h1
+          exact h1
+        exact hy
+  intro T₁ T₂ hT
+  rw [hT, ← hmembed.map_apply (V_perp_haar Φ), hinv]
+
 /-- The perpSphereMeasure is invariant under negation (antipodal symmetry). -/
 lemma perpSphereMeasure_neg_invariant (Φ : E n) :
     Measure.map Neg.neg (perpSphereMeasure Φ) = perpSphereMeasure Φ := by
-  exact sorry -- antipodal invariance of the uniform sphere measure
+  simp only [perpSphereMeasure]
+  set rawSph := V_perp_rawSph Φ
+  set totalMass := rawSph Set.univ
+  set toEn := fun (x : Metric.sphere (0 : ↥(V_perp Φ)) 1) =>
+      ((x.val : ↥(V_perp Φ)) : E n)
+  have htoEn_meas : Measurable toEn :=
+    measurable_subtype_coe.comp measurable_subtype_coe
+  -- Define negSph explicitly (avoiding InvolutiveNeg instance synthesis issue)
+  let negSph : Metric.sphere (0 : ↥(V_perp Φ)) 1 → Metric.sphere (0 : ↥(V_perp Φ)) 1 :=
+    fun x => ⟨-x.val,
+      mem_sphere_zero_iff_norm.mpr (by rw [norm_neg]; exact norm_eq_of_mem_sphere x)⟩
+  have hnegSph_meas : Measurable negSph :=
+    ((continuous_neg.comp continuous_subtype_val).subtype_mk _).measurable
+  -- Key commutativity: Neg.neg ∘ toEn = toEn ∘ negSph
+  -- i.e., -(↑↑x : E n) = ↑↑(negSph x) for x : sphere (↥(V_perp Φ)) 1
+  have hcomm : (Neg.neg : E n → E n) ∘ toEn = toEn ∘ negSph := by
+    ext x
+    simp only [Function.comp, toEn, negSph, Submodule.coe_neg]
+  rw [Measure.map_map measurable_neg htoEn_meas, hcomm,
+      ← Measure.map_map htoEn_meas hnegSph_meas,
+      Measure.map_smul, V_perp_rawSph_neg_invariant]
 
 /-! ## Integrability of inner products over perpSphereMeasure -/
 
@@ -363,6 +571,243 @@ theorem expanded_E_pe (G : ℕ) (hG : 0 < G) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 
         integral_const_mul _ _]
   rw [hsin_f₂, ← hf₂_def]
   ring
+
+/-! ## Isometry invariance helpers for the Schur argument -/
+
+-- Helper: any submodule of V_perp has HasOrthogonalProjection
+-- (via FiniteDimensional → closed → complete → HasOrthogonalProjection)
+private lemma V_perp_submodule_hasOrthogonalProjection (Φ : E n)
+    (K : Submodule ℝ ↥(V_perp Φ)) : K.HasOrthogonalProjection := by
+  haveI : IsUniformAddGroup ↥(V_perp Φ) :=
+    (V_perp Φ).toAddSubgroup.isUniformAddGroup
+  constructor
+  intro v
+  have hc : IsComplete (K : Set ↥(V_perp Φ)) :=
+    K.complete_of_finiteDimensional
+  obtain ⟨w, hwK, hw⟩ :=
+    K.exists_norm_eq_iInf_of_complete_subspace hc v
+  exact ⟨w, hwK, (K.mem_orthogonal' _).2
+    ((K.norm_eq_iInf_iff_inner_eq_zero hwK).mp hw)⟩
+
+/-- Off-diagonal vanishing: for orthogonal u, v ∈ V_perp, ∫ ⟨e₂,u⟩⟨e₂,v⟩ dμ = 0.
+    Uses reflection in (span{u})ᗮ inside V_perp: the reflection negates the u-component
+    and preserves the v-component, while the sphere measure is invariant. -/
+lemma integral_perpSphere_inner_mul_ortho (Φ : E n)
+    (u v : ↥(V_perp Φ)) (huv : ⟪(u : E n), (v : E n)⟫_ℝ = 0) :
+    ∫ e₂, ⟪e₂, (u : E n)⟫_ℝ * ⟪e₂, (v : E n)⟫_ℝ ∂(perpSphereMeasure Φ) = 0 := by
+  -- Unfold perpSphereMeasure
+  simp only [perpSphereMeasure]
+  set rawSph := V_perp_rawSph Φ with rawSph_def
+  set totalMass := rawSph Set.univ
+  set toEn : Metric.sphere (0 : ↥(V_perp Φ)) 1 → E n :=
+    fun x => ((x.val : ↥(V_perp Φ)) : E n)
+  have htoEn_meas : Measurable toEn :=
+    measurable_subtype_coe.comp measurable_subtype_coe
+  -- Rewrite as sphere integral using integral_map
+  have hf_cont : Continuous (fun e₂ : E n =>
+      ⟪e₂, (u : E n)⟫_ℝ * ⟪e₂, (v : E n)⟫_ℝ) :=
+    (continuous_id.inner continuous_const (𝕜 := ℝ)).mul
+     (continuous_id.inner continuous_const (𝕜 := ℝ))
+  rw [integral_map htoEn_meas.aemeasurable
+    hf_cont.aestronglyMeasurable]
+  -- Construct the reflection R in (span{u})ᗮ inside V_perp
+  let K : Submodule ℝ ↥(V_perp Φ) :=
+    (Submodule.span ℝ {(u : ↥(V_perp Φ))})ᗮ
+  haveI : K.HasOrthogonalProjection :=
+    V_perp_submodule_hasOrthogonalProjection Φ K
+  let R : ↥(V_perp Φ) ≃ₗᵢ[ℝ] ↥(V_perp Φ) := K.reflection
+  -- Define fSph (R restricted to sphere)
+  let fSph :
+      Metric.sphere (0 : ↥(V_perp Φ)) 1 →
+        Metric.sphere (0 : ↥(V_perp Φ)) 1 :=
+    fun x => ⟨R x.val,
+      mem_sphere_zero_iff_norm.mpr
+        (by rw [R.norm_map]; exact norm_eq_of_mem_sphere x)⟩
+  have hfSph_cont : Continuous fSph :=
+    (R.continuous.comp continuous_subtype_val).subtype_mk _
+  letI : BorelSpace (Metric.sphere (0 : ↥(V_perp Φ)) 1) :=
+    inferInstance
+  have hfSph_meas : Measurable fSph := hfSph_cont.measurable
+  -- Measure invariance
+  have hinv : Measure.map fSph rawSph = rawSph :=
+    V_perp_rawSph_isometry_invariant Φ R
+  have hinv_norm :
+      Measure.map fSph (totalMass⁻¹ • rawSph) =
+        totalMass⁻¹ • rawSph := by
+    rw [Measure.map_smul, hinv]
+  -- Set up the integrand
+  set h :=
+    fun (x : Metric.sphere (0 : ↥(V_perp Φ)) 1) =>
+      ⟪(toEn x), (u : E n)⟫_ℝ * ⟪(toEn x), (v : E n)⟫_ℝ
+  -- Self-adjointness of R: ⟪R a, b⟫ = ⟪a, R b⟫
+  have hR_adj :
+      ∀ a b : ↥(V_perp Φ), ⟪R a, b⟫_ℝ = ⟪a, R b⟫_ℝ := by
+    intro a b
+    have h1 := R.inner_map_map a (R b)
+    simp only [R, Submodule.reflection_reflection] at h1
+    exact h1
+  -- R u = -u (reflection in K = (span{u})ᗮ negates u)
+  have hRu : R (u : ↥(V_perp Φ)) = -u := by
+    change K.reflection u = -u
+    exact Submodule.reflection_orthogonalComplement_singleton_eq_neg _
+  -- v ∈ (span{u})ᗮ inside V_perp
+  have hv_mem : (v : ↥(V_perp Φ)) ∈ K := by
+    rw [Submodule.mem_orthogonal_singleton_iff_inner_left]
+    rw [Submodule.coe_inner]
+    rw [real_inner_comm]; exact huv
+  -- R v = v
+  have hRv : R (v : ↥(V_perp Φ)) = v :=
+    Submodule.reflection_mem_subspace_eq_self hv_mem
+  -- The integrand transforms: h(fSph x) = -h(x)
+  have htransform :
+      ∀ x : Metric.sphere (0 : ↥(V_perp Φ)) 1,
+        h (fSph x) = -h x := by
+    intro x
+    simp only [h, fSph, toEn]
+    have h1 :
+        ⟪((R x.val : ↥(V_perp Φ)) : E n), (u : E n)⟫_ℝ =
+          -⟪((x.val : ↥(V_perp Φ)) : E n), (u : E n)⟫_ℝ := by
+      rw [← Submodule.coe_inner, ← Submodule.coe_inner,
+        hR_adj, hRu]
+      simp [Submodule.coe_inner]
+    have h2 :
+        ⟪((R x.val : ↥(V_perp Φ)) : E n), (v : E n)⟫_ℝ =
+          ⟪((x.val : ↥(V_perp Φ)) : E n), (v : E n)⟫_ℝ := by
+      rw [← Submodule.coe_inner, ← Submodule.coe_inner,
+        hR_adj, hRv]
+    rw [h1, h2, neg_mul]
+  -- Use invariance to rewrite
+  have heq :
+      ∫ x, h x ∂(totalMass⁻¹ • rawSph) =
+        ∫ x, h (fSph x) ∂(totalMass⁻¹ • rawSph) := by
+    conv_lhs => rw [← hinv_norm]
+    have hasm2 :
+        AEStronglyMeasurable
+          (fun x : Metric.sphere (0 : ↥(V_perp Φ)) 1 =>
+            ⟪(toEn x), (u : E n)⟫_ℝ *
+              ⟪(toEn x), (v : E n)⟫_ℝ)
+          (Measure.map fSph (totalMass⁻¹ • rawSph)) :=
+      (hf_cont.comp
+        (continuous_subtype_val.comp
+          continuous_subtype_val)).aestronglyMeasurable
+    rw [integral_map hfSph_meas.aemeasurable hasm2]
+  -- So ∫ h = ∫ (-h) = -∫ h, hence ∫ h = 0
+  have heq2 :
+      ∫ x, h x ∂(totalMass⁻¹ • rawSph) =
+        -(∫ x, h x ∂(totalMass⁻¹ • rawSph)) := by
+    conv_lhs => rw [heq]
+    simp only [htransform]
+    exact integral_neg (fun x => h x)
+  linarith
+
+/-- Diagonal equality: for unit u, v ∈ V_perp, ∫ ⟨e₂,u⟩² = ∫ ⟨e₂,v⟩².
+    Uses Householder reflection (span{u-v})ᗮ inside V_perp which maps
+    u ↦ v (by reflection_sub), while the sphere measure is invariant. -/
+lemma integral_perpSphere_inner_sq_eq (Φ : E n)
+    (u v : ↥(V_perp Φ)) (hu : ‖(u : E n)‖ = 1)
+    (hv : ‖(v : E n)‖ = 1) :
+    ∫ e₂, ⟪e₂, (u : E n)⟫_ℝ ^ 2 ∂(perpSphereMeasure Φ) =
+    ∫ e₂, ⟪e₂, (v : E n)⟫_ℝ ^ 2
+      ∂(perpSphereMeasure Φ) := by
+  -- Handle the trivial case u = v
+  by_cases huv : u = v
+  · rw [huv]
+  -- For u ≠ v, construct Householder reflection
+  -- Unfold perpSphereMeasure
+  simp only [perpSphereMeasure]
+  set rawSph := V_perp_rawSph Φ with rawSph_def
+  set totalMass := rawSph Set.univ
+  set toEn : Metric.sphere (0 : ↥(V_perp Φ)) 1 → E n :=
+    fun x => ((x.val : ↥(V_perp Φ)) : E n)
+  have htoEn_meas : Measurable toEn :=
+    measurable_subtype_coe.comp measurable_subtype_coe
+  -- Rewrite as sphere integral using integral_map
+  have hg_cont : Continuous (fun e₂ : E n =>
+      ⟪e₂, (u : E n)⟫_ℝ ^ 2) :=
+    (continuous_id.inner continuous_const (𝕜 := ℝ)).pow 2
+  have hasm_u :
+      AEStronglyMeasurable
+        (fun e₂ : E n => ⟪e₂, (u : E n)⟫_ℝ ^ 2)
+        (Measure.map toEn (totalMass⁻¹ • rawSph)) :=
+    hg_cont.aestronglyMeasurable
+  have hg_cont_v : Continuous (fun e₂ : E n =>
+      ⟪e₂, (v : E n)⟫_ℝ ^ 2) :=
+    (continuous_id.inner continuous_const (𝕜 := ℝ)).pow 2
+  have hasm_v :
+      AEStronglyMeasurable
+        (fun e₂ : E n => ⟪e₂, (v : E n)⟫_ℝ ^ 2)
+        (Measure.map toEn (totalMass⁻¹ • rawSph)) :=
+    hg_cont_v.aestronglyMeasurable
+  rw [integral_map htoEn_meas.aemeasurable hasm_u,
+    integral_map htoEn_meas.aemeasurable hasm_v]
+  -- Construct Householder reflection in V_perp
+  let K : Submodule ℝ ↥(V_perp Φ) :=
+    (Submodule.span ℝ
+      {(u : ↥(V_perp Φ)) - (v : ↥(V_perp Φ))})ᗮ
+  haveI : K.HasOrthogonalProjection :=
+    V_perp_submodule_hasOrthogonalProjection Φ K
+  let R : ↥(V_perp Φ) ≃ₗᵢ[ℝ] ↥(V_perp Φ) := K.reflection
+  -- R u = v by reflection_sub
+  have hRu :
+      R (u : ↥(V_perp Φ)) = (v : ↥(V_perp Φ)) := by
+    change K.reflection u = v
+    exact Submodule.reflection_sub (by
+      have hu' : ‖u‖ = 1 := hu
+      have hv' : ‖v‖ = 1 := hv
+      rw [hu', hv'])
+  -- Self-adjointness of R
+  have hR_adj :
+      ∀ a b : ↥(V_perp Φ), ⟪R a, b⟫_ℝ = ⟪a, R b⟫_ℝ := by
+    intro a b
+    have h1 := R.inner_map_map a (R b)
+    simp only [R, Submodule.reflection_reflection] at h1
+    exact h1
+  -- Define fSph (R restricted to sphere)
+  let fSph :
+      Metric.sphere (0 : ↥(V_perp Φ)) 1 →
+        Metric.sphere (0 : ↥(V_perp Φ)) 1 :=
+    fun x => ⟨R x.val,
+      mem_sphere_zero_iff_norm.mpr
+        (by rw [R.norm_map]; exact norm_eq_of_mem_sphere x)⟩
+  have hfSph_cont : Continuous fSph :=
+    (R.continuous.comp continuous_subtype_val).subtype_mk _
+  letI : BorelSpace (Metric.sphere (0 : ↥(V_perp Φ)) 1) :=
+    inferInstance
+  have hfSph_meas : Measurable fSph := hfSph_cont.measurable
+  -- Measure invariance
+  have hinv : Measure.map fSph rawSph = rawSph :=
+    V_perp_rawSph_isometry_invariant Φ R
+  have hinv_norm :
+      Measure.map fSph (totalMass⁻¹ • rawSph) =
+        totalMass⁻¹ • rawSph := by
+    rw [Measure.map_smul, hinv]
+  -- The integrand transforms: ⟪toEn(fSph x), u⟫² = ⟪toEn x, v⟫²
+  have htransform :
+      ∀ x : Metric.sphere (0 : ↥(V_perp Φ)) 1,
+        ⟪toEn (fSph x), (u : E n)⟫_ℝ ^ 2 =
+          ⟪toEn x, (v : E n)⟫_ℝ ^ 2 := by
+    intro x
+    simp only [fSph, toEn]
+    have :
+        ⟪((R x.val : ↥(V_perp Φ)) : E n),
+            (u : E n)⟫_ℝ =
+          ⟪((x.val : ↥(V_perp Φ)) : E n),
+            (v : E n)⟫_ℝ := by
+      rw [← Submodule.coe_inner, ← Submodule.coe_inner,
+        hR_adj, hRu]
+    rw [this]
+  -- Use invariance: ∫ ⟨e₂,u⟩² = ∫ ⟨e₂,u⟩² ∘ fSph = ∫ ⟨e₂,v⟩²
+  conv_lhs => rw [← hinv_norm]
+  have hasm3 :
+      AEStronglyMeasurable
+        (fun x : Metric.sphere (0 : ↥(V_perp Φ)) 1 =>
+          ⟪(toEn x), (u : E n)⟫_ℝ ^ 2)
+        (Measure.map fSph (totalMass⁻¹ • rawSph)) :=
+    (hg_cont.comp
+      (continuous_subtype_val.comp
+        continuous_subtype_val)).aestronglyMeasurable
+  rw [integral_map hfSph_meas.aemeasurable hasm3]
+  congr 1; ext x; exact htransform x
 
 /-! ## TDD spot-checks -/
 
