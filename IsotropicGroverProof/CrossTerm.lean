@@ -261,6 +261,86 @@ private lemma V_perp_rawSph_neg_invariant (Φ : E n) :
   intro T₁ T₂ h
   rw [h, ← hmembed.map_apply (V_perp_haar Φ), hinv]
 
+-- Helper: V_perp Haar measure is invariant under linear isometries of V_perp.
+private lemma V_perp_haar_map_isometry (Φ : E n)
+    (f : ↥(V_perp Φ) ≃ₗᵢ[ℝ] ↥(V_perp Φ)) :
+    Measure.map f (V_perp_haar Φ) = V_perp_haar Φ := by
+  have hb : BorelSpace ↥(V_perp Φ) := inferInstance
+  have hhaar : Measure.IsAddHaarMeasure (V_perp_haar Φ) := V_perp_haar_isAddHaar Φ
+  let g : ↥(V_perp Φ) →ₗ[ℝ] ↥(V_perp Φ) := f.toLinearEquiv.toLinearMap
+  have hfg : (f : ↥(V_perp Φ) → ↥(V_perp Φ)) = g := rfl
+  have hdet : g.det ≠ 0 := f.toLinearEquiv.isUnit_det'.ne_zero
+  rw [hfg, @Measure.map_linearMap_addHaar_eq_smul_addHaar
+      ↥(V_perp Φ) _ _ _ hb _ (V_perp_haar Φ) hhaar g hdet]
+  suffices h : |g.det| = 1 by simp [abs_inv, h]
+  -- det of a linear isometry is ±1: use OrthonormalBasis.det_to_matrix_orthonormalBasis_real
+  let b := stdOrthonormalBasis ℝ ↥(V_perp Φ)
+  have hdet_eq : g.det = b.toBasis.det (b.map f) := by
+    have h1 : (b.map f : Fin _ → ↥(V_perp Φ)) = g ∘ ⇑b.toBasis := by
+      ext i; simp [g, b, OrthonormalBasis.map]
+    rw [h1, b.toBasis.det_comp g ⇑b.toBasis, b.toBasis.det_self, mul_one]
+  have hpm := b.det_to_matrix_orthonormalBasis_real (b.map f)
+  rcases hpm with h | h <;> simp [hdet_eq, h]
+
+-- Helper: the raw sphere measure is invariant under linear isometries of V_perp.
+private lemma V_perp_rawSph_isometry_invariant (Φ : E n)
+    (f : ↥(V_perp Φ) ≃ₗᵢ[ℝ] ↥(V_perp Φ)) :
+    let fSph : Metric.sphere (0 : ↥(V_perp Φ)) 1 → Metric.sphere (0 : ↥(V_perp Φ)) 1 :=
+      fun x => ⟨f x.val,
+        mem_sphere_zero_iff_norm.mpr (by rw [f.norm_map]; exact norm_eq_of_mem_sphere x)⟩
+    Measure.map fSph (V_perp_rawSph Φ) = V_perp_rawSph Φ := by
+  intro fSph
+  have hb : BorelSpace ↥(V_perp Φ) := inferInstance
+  have hfSph_meas : Measurable fSph := by
+    have hcont : Continuous fSph := (f.continuous.comp continuous_subtype_val).subtype_mk _
+    letI : BorelSpace (Metric.sphere (0 : ↥(V_perp Φ)) 1) := inferInstance
+    exact hcont.measurable
+  have hf_meas : Measurable (f : ↥(V_perp Φ) → ↥(V_perp Φ)) :=
+    @Continuous.measurable _ _ _ _ (@BorelSpace.opensMeasurable _ _ _ hb) _ _ hb
+      (f : ↥(V_perp Φ) → ↥(V_perp Φ)) f.continuous
+  have hf_symm_meas : Measurable (f.symm : ↥(V_perp Φ) → ↥(V_perp Φ)) :=
+    @Continuous.measurable _ _ _ _ (@BorelSpace.opensMeasurable _ _ _ hb) _ _ hb
+      (f.symm : ↥(V_perp Φ) → ↥(V_perp Φ)) f.symm.continuous
+  have hmembed : MeasurableEmbedding (f : ↥(V_perp Φ) → ↥(V_perp Φ)) :=
+    ⟨f.injective, hf_meas, fun {s} hs => by
+      rw [Set.image_eq_preimage_of_inverse f.symm_apply_apply f.apply_symm_apply]
+      exact hf_symm_meas hs⟩
+  have hinv := V_perp_haar_map_isometry Φ f
+  suffices h : ∀ (t : Set (Metric.sphere (0 : ↥(V_perp Φ)) 1)),
+      MeasurableSet t →
+      @Measure.toSphere _ _ _ _ (V_perp_haar Φ) (fSph ⁻¹' t) =
+      @Measure.toSphere _ _ _ _ (V_perp_haar Φ) t by
+    ext s hs
+    simp only [V_perp_rawSph, Measure.map_apply hfSph_meas hs]
+    exact h s hs
+  intro s hs
+  rw [@Measure.toSphere_apply' _ _ _ _ (V_perp_haar Φ) hb _ (hs.preimage hfSph_meas),
+      @Measure.toSphere_apply' _ _ _ _ (V_perp_haar Φ) hb _ hs]
+  congr 1
+  suffices hsets : ∀ (T₁ T₂ : Set ↥(V_perp Φ)),
+      T₁ = f ⁻¹' T₂ → (V_perp_haar Φ) T₁ = (V_perp_haar Φ) T₂ by
+    apply hsets
+    ext y
+    simp only [Set.mem_preimage]
+    constructor
+    · rintro ⟨r, hr, v, ⟨z, hz, rfl⟩, rfl⟩
+      exact ⟨r, hr, (fSph z).val, ⟨fSph z, hz, rfl⟩, by simp [fSph, map_smul]⟩
+    · rintro ⟨r, hr, v, ⟨x, hxs, rfl⟩, h⟩
+      let w : Metric.sphere (0 : ↥(V_perp Φ)) 1 :=
+        ⟨f.symm x.val, mem_sphere_zero_iff_norm.mpr
+          (by rw [f.symm.norm_map]; exact norm_eq_of_mem_sphere x)⟩
+      refine ⟨r, hr, w.val, ⟨w, ?_, rfl⟩, ?_⟩
+      · simp only [Set.mem_preimage]
+        convert hxs using 1
+        ext; simp [fSph, w, f.apply_symm_apply]
+      · have hy : r • f.symm x.val = y := by
+          have h1 := f.symm_apply_apply y
+          rw [← h, map_smul] at h1
+          exact h1
+        exact hy
+  intro T₁ T₂ hT
+  rw [hT, ← hmembed.map_apply (V_perp_haar Φ), hinv]
+
 /-- The perpSphereMeasure is invariant under negation (antipodal symmetry). -/
 lemma perpSphereMeasure_neg_invariant (Φ : E n) :
     Measure.map Neg.neg (perpSphereMeasure Φ) = perpSphereMeasure Φ := by
