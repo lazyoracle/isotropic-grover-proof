@@ -16,6 +16,7 @@
 
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
 import IsotropicGroverProof.Composition
+import IsotropicGroverProof.GegenbaurerHelper
 
 namespace IsotropicGrover
 
@@ -33,7 +34,11 @@ theorem poissonIntegral_cos_sq (d : ℕ) (σ : ℝ)
     (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d) :
     ∫ θ, (cos θ) ^ 2 ∂(poissonMarginal d σ) =
     ((d - 1 : ℝ) * σ ^ 2 + 1) / d := by
-  sorry -- Poisson integral formula (harmonic extension of h(ξ)=(ξ·Φ)² evaluated at σΦ)
+  obtain (rfl : d = 2) | hd3 := hd.eq_or_lt.imp Eq.symm id
+  · -- d = 2: proved via Poisson formula and folding on unit circle
+    exact_mod_cast poissonIntegral_cos_sq_d2 σ hσ
+  · sorry -- d ≥ 3: requires Gegenbauer/spherical harmonics on S^{d-1}
+          -- (Axler, Bourdon & Ramey, "Harmonic Function Theory" 2nd ed., Ch. 5)
 
 /-! ## The f₂ formula: E[cos²θ_G] = ((d−1)σ^{2G} + 1) / d -/
 
