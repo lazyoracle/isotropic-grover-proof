@@ -9,12 +9,14 @@
 import Mathlib.Analysis.InnerProductSpace.Projection.Basic
 import Mathlib.Analysis.InnerProductSpace.Continuous
 import Mathlib.Analysis.Normed.Lp.MeasurableSpace
+import Mathlib.Analysis.Normed.Group.BallSphere
 import Mathlib.MeasureTheory.Measure.MeasureSpace
 import Mathlib.MeasureTheory.Group.MeasurableEquiv
 import Mathlib.MeasureTheory.Integral.Prod
 import Mathlib.MeasureTheory.Constructions.HaarToSphere
 import Mathlib.MeasureTheory.Measure.Haar.InnerProductSpace
 import Mathlib.MeasureTheory.Measure.Haar.OfBasis
+import Mathlib.MeasureTheory.Measure.Lebesgue.EqHaar
 import Mathlib.Analysis.InnerProductSpace.Projection.FiniteDimensional
 import Mathlib.LinearAlgebra.Dimension.Finite
 import IsotropicGroverProof.Composition
@@ -154,10 +156,135 @@ lemma perpSphereMeasure_norm_ae (Φ : E n) :
   · exact x.property
   · rw [Submodule.norm_coe]; exact hx'
 
+-- Helper: the Haar measure on V_perp is invariant under negation.
+private lemma V_perp_haar_neg_invariant (Φ : E n) :
+    Measure.map Neg.neg (V_perp_haar Φ) = V_perp_haar Φ := by
+  -- Negation is the linear map (-1 : ℝ) • id, with det = (-1)^finrank, |det^{-1}| = 1
+  -- We use the BorelSpace instance explicitly (as in V_perp_haar_isAddHaar)
+  have hb : BorelSpace ↥(V_perp Φ) := inferInstance
+  have hhaar : Measure.IsAddHaarMeasure (V_perp_haar Φ) := V_perp_haar_isAddHaar Φ
+  -- The negation linear map and its det
+  let f : ↥(V_perp Φ) →ₗ[ℝ] ↥(V_perp Φ) := (-1 : ℝ) • LinearMap.id
+  have hfneg : (f : ↥(V_perp Φ) → ↥(V_perp Φ)) = Neg.neg := by ext x; simp [f]
+  have hdet : LinearMap.det f ≠ 0 := by
+    simp only [f, LinearMap.det_smul, LinearMap.det_id, mul_one]
+    exact pow_ne_zero _ (by norm_num)
+  rw [← hfneg, @Measure.map_linearMap_addHaar_eq_smul_addHaar
+      ↥(V_perp Φ) _ _ _ hb _ (V_perp_haar Φ) hhaar f hdet]
+  -- Goal: ENNReal.ofReal |(det f)^{-1}| • V_perp_haar Φ = V_perp_haar Φ
+  -- det f = (-1)^finrank, |(-1)^finrank|⁻¹ = 1⁻¹ = 1
+  simp only [f, LinearMap.det_smul, LinearMap.det_id, mul_one, abs_inv,
+             abs_neg_one_pow, inv_one, ENNReal.ofReal_one, one_smul]
+
+-- Helper: the raw sphere measure on V_perp is invariant under negation.
+-- We define negSph explicitly to avoid the InvolutiveNeg instance synthesis issue
+-- (caused by a zero-instance diamond on submodule subtypes).
+private lemma V_perp_rawSph_neg_invariant (Φ : E n) :
+    let negSph : Metric.sphere (0 : ↥(V_perp Φ)) 1 → Metric.sphere (0 : ↥(V_perp Φ)) 1 :=
+      fun x => ⟨-x.val,
+        mem_sphere_zero_iff_norm.mpr (by rw [norm_neg]; exact norm_eq_of_mem_sphere x)⟩
+    Measure.map negSph (V_perp_rawSph Φ) = V_perp_rawSph Φ := by
+  intro negSph
+  have hb : BorelSpace ↥(V_perp Φ) := inferInstance
+  -- negSph is measurable (it's continuous)
+  have hnegSph_meas : Measurable negSph :=
+    ((continuous_neg.comp continuous_subtype_val).subtype_mk _).measurable
+  -- negation on V_perp is a measurable embedding (for MeasurableEmbedding.map_apply)
+  have hmembed : MeasurableEmbedding (Neg.neg : ↥(V_perp Φ) → ↥(V_perp Φ)) :=
+    measurableEmbedding_neg
+  -- Change to a form where rw [toSphere_apply'] works without instance mismatch
+  -- by restating the goal in terms of the explicit @-applied toSphere
+  suffices h : ∀ (t : Set (Metric.sphere (0 : ↥(V_perp Φ)) 1)),
+      MeasurableSet t →
+      @Measure.toSphere _ _ _ _ (V_perp_haar Φ) (negSph ⁻¹' t) =
+      @Measure.toSphere _ _ _ _ (V_perp_haar Φ) t by
+    ext s hs
+    simp only [V_perp_rawSph, Measure.map_apply hnegSph_meas hs]
+    exact h s hs
+  intro s hs
+  -- Now use toSphere_apply' with explicit hb
+  rw [@Measure.toSphere_apply' _ _ _ _ (V_perp_haar Φ) hb _ (hs.preimage hnegSph_meas),
+      @Measure.toSphere_apply' _ _ _ _ (V_perp_haar Φ) hb _ hs]
+  -- Goal: dim * μ(Ioo • ↑'' (negSph ⁻¹' s)) = dim * μ(Ioo • ↑'' s)
+  -- Step 1: ↑'' (negSph ⁻¹' s) = -(↑'' s) [himg]
+  -- Step 2: Ioo 0 1 • -(↑'' s) = -(Ioo 0 1 • ↑'' s) [smul_neg]
+  -- Step 3: μ(-(Ioo • ↑'' s)) = μ(Ioo • ↑'' s) [neg-invariance]
+  congr 1
+  -- Goal: (V_perp_haar Φ) (Ioo 0 1 • val'' (negSph ⁻¹' s)) = (V_perp_haar Φ) (Ioo 0 1 • val'' s)
+  -- Strategy: rewrite LHS as (map Neg.neg (V_perp_haar Φ)) (Ioo • val'' s) via set equality,
+  -- then use V_perp_haar_neg_invariant.
+  have hinv := V_perp_haar_neg_invariant Φ
+  -- Rewrite using neg-invariance: sufficient to show the set arguments are equal
+  -- in the form needed by hmembed.map_apply.
+  -- We convert: (V_perp_haar Φ) (Ioo • val'' (negSph ⁻¹' s))
+  --           = (V_perp_haar Φ) (Neg.neg ⁻¹' (Ioo • val'' s))
+  -- because Ioo • val'' (negSph ⁻¹' s) = Neg.neg ⁻¹' (Ioo • val'' s)
+  -- (element membership: y = r • (-x.val) ↔ -y = r • x.val)
+  -- Then use ← hmembed.map_apply + hinv.
+  -- We avoid stating the set equality as a `have` (which requires spelling out the set type
+  -- and causes HSMul (Set ℝ) (Set ↥(V_perp Φ)) synthesis failure).
+  -- Instead, use congr_arg with a suffices.
+  suffices hsets : ∀ (T₁ T₂ : Set ↥(V_perp Φ)),
+      T₁ = Neg.neg ⁻¹' T₂ → (V_perp_haar Φ) T₁ = (V_perp_haar Φ) T₂ by
+    apply hsets
+    -- Goal: Ioo • val'' (negSph ⁻¹' s) = Neg.neg ⁻¹' (Ioo • val'' s)
+    -- (y is in the LHS iff -y ∈ Ioo • val'' s)
+    ext y
+    simp only [Set.mem_preimage]
+    constructor
+    · -- Forward: y = r • v where v ∈ val'' (negSph ⁻¹' s)
+      --   → ∃ z ∈ sphere with z ∈ negSph ⁻¹' s and v = z.val, y = r • z.val
+      --   → negSph z ∈ s (i.e. ⟨-z.val,...⟩ ∈ s)
+      --   → -(r • z.val) = r • (negSph z).val ∈ Ioo • val'' s
+      rintro ⟨r, hr, v, ⟨z, hz, rfl⟩, rfl⟩
+      -- hz : z ∈ negSph ⁻¹' s, i.e., negSph z ∈ s
+      -- goal: -(r • z.val) ∈ Ioo • val'' s
+      refine ⟨r, hr, (negSph z).val, ⟨negSph z, hz, rfl⟩, ?_⟩
+      simp [negSph, smul_neg]
+    · -- Backward: -y = r • x.val for x ∈ s, so y = r • (-x.val)
+      --   → ⟨-x.val,...⟩ ∈ negSph ⁻¹' s (since negSph maps it to x ∈ s)
+      rintro ⟨r, hr, v, ⟨x, hxs, rfl⟩, h⟩
+      -- h : r • x.val = -y, so y = -(r • x.val) = r • (-x.val)
+      -- Let w = ⟨-x.val, ...⟩
+      let w : Metric.sphere (0 : ↥(V_perp Φ)) 1 :=
+        ⟨-x.val, mem_sphere_zero_iff_norm.mpr (by rw [norm_neg]; exact norm_eq_of_mem_sphere x)⟩
+      refine ⟨r, hr, w.val, ⟨w, ?_, rfl⟩, ?_⟩
+      · -- w ∈ negSph ⁻¹' s: negSph w = ⟨-(-x.val),...⟩ which equals x ∈ s
+        simp only [Set.mem_preimage]
+        convert hxs using 1
+        ext; simp [negSph, w]
+      · -- r • w.val = y: w.val = -x.val, r • (-x.val) = -(r • x.val) = -(-y) = y
+        have h' : r • x.val = -y := h
+        -- w.val = -x.val, so r • w.val = r • (-x.val) = -(r • x.val) = -(-y) = y
+        change r • w.val = y
+        simp only [w, smul_neg, h', neg_neg]
+  intro T₁ T₂ h
+  rw [h, ← hmembed.map_apply (V_perp_haar Φ), hinv]
+
 /-- The perpSphereMeasure is invariant under negation (antipodal symmetry). -/
 lemma perpSphereMeasure_neg_invariant (Φ : E n) :
     Measure.map Neg.neg (perpSphereMeasure Φ) = perpSphereMeasure Φ := by
-  exact sorry -- antipodal invariance of the uniform sphere measure
+  simp only [perpSphereMeasure]
+  set rawSph := V_perp_rawSph Φ
+  set totalMass := rawSph Set.univ
+  set toEn := fun (x : Metric.sphere (0 : ↥(V_perp Φ)) 1) =>
+      ((x.val : ↥(V_perp Φ)) : E n)
+  have htoEn_meas : Measurable toEn :=
+    measurable_subtype_coe.comp measurable_subtype_coe
+  -- Define negSph explicitly (avoiding InvolutiveNeg instance synthesis issue)
+  let negSph : Metric.sphere (0 : ↥(V_perp Φ)) 1 → Metric.sphere (0 : ↥(V_perp Φ)) 1 :=
+    fun x => ⟨-x.val,
+      mem_sphere_zero_iff_norm.mpr (by rw [norm_neg]; exact norm_eq_of_mem_sphere x)⟩
+  have hnegSph_meas : Measurable negSph :=
+    ((continuous_neg.comp continuous_subtype_val).subtype_mk _).measurable
+  -- Key commutativity: Neg.neg ∘ toEn = toEn ∘ negSph
+  -- i.e., -(↑↑x : E n) = ↑↑(negSph x) for x : sphere (↥(V_perp Φ)) 1
+  have hcomm : (Neg.neg : E n → E n) ∘ toEn = toEn ∘ negSph := by
+    ext x
+    simp only [Function.comp, toEn, negSph, Submodule.coe_neg]
+  rw [Measure.map_map measurable_neg htoEn_meas, hcomm,
+      ← Measure.map_map htoEn_meas hnegSph_meas,
+      Measure.map_smul, V_perp_rawSph_neg_invariant]
 
 /-! ## Integrability of inner products over perpSphereMeasure -/
 
