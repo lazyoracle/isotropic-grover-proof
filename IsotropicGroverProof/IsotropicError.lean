@@ -116,7 +116,10 @@ theorem poissonMarginal_isProbMeasure (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo
     Proof: l=1 case of the Gegenbauer moment theorem (§6 of the derivation). -/
 theorem poissonMarginal_mean_cos (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d) :
     ∫ θ, cos θ ∂(poissonMarginal d σ) = σ := by
-  sorry -- Blocked on M6: poissonMarginal_gegen_moment at l=1
+  sorry -- Poisson integral formula at h(ξ) = ξ·Φ (linear functions are already harmonic):
+        -- h̃(x) = x·Φ, evaluated at x = σΦ gives h̃(σΦ) = σ.
+        -- Source: Axler, Bourdon & Ramey, "Harmonic Function Theory" 2nd ed., Ch. 5.
+        -- Now independent of Gegenbauer.lean; same mathematical depth as poissonIntegral_cos_sq.
 
 /-! ## The isotropic error state -/
 
