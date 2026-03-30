@@ -6,13 +6,13 @@ We want a closed-form expression for $\mathrm{E}[p_e(n)]$, the **expected succes
 
 $$k(n) = \frac{\log(1-p_\mathrm{ideal})}{\log(1-\mathrm{E}[p_e])}$$
 
-can be fit as an exponential in $n$.
+can be fit as an exponential in $n$. (This follows from requiring that $k$ independent repetitions collectively succeed with probability $p_\mathrm{ideal}$: $(1-\mathrm{E}[p_e])^k = 1-p_\mathrm{ideal}$, solved for $k$.)
 
 The result we will derive is the mixture model
 
 $$\boxed{\mathrm{E}[p_e] = \sigma^{2G(n)} \cdot p_\mathrm{ideal} + \frac{1-\sigma^{2G(n)}}{N},}$$
 
-where $N = 2^n$ is the database size and $G(n)$ is the gate count at optimal Grover iterations (taken directly from simulation data). This formula is **exact** for the isotropic error model — no approximations are made and all finite-size corrections cancel.
+where $N = 2^n$ is the database size and $G(n)$ is the gate count at optimal Grover iterations (taken directly from simulation data). This formula is **exact** for the isotropic error model — no approximations are made and all intermediate dimension-dependent factors simplify exactly.
 
 The derivation proceeds in six steps:
 
@@ -21,7 +21,7 @@ The derivation proceeds in six steps:
 3. Collapse all $G(n)$ per-gate errors to a single effective error (composition).
 4. Expand $\mathrm{E}[p_e]$ and show the cross term vanishes.
 5. Compute the "decoherent floor" $\mathrm{E}[|\langle w|\mathbf{e}_2\rangle|^2]$.
-6. Compute the second moment $f_2 = \mathrm{E}[\cos^2\!\theta_G]$ via harmonic extension and induction.
+6. Compute the second moment $F = \mathrm{E}[\cos^2\!\theta_G]$ via harmonic extension and induction.
 
 ---
 
@@ -71,6 +71,8 @@ Geometrically, $\Psi$ is $\Phi$ rotated by angle $\theta$ in a uniformly random 
 
 $$g(\theta;\sigma) = \frac{(d-1)!!}{(d-2)!!} \cdot \frac{(1-\sigma^2)\sin^{d-1}\!\theta}{\pi\,(1+\sigma^2-2\sigma\cos\theta)^{(d+1)/2}}.$$
 
+(This density is displayed for reference using the convention of Lacalle & Pozo Coronado (2019), who define the isotropic normal distribution via the Poisson kernel on $S^d$ rather than $S^{d-1}$; the exponents are shifted by $\tfrac{1}{2}$ relative to the $B^d$ kernel derived below. All subsequent calculations use only the Poisson integral formula, which is independent of this notational convention.)
+
 This is the *marginal* of the **Poisson kernel** of the unit ball. Here is what that means.
 
 The Poisson kernel of the unit ball $B^d = \{\mathbf{y}\in\mathbb{R}^d : |\mathbf{y}|<1\}$ is the function
@@ -83,9 +85,9 @@ $$|\sigma\mathbf{e}_1 - \xi|^2 = \sigma^2 - 2\sigma(\mathbf{e}_1\cdot\xi) + 1 = 
 
 so $P(\sigma\mathbf{e}_1,\xi) = (1-\sigma^2)/(1+\sigma^2-2\sigma\cos\theta)^{d/2}$.
 
-The Poisson kernel is now a distribution over all of $S^{d-1}$, but it only depends on $\xi$ through the single angle $\theta$. To obtain a 1D density over $\theta$ alone — the "marginal" — we integrate over all boundary points at each fixed $\theta$. For a given $\theta$, those points form a $(d-2)$-sphere (a "latitude circle" on $S^{d-1}$), whose surface area element is proportional to $\sin^{d-2}\theta\,d\theta$. Multiplying and normalizing gives $g(\theta;\sigma) \propto (1-\sigma^2)\sin^{d-2}\theta/(1+\sigma^2-2\sigma\cos\theta)^{d/2}$. (The formula above has exponents shifted by $\tfrac{1}{2}$ because Lacalle & Pozo Coronado (2019) define the isotropic normal distribution via the Poisson kernel on $S^d$ rather than $S^{d-1}$; this does not affect any of the calculations below.)
+The Poisson kernel is now a distribution over all of $S^{d-1}$, but it only depends on $\xi$ through the single angle $\theta$. To obtain a 1D density over $\theta$ alone — the "marginal" — we integrate over all boundary points at each fixed $\theta$. For a given $\theta$, those points form a $(d-2)$-sphere (a "latitude circle" on $S^{d-1}$), whose surface area element is proportional to $\sin^{d-2}\theta\,d\theta$. Multiplying and normalizing gives $g(\theta;\sigma) \propto (1-\sigma^2)\sin^{d-2}\theta/(1+\sigma^2-2\sigma\cos\theta)^{d/2}$.
 
-**Why $\mathrm{E}[\cos\theta] = \sigma$.** The Poisson kernel has the following key property (the Poisson integral formula [[Axler, Bourdon & Ramey (2001)](#references), Ch. 5]): for any continuous $h$ on $S^{d-1}$,
+**Why $\mathrm{E}[\cos\theta] = \sigma$.** Throughout this derivation, the expectation $\mathrm{E}[\cdot]$ is over the randomness of the error model (the angles $\theta$ and directions $\mathbf{e}_2$), not over measurement outcomes. The Poisson kernel has the following key property (the Poisson integral formula [[Axler, Bourdon & Ramey (2001)](#references), Ch. 5]): for any continuous $h$ on $S^{d-1}$,
 
 $$\mathrm{E}[h(\Psi)] = \tilde{h}(\sigma\Phi),$$
 
@@ -111,7 +113,7 @@ where $E'$ has the same distribution as $E$. Physically, an isotropic error has 
 
 $$\Psi = \cos\theta_G\;\Phi + \sin\theta_G\;\mathbf{e}_2.$$
 
-By linearity of expectation and the per-gate property $\mathrm{E}[\cos\theta] = \sigma$ (§2), a simple induction gives $\mathrm{E}[\cos\theta_G] = \sigma^{G(n)}$. The second moment $f_2 = \mathrm{E}[\cos^2\!\theta_G]$ — the key quantity for §4–§7 — is computed in §6.
+By linearity of expectation and the per-gate property $\mathrm{E}[\cos\theta] = \sigma$ (§2), a simple induction gives $\mathrm{E}[\cos\theta_G] = \sigma^{G(n)}$. The second moment $F = \mathrm{E}[\cos^2\!\theta_G]$ — the key quantity for §4–§7 — is computed in §6.
 
 ---
 
@@ -139,16 +141,16 @@ Therefore the cross term contributes zero to the expectation.
 
 *Remaining terms.* By the independence of $\theta_G$ and $\mathbf{e}_2$ (stated in §3), the expectation of their product factors:
 
-$$\mathrm{E}\!\left[\cos^2\!\theta_G\,(\Phi\cdot\hat{u})^2\right] = \mathrm{E}[\cos^2\!\theta_G]\,(\Phi\cdot\hat{u})^2 = f_2\,(\Phi\cdot\hat{u})^2,$$
-$$\mathrm{E}\!\left[\sin^2\!\theta_G\,(\mathbf{e}_2\cdot\hat{u})^2\right] = \mathrm{E}[\sin^2\!\theta_G]\,\mathrm{E}\!\left[(\mathbf{e}_2\cdot\hat{u})^2\right] = (1-f_2)\,\mathrm{E}\!\left[(\mathbf{e}_2\cdot\hat{u})^2\right],$$
+$$\mathrm{E}\!\left[\cos^2\!\theta_G\,(\Phi\cdot\hat{u})^2\right] = \mathrm{E}[\cos^2\!\theta_G]\,(\Phi\cdot\hat{u})^2 = F\,(\Phi\cdot\hat{u})^2,$$
+$$\mathrm{E}\!\left[\sin^2\!\theta_G\,(\mathbf{e}_2\cdot\hat{u})^2\right] = \mathrm{E}[\sin^2\!\theta_G]\,\mathrm{E}\!\left[(\mathbf{e}_2\cdot\hat{u})^2\right] = (1-F)\,\mathrm{E}\!\left[(\mathbf{e}_2\cdot\hat{u})^2\right],$$
 
-where $f_2 = \mathrm{E}[\cos^2\!\theta_G]$ and $\mathrm{E}[\sin^2\!\theta_G] = \mathrm{E}[1-\cos^2\!\theta_G] = 1-f_2$ (by linearity, since $\sin^2\theta + \cos^2\theta = 1$ identically).
+where $F = \mathrm{E}[\cos^2\!\theta_G]$ and $\mathrm{E}[\sin^2\!\theta_G] = \mathrm{E}[1-\cos^2\!\theta_G] = 1-F$ (by linearity, since $\sin^2\theta + \cos^2\theta = 1$ identically). Since $\mathbf{e}_2 \perp \Phi$, we have $\Psi\cdot\Phi = \cos\theta_G$, so equivalently $F = \mathrm{E}[(\Psi\cdot\Phi)^2]$ — this is the form computed in §6.
 
 Summing over both real components $\hat{u}_{2w}$ and $\hat{u}_{2w+1}$ and using $(\Phi\cdot\hat{u}_{2w})^2 + (\Phi\cdot\hat{u}_{2w+1})^2 = p_\mathrm{ideal}$:
 
-$$\mathrm{E}[p_e] = f_2\,p_\mathrm{ideal} + (1-f_2)\,\mathrm{E}\!\left[|\langle w|\mathbf{e}_2\rangle|^2\right].$$
+$$\mathrm{E}[p_e] = F\,p_\mathrm{ideal} + (1-F)\,\mathrm{E}\!\left[|\langle w|\mathbf{e}_2\rangle|^2\right].$$
 
-It remains to compute the two unknowns: the decoherent floor $\mathrm{E}[|\langle w|\mathbf{e}_2\rangle|^2]$ (§5) and the second moment $f_2$ (§6).
+It remains to compute the two unknowns: the decoherent floor $\mathrm{E}[|\langle w|\mathbf{e}_2\rangle|^2]$ (§5) and the second moment $F$ (§6).
 
 ---
 
@@ -188,25 +190,23 @@ Summing over the two real components $\hat{u}_{2w}$ and $\hat{u}_{2w+1}$, and us
 
 $$\mathrm{E}\!\left[|\langle w|\mathbf{e}_2\rangle|^2\right] = \frac{(1-(\hat{u}_{2w}\cdot\Phi)^2)+(1-(\hat{u}_{2w+1}\cdot\Phi)^2)}{d-1} = \frac{2-p_\mathrm{ideal}}{d-1}.$$
 
-**Physical interpretation.** When the circuit is completely decoherent ($f_2\to 0$), $\mathrm{E}[p_e]\to(2-p_\mathrm{ideal})/(d-1)$. For large $n$, $p_\mathrm{ideal}\to 1$ and $d=2N\to\infty$, so this approaches $1/N$ — random guessing. This decoherent floor is not assumed; it follows exactly from the geometry of $\mathbf{e}_2$ in $V_\perp$.
+**Physical interpretation.** When the circuit is completely decoherent ($F\to 0$), $\mathrm{E}[p_e]\to(2-p_\mathrm{ideal})/(d-1)$. For large $n$, $p_\mathrm{ideal}\to 1$ and $d=2N\to\infty$, so this approaches $1/N$ — random guessing. This decoherent floor is not assumed; it follows exactly from the geometry of $\mathbf{e}_2$ in $V_\perp$.
 
 ---
 
-#### §6 — The second moment $f_2$ via harmonic extension and induction
+#### §6 — The second moment $F$ via harmonic extension and induction
 
-We need $f_2 = \mathrm{E}[\cos^2\!\theta_G]$. Note that this is not the same as $(\mathrm{E}[\cos\theta_G])^2 = \sigma^{2G}$; the second moment of a distribution is generally not the square of its first moment.
+We need $F = \mathrm{E}[\cos^2\!\theta_G] = \mathrm{E}[(\Psi\cdot\Phi)^2]$ (see §4). Note that this is not the same as $(\mathrm{E}[\cos\theta_G])^2 = \sigma^{2G}$; the second moment of a distribution is generally not the square of its first moment.
 
-**Single-gate second moment.** For one gate, let $f_1 = \mathrm{E}[\cos^2\!\theta]$. Apply the Poisson integral formula from §2 with $h(\xi) = (\xi\cdot\Phi)^2$. The polynomial $(\mathbf{x}\cdot\Phi)^2$ is not harmonic: $\Delta((\mathbf{x}\cdot\Phi)^2) = 2|\Phi|^2 = 2$. Since $\Delta(|\mathbf{x}|^2/d) = 2$, the function
+**Harmonic extension of $(\xi\cdot\Phi)^2$.** Apply the Poisson integral formula from §2 with $h(\xi) = (\xi\cdot\Phi)^2$. The polynomial $(\mathbf{x}\cdot\Phi)^2$ is not harmonic: $\Delta((\mathbf{x}\cdot\Phi)^2) = 2|\Phi|^2 = 2$. Since $\Delta(|\mathbf{x}|^2/d) = 2$, the function
 
 $$H(\mathbf{x}) = (\mathbf{x}\cdot\Phi)^2 - \frac{|\mathbf{x}|^2}{d}$$
 
-is harmonic: $\Delta H = 2 - 2 = 0$. On $S^{d-1}$ (where $|\xi|=1$), $H(\xi) = (\xi\cdot\Phi)^2 - 1/d = h(\xi) - 1/d$, so the harmonic extension of $h$ is $\tilde{h}(\mathbf{x}) = H(\mathbf{x}) + 1/d$. Evaluating at $\mathbf{x} = \sigma\Phi$ (so $\mathbf{x}\cdot\Phi = \sigma$ and $|\mathbf{x}|^2 = \sigma^2$):
-
-$$f_1 = \tilde{h}(\sigma\Phi) = \sigma^2 - \frac{\sigma^2}{d} + \frac{1}{d} = \frac{(d-1)\sigma^2 + 1}{d}.$$
+is harmonic: $\Delta H = 2 - 2 = 0$. On $S^{d-1}$ (where $|\xi|=1$), $H(\xi) = (\xi\cdot\Phi)^2 - 1/d = h(\xi) - 1/d$, so the harmonic extension of $h$ is $\tilde{h}(\mathbf{x}) = H(\mathbf{x}) + 1/d$.
 
 **Induction over $G$ gates.** Let $f_k = \mathrm{E}[(\Psi_k\cdot\Phi)^2]$ after $k$ gate errors. We prove $f_k = ((d-1)\sigma^{2k}+1)/d$ by induction.
 
-*Base case.* $f_1 = ((d-1)\sigma^2+1)/d$ from above.
+*Base case ($k=0$).* Before any errors, $\Psi_0 = \Phi$, so $f_0 = (\Phi\cdot\Phi)^2 = 1 = ((d-1)\cdot 1+1)/d = d/d$. ✓
 
 *Inductive step.* The $(k+1)$-th error acts on the current state $\Psi_k$:
 
@@ -216,33 +216,33 @@ where $\theta_{k+1}$ has the same per-gate distribution (parameter $\sigma$) and
 
 $$\mathrm{E}\!\left[(\mathbf{e}_{2,k+1}\cdot\Phi)^2\,\big|\,\Psi_k\right] = \frac{1 - (\Psi_k\cdot\Phi)^2}{d-1}.$$
 
-Taking the full expectation:
+Evaluating the harmonic extension at $\mathbf{x} = \sigma\Psi_k$ gives the single-gate second moment $\mathrm{E}[\cos^2\!\theta_{k+1}] = \tilde{h}(\sigma\Psi_k) = \sigma^2 - \sigma^2/d + 1/d = ((d-1)\sigma^2+1)/d$. Call this $\lambda$. Taking the full expectation:
 
-$$f_{k+1} = f_1\cdot f_k + (1-f_1)\cdot\frac{1-f_k}{d-1}.$$
+$$f_{k+1} = \lambda\cdot f_k + (1-\lambda)\cdot\frac{1-f_k}{d-1}.$$
 
-*Closing the induction.* Let $f = f_1 = ((d-1)\sigma^2+1)/d$ and assume $f_k = ((d-1)\sigma^{2k}+1)/d$:
+*Closing the induction.* Assume $f_k = ((d-1)\sigma^{2k}+1)/d$:
 
-$$d\cdot f_{k+1} = f\bigl((d-1)\sigma^{2k}+1\bigr) + (1-f)(1-\sigma^{2k}) = \sigma^{2k}(fd-1) + 1.$$
+$$d\cdot f_{k+1} = \lambda\bigl((d-1)\sigma^{2k}+1\bigr) + (1-\lambda)(1-\sigma^{2k}) = \sigma^{2k}(\lambda d-1) + 1.$$
 
-Since $fd - 1 = (d-1)\sigma^2$:
+Since $\lambda d - 1 = (d-1)\sigma^2$:
 
 $$d\cdot f_{k+1} = (d-1)\sigma^{2k}\cdot\sigma^2 + 1 = (d-1)\sigma^{2(k+1)} + 1.$$
 
 Setting $k = G$:
 
-$$f_2 = \mathrm{E}[\cos^2\!\theta_G] = \frac{(d-1)\sigma^{2G}+1}{d}.$$
+$$F = \mathrm{E}[\cos^2\!\theta_G] = \frac{(d-1)\sigma^{2G}+1}{d}.$$
 
 ---
 
 #### §7 — Combining everything
 
-Substitute $f_2$ (§6) and $\mathrm{E}[|\langle w|\mathbf{e}_2\rangle|^2] = (2-p_\mathrm{ideal})/(d-1)$ (§5) into the result of §4:
+Substitute $F$ (§6) and $\mathrm{E}[|\langle w|\mathbf{e}_2\rangle|^2] = (2-p_\mathrm{ideal})/(d-1)$ (§5) into the result of §4:
 
 $$\mathrm{E}[p_e] = \frac{(d-1)\sigma^{2G}+1}{d}\cdot p_\mathrm{ideal} + \left(1 - \frac{(d-1)\sigma^{2G}+1}{d}\right)\cdot\frac{2-p_\mathrm{ideal}}{d-1}.$$
 
-First simplify $1-f_2$:
+First simplify $1-F$:
 
-$$1 - f_2 = \frac{d - \bigl((d-1)\sigma^{2G}+1\bigr)}{d} = \frac{(d-1)(1-\sigma^{2G})}{d}.$$
+$$1 - F = \frac{d - \bigl((d-1)\sigma^{2G}+1\bigr)}{d} = \frac{(d-1)(1-\sigma^{2G})}{d}.$$
 
 The factor $(d-1)$ in the numerator cancels with the $(d-1)$ in the denominator of the floor term:
 
@@ -260,7 +260,7 @@ Dividing by $d$ and using $2/d = 1/N$ (since $d = 2N$):
 
 $$\boxed{\mathrm{E}[p_e] = \sigma^{2G}\cdot p_\mathrm{ideal} + \frac{1-\sigma^{2G}}{N}.}$$
 
-No approximations were made. All finite-$d$ corrections cancel exactly.
+No approximations were made. All intermediate dimension-dependent factors ($d$, $d-1$) simplify exactly, yielding a closed form in $N$ alone.
 
 ---
 
