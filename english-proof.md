@@ -55,13 +55,13 @@ $$p_\mathrm{ideal} = \Phi_{2w}^2 + \Phi_{2w+1}^2 = (\Phi\cdot\hat{u}_{2w})^2 + (
 
 #### §2 — The isotropic error model
 
-**Definition.** A single isotropic error with parameter $\sigma \in (0,1)$ acts on a state $\Phi \in S^{d-1}$ to produce a new state [[Lacalle & Pozo Coronado (2019)](#references)]:
+**Definition.** A single isotropic error with parameter $\sigma \in (0,1)$ acts on a state $\Phi \in S^{d-1}$ by producing an output state $\Psi$ distributed according to the Poisson kernel $P(\sigma\Phi,\cdot)$ on $S^{d-1}$ [[Lacalle & Pozo Coronado (2019)](#references)]. Equivalently, $\Psi$ can be written as
 
 $$\Psi = \cos\theta\;\Phi + \sin\theta\;\mathbf{e}_2.$$
 
 The two random quantities on the right are:
 
-- $\theta \in [0,\pi]$: a random angle drawn from the density $g(\theta;\sigma)$ defined below.
+- $\theta \in [0,\pi]$: a random angle whose density is proportional to $g(\theta;\sigma)$ as derived below.
 - $\mathbf{e}_2$: a random unit vector drawn **uniformly** from $V_\perp = \{\mathbf{v}\in\mathbb{R}^d : \mathbf{v}\cdot\Phi = 0\}$, the $(d-1)$-dimensional subspace orthogonal to $\Phi$.
 - $\theta$ and $\mathbf{e}_2$ are **drawn independently** of each other.
 
@@ -83,7 +83,7 @@ The Poisson kernel is now a distribution over all of $S^{d-1}$, but it only depe
 
 $$g(\theta;\sigma) \propto \frac{(1-\sigma^2)\sin^{d-2}\!\theta}{(1+\sigma^2-2\sigma\cos\theta)^{d/2}}.$$
 
-By construction, $\Psi$ is distributed according to $P(\sigma\Phi,\cdot)$ on $S^{d-1}$ — the Poisson kernel centered at the interior point $\sigma\Phi$. This identification is the key: the Poisson integral formula applies directly to any expectation $\mathrm{E}[h(\Psi)]$.
+This identification is the key: because $\Psi$ is distributed according to $P(\sigma\Phi,\cdot)$ on $S^{d-1}$, the Poisson integral formula applies directly to any expectation $\mathrm{E}[h(\Psi)]$.
 
 **Why $\mathrm{E}[\cos\theta] = \sigma$.** Throughout this derivation, the expectation $\mathrm{E}[\cdot]$ is over the randomness of the error model (the angles $\theta$ and directions $\mathbf{e}_2$), not over measurement outcomes. The Poisson kernel has the following key property (the Poisson integral formula [[Axler, Bourdon & Ramey (2001)](#references), Ch. 5]): for any continuous $h$ on $S^{d-1}$,
 
@@ -160,7 +160,7 @@ $M$ is a $d\times d$ symmetric positive semidefinite matrix. It is pinned down b
 
 **1. Range.** Since $\mathbf{e}_2 \in V_\perp$ always, every component of $\mathbf{e}_2$ in the direction of $\Phi$ is zero. The outer product $\mathbf{e}_2\mathbf{e}_2^\top$ therefore maps every vector into $V_\perp$ and annihilates the $\Phi$-direction. So $M$ must be of the form $M = c\,P_{V_\perp}$ for some scalar $c$, where $P_{V_\perp}$ is the orthogonal projector onto $V_\perp$ (this also follows from constraint 2).
 
-**2. Rotational symmetry within $V_\perp$.** The uniform distribution on the unit sphere of $V_\perp$ is invariant under any rotation $R$ that acts within $V_\perp$ (i.e.\ $R\Phi = \Phi$, $R$ unitary). Under such a rotation, $\mathbf{e}_2\to R\mathbf{e}_2$, so $M\to RMR^\top = M$. The only matrices commuting with all rotations within a subspace $V_\perp$ are scalar multiples of the identity on that subspace, confirming $M = c\,P_{V_\perp}$.
+**2. Rotational symmetry within $V_\perp$.** The uniform distribution on the unit sphere of $V_\perp$ is invariant under any rotation $R$ that acts within $V_\perp$ (i.e.\ $R\Phi = \Phi$, $R$ orthogonal). Under such a rotation, $\mathbf{e}_2\to R\mathbf{e}_2$, so $M\to RMR^\top = M$. The only matrices commuting with all rotations within a subspace $V_\perp$ are scalar multiples of the identity on that subspace, confirming $M = c\,P_{V_\perp}$.
 
 **3. Trace constraint.** Since $|\mathbf{e}_2|^2 = 1$ always:
 
@@ -278,7 +278,7 @@ No approximations were made. All intermediate dimension-dependent factors ($d$, 
 
 **When $\sigma^{2G}\to 1$** (near-perfect gates or very short circuit): $\mathrm{E}[p_e]\to p_\mathrm{ideal}$. The noisy algorithm recovers the ideal Grover result.
 
-**When $\sigma^{2G}\to 0$** (heavy decoherence, or the circuit is so long that $\sigma^{G(n)}\ll 1$): $\mathrm{E}[p_e]\to 1/N$. The algorithm is no better than a random guess over $N$ outcomes. This floor follows from the geometry of $\mathbf{e}_2$ in $V_\perp$ — it is not separately assumed.
+**When $\sigma^{2G}\to 0$** (heavy decoherence, or the circuit is so long that $\sigma^{G(n)}\ll 1$): $\mathrm{E}[p_e]\to 1/N$. The algorithm is no better than a random guess over $N$ outcomes. This random-guess limit follows from the exact formula: the geometric floor from $\mathbf{e}_2 \in V_\perp$ combines with the limiting value $F\to 1/d$ to give $1/N$, so it is not separately assumed.
 
 ---
 
