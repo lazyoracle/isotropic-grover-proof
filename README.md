@@ -24,12 +24,14 @@ More details are available in [english-proof.md](english-proof.md).
 - AI session logs are in `sessions/`
 - The main Lean submodules are under `IsotropicGroverProof` 
 ```
-  Defs.lean          — M1: Core types, stdBasisVec, succProb, Parseval identity
-  IsotropicError.lean — M2: Poisson kernel marginal, isotropicError state
-  Composition.lean   — M3: Composition axiom, composedMeasure
-  CrossTerm.lean     — M4: perpSphereMeasure, cross-term cancellation
-  SecondMoment.lean  — M5: P_perp, second moment = (1/(d-1))·P_perp, decoherent floor
-  Gegenbauer.lean    — M6: Gegenbauer polynomials, f₂ formula
-  MainTheorem.lean   — M7: isotropicGrover_main (the final theorem)
-  LimitingCases.lean — M8: Limiting corollaries (σ→1 and σ→0)
+  Basic.lean             — barrel re-export, imports all modules below in dependency order
+  Defs.lean              — M1: Core types, stdBasisVec, succProb, Parseval identity
+  IsotropicError.lean    — M2: Poisson kernel marginal, isotropicError state
+  Composition.lean       — M3: Composition axiom, composedMeasure
+  CrossTerm.lean         — M4: perpSphereMeasure, cross-term cancellation
+  SecondMoment.lean      — M5: P_perp, second moment = (1/(d-1))·P_perp, decoherent floor
+  GegenbaurerHelper.lean — d=2 helper for M6: poissonIntegral_cos_sq_d2, via Mathlib's complex Poisson formula
+  Gegenbauer.lean        — M6: f₂ = E[cos²θ_G] via the Poisson integral formula / harmonic extension (matches english-proof.md §6); d=2 case proved, d≥3 open (sorry — would still need Gegenbauer/spherical-harmonics machinery)
+  MainTheorem.lean       — M7: isotropicGrover_main (the final theorem)
+  LimitingCases.lean     — M8: Limiting corollaries (σ→1 and σ→0)
 ```
