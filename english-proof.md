@@ -6,19 +6,19 @@ We want a closed-form expression for $\mathrm{E}[p_e(n)]$, the **expected succes
 
 $$k(n) = \frac{\log(1-p_\mathrm{ideal})}{\log(1-\mathrm{E}[p_e])}$$
 
-can be fit as an exponential in $n$. (This follows from requiring that $k$ independent repetitions collectively succeed with probability $p_\mathrm{ideal}$: $(1-\mathrm{E}[p_e])^k = 1-p_\mathrm{ideal}$, solved for $k$.)
+can be fit as an exponential in $n$ of the form $a\cdot b^n + c$. (This follows from requiring that $k$ independent repetitions collectively succeed with probability $p_\mathrm{ideal}$: $(1-\mathrm{E}[p_e])^k = 1-p_\mathrm{ideal}$, solved for $k$.)
 
 The result we will derive is the mixture model
 
 $$\boxed{\mathrm{E}[p_e] = \sigma^{2G(n)} \cdot p_\mathrm{ideal} + \frac{1-\sigma^{2G(n)}}{N},}$$
 
-where $N = 2^n$ is the database size and $G(n)$ is the gate count at optimal Grover iterations (taken directly from simulation data). This formula is **exact** for the isotropic error model — no approximations are made and all intermediate dimension-dependent factors simplify exactly.
+where $N = 2^n$ is the database size and $G(n)$ is the gate count at optimal Grover iterations (taken directly from simulation data). This formula is **exact** for the isotropic error model; all intermediate dimension-dependent factors cancel, as shown below.
 
 The derivation proceeds in six steps:
 
 1. Represent the quantum state as a real vector on a hypersphere.
 2. Define the isotropic error model and the distribution of the perturbation angle.
-3. Collapse all $G(n)$ per-gate errors to a single effective error (composition).
+3. Collapse all $G(n)$ per-gate errors to a single effective error.
 4. Expand $\mathrm{E}[p_e]$ and show the cross term vanishes.
 5. Compute the "decoherent floor" $\mathrm{E}[(\mathbf{e}_2\cdot\hat{u}_{2w})^2+(\mathbf{e}_2\cdot\hat{u}_{2w+1})^2]$.
 6. Compute the second moment $F = \mathrm{E}[\cos^2\!\theta_G]$ via harmonic extension and induction.
@@ -73,7 +73,7 @@ The Poisson kernel of the unit ball $B^d = \{\mathbf{y}\in\mathbb{R}^d : |\mathb
 
 $$P(\mathbf{y},\xi) = \frac{1-|\mathbf{y}|^2}{|\mathbf{y}-\xi|^d}, \qquad \mathbf{y}\in B^d,\;\xi\in S^{d-1}.$$
 
-It has a concrete probabilistic meaning: if a Brownian particle starts at interior point $\mathbf{y}$ and runs until it first hits the boundary $S^{d-1}$, then $P(\mathbf{y},\xi)/\int P$ is the probability density of the hitting point $\xi$. Now place the interior point along the first axis at distance $\sigma$ from the origin: $\mathbf{y} = \sigma\mathbf{e}_1$. By rotational symmetry, the distance from $\mathbf{y}$ to any boundary point $\xi$ depends only on the angle $\theta$ between $\mathbf{e}_1$ and $\xi$:
+It has a probabilistic interpretation: if a Brownian particle starts at interior point $\mathbf{y}$ and runs until it first hits the boundary $S^{d-1}$, then $P(\mathbf{y},\xi)/\int P$ is the probability density of the hitting point $\xi$. Now place the interior point along the first axis at distance $\sigma$ from the origin: $\mathbf{y} = \sigma\mathbf{e}_1$. By rotational symmetry, the distance from $\mathbf{y}$ to any boundary point $\xi$ depends only on the angle $\theta$ between $\mathbf{e}_1$ and $\xi$:
 
 $$|\sigma\mathbf{e}_1 - \xi|^2 = \sigma^2 - 2\sigma(\mathbf{e}_1\cdot\xi) + 1 = 1+\sigma^2-2\sigma\cos\theta,$$
 
@@ -83,7 +83,7 @@ The Poisson kernel is now a distribution over all of $S^{d-1}$, but it only depe
 
 $$g(\theta;\sigma) \propto \frac{(1-\sigma^2)\sin^{d-2}\!\theta}{(1+\sigma^2-2\sigma\cos\theta)^{d/2}}.$$
 
-This identification is the key: because $\Psi$ is distributed according to $P(\sigma\Phi,\cdot)$ on $S^{d-1}$, the Poisson integral formula applies directly to any expectation $\mathrm{E}[h(\Psi)]$.
+Because $\Psi$ is distributed according to $P(\sigma\Phi,\cdot)$ on $S^{d-1}$, the Poisson integral formula applies directly to any expectation $\mathrm{E}[h(\Psi)]$.
 
 **Why $\mathrm{E}[\cos\theta] = \sigma$.** Throughout this derivation, the expectation $\mathrm{E}[\cdot]$ is over the randomness of the error model (the angles $\theta$ and directions $\mathbf{e}_2$), not over measurement outcomes. The Poisson kernel has the following key property (the Poisson integral formula [[Axler, Bourdon & Ramey (2001)](#references), Ch. 5]): for any continuous $h$ on $S^{d-1}$,
 
@@ -95,19 +95,19 @@ Take $h(\xi) = \xi\cdot\Phi$. The function $\tilde{h}(\mathbf{x}) = \mathbf{x}\c
 
 $$\mathrm{E}[\cos\theta] = \tilde{h}(\sigma\Phi) = \sigma\Phi\cdot\Phi = \sigma.$$
 
-Physically: $\sigma = \mathrm{E}[\cos\theta]$ is the **average amplitude overlap** between the perturbed state $\Psi$ and the ideal state $\Phi$. This is the precise definition of the fidelity parameter — $\sigma=1$ means no rotation (perfect gate), $\sigma=0$ means a uniformly random final state.
+The parameter $\sigma$ therefore measures the average amplitude overlap between the perturbed state $\Psi$ and the ideal state $\Phi$. When $\sigma=1$ there is no rotation (a perfect gate), and when $\sigma=0$ the final state is uniformly random.
 
 ---
 
-#### §3 — $G(n)$ gate errors reduce to a single effective rotation
+#### §3 — $G(n)$ gate errors reduce to a single effective error
 
 **Commutativity with gates.** Isotropic errors commute with unitary quantum gates [[Lacalle & Pozo Coronado (2019)](#references)]:
 
 $$U \circ E = E' \circ U,$$
 
-where $E'$ has the same distribution as $E$. Physically, an isotropic error has no preferred axis — it perturbs the state in all equatorial directions equally — so it cannot "know" which gate acts before or after it, and the order is irrelevant. This means every per-gate error can be commuted past all subsequent gates to the end of the circuit, just before measurement.
+where $E'$ has the same distribution as $E$. An isotropic error has no preferred axis. It perturbs the state in all equatorial directions equally, so it cannot "know" which gate acts before or after it, and the order is irrelevant. This means every per-gate error can be commuted past all subsequent gates to the end of the circuit, just before measurement.
 
-**Effective accumulated rotation.** After commuting all $G(n)$ errors to the end, the final state is the ideal state $\Phi$ rotated by $G(n)$ successive isotropic perturbations. Because every individual error is isotropic — it has no preferred axis — the accumulated rotation direction is also isotropic [[Lacalle & Pozo Coronado (2019)](#references)]: the noise direction $\mathbf{e}_2$ is uniform in $V_\perp$ and independent of the accumulated angle $\theta_G$, exactly as for a single gate (§2). The final noisy state therefore has the same structural form:
+**Effective accumulated rotation.** After commuting all $G(n)$ errors to the end, the final state is the ideal state $\Phi$ rotated by $G(n)$ successive isotropic perturbations. Because every individual error is isotropic and has no preferred axis, the accumulated rotation direction is also isotropic [[Lacalle & Pozo Coronado (2019)](#references)]: the noise direction $\mathbf{e}_2$ is uniform in $V_\perp$ and independent of the accumulated angle $\theta_G$, exactly as for a single gate (§2). The final noisy state therefore has the same structural form:
 
 $$\Psi = \cos\theta_G\;\Phi + \sin\theta_G\;\mathbf{e}_2.$$
 
@@ -188,7 +188,7 @@ Summing over the two real components $\hat{u}_{2w}$ and $\hat{u}_{2w+1}$, and us
 
 $$\mathrm{E}\!\left[(\mathbf{e}_2\cdot\hat{u}_{2w})^2 + (\mathbf{e}_2\cdot\hat{u}_{2w+1})^2\right] = \frac{(1-(\hat{u}_{2w}\cdot\Phi)^2)+(1-(\hat{u}_{2w+1}\cdot\Phi)^2)}{d-1} = \frac{2-p_\mathrm{ideal}}{d-1}.$$
 
-**Physical interpretation.** The decoherent floor $\mathrm{E}[(\mathbf{e}_2\cdot\hat{u}_{2w})^2 + (\mathbf{e}_2\cdot\hat{u}_{2w+1})^2] = (2-p_\mathrm{ideal})/(d-1)$ equals approximately $1/(d-1)\approx 1/(2N)$ when $p_\mathrm{ideal}\approx 1$. In the limit $\sigma^{2G}\to 0$ (maximum decoherence achievable within this model; note $F\geq 1/d > 0$ always), the full formula from §7 gives $\mathrm{E}[p_e]\to 2/d = 1/N$ — random guessing over $N$ outcomes. This value is not separately assumed; it follows exactly from the geometry of $\mathbf{e}_2$ in $V_\perp$.
+When $p_\mathrm{ideal}\approx 1$, this floor is approximately $1/(d-1)\approx 1/(2N)$. In the limit $\sigma^{2G}\to 0$ (maximum decoherence within this model; note $F\geq 1/d > 0$ always), the full formula from §7 gives $\mathrm{E}[p_e]\to 2/d = 1/N$, which is simply random guessing over $N$ outcomes.
 
 ---
 
@@ -204,7 +204,7 @@ is harmonic: $\Delta H = 2 - 2 = 0$. On $S^{d-1}$ (where $|\xi|=1$), $H(\xi) = (
 
 **Induction over $G$ gates.** Let $f_k = \mathrm{E}[(\Psi_k\cdot\Phi)^2]$ after $k$ gate errors. We prove $f_k = ((d-1)\sigma^{2k}+1)/d$ by induction.
 
-*Base case ($k=0$).* Before any errors, $\Psi_0 = \Phi$, so $f_0 = (\Phi\cdot\Phi)^2 = 1 = ((d-1)\cdot 1+1)/d = d/d$. ✓
+*Base case ($k=0$).* Before any errors, $\Psi_0 = \Phi$, so $f_0 = (\Phi\cdot\Phi)^2 = 1 = ((d-1)\cdot 1+1)/d = d/d$.
 
 *Inductive step.* The $(k+1)$-th error acts on the current state $\Psi_k$:
 
@@ -270,15 +270,13 @@ Dividing by $d$ and using $2/d = 1/N$ (since $d = 2N$):
 
 $$\boxed{\mathrm{E}[p_e] = \sigma^{2G}\cdot p_\mathrm{ideal} + \frac{1-\sigma^{2G}}{N}.}$$
 
-No approximations were made. All intermediate dimension-dependent factors ($d$, $d-1$) simplify exactly, yielding a closed form in $N$ alone.
+All intermediate dimension-dependent factors ($d$, $d-1$) cancel exactly, leaving a closed form in $N$ alone.
 
 ---
 
-#### §8 — Limiting cases and code
+#### §8 — Limiting cases
 
-**When $\sigma^{2G}\to 1$** (near-perfect gates or very short circuit): $\mathrm{E}[p_e]\to p_\mathrm{ideal}$. The noisy algorithm recovers the ideal Grover result.
-
-**When $\sigma^{2G}\to 0$** (heavy decoherence, or the circuit is so long that $\sigma^{G(n)}\ll 1$): $\mathrm{E}[p_e]\to 1/N$. The algorithm is no better than a random guess over $N$ outcomes. This random-guess limit follows from the exact formula: the geometric floor from $\mathbf{e}_2 \in V_\perp$ combines with the limiting value $F\to 1/d$ to give $1/N$, so it is not separately assumed.
+When $\sigma^{2G}\to 1$ (near-perfect gates or a very short circuit), $\mathrm{E}[p_e]\to p_\mathrm{ideal}$ and the noisy algorithm recovers the ideal Grover result. In the opposite regime, $\sigma^{2G}\to 0$ (heavy decoherence, or a circuit long enough that $\sigma^{G(n)}\ll 1$), the formula gives $\mathrm{E}[p_e]\to 1/N$. The algorithm reduces to random guessing over $N$ outcomes, consistent with the geometric floor from $\mathbf{e}_2 \in V_\perp$ combining with $F\to 1/d$.
 
 ---
 
