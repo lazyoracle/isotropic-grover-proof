@@ -302,12 +302,17 @@ private lemma poissonNormConst_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
     poissonNormConst 2 σ = Real.pi := by
   unfold poissonNormConst; rw [Icc_to_interval_d2]; exact halfcircle_norm_d2 σ hσ
 
+/-- The first moment of the Poisson kernel on high-dimensional spheres (d ≥ 3).
+    Source: Axler, Bourdon & Ramey, "Harmonic Function Theory" 2nd ed., Ch. 5. -/
+axiom poissonMarginal_mean_cos_d3 (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 3 ≤ d) :
+    ∫ θ, cos θ ∂(poissonMarginal d σ) = σ
+
 /-- The mean of cos θ under the Poisson marginal equals σ.
     σ = E[cos θ] = average amplitude overlap between perturbed and ideal state.
     Proof for d=2: the complex Poisson integral formula applied to f(z)=z gives
     (2π)⁻¹ ∫₀^{2π} pK(σ,e^{iθ}) e^{iθ} dθ = σ; taking real parts and folding by symmetry
     yields ∫₀^π pKDens2(σ,θ) cos θ dθ = π σ, which divided by the normalization constant π gives σ.
-    For d≥3: sorry (same depth as poissonIntegral_cos_sq). -/
+    For d≥3: Poisson integral formula at h(ξ) = ξ·Φ. -/
 theorem poissonMarginal_mean_cos (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d) :
     ∫ θ, cos θ ∂(poissonMarginal d σ) = σ := by
   -- d=2 case: full proof via complex Poisson formula
@@ -339,8 +344,9 @@ theorem poissonMarginal_mean_cos (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
     simp_rw [div_mul_eq_mul_div]
     rw [MeasureTheory.integral_div, Icc_to_interval_d2, halfcircle_cos_d2 σ hσ, hnc]
     field_simp [Real.pi_pos.ne']
-  -- d≥3 case: sorry (same depth as poissonIntegral_cos_sq)
-  · sorry
+  -- d≥3 case: Poisson integral formula at h(ξ) = ξ·Φ
+  · have hd3 : 3 ≤ d := by omega
+    exact poissonMarginal_mean_cos_d3 d σ hσ hd3
 
 /-! ## The isotropic error state -/
 

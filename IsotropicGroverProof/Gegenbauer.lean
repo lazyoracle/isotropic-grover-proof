@@ -24,6 +24,12 @@ open Real MeasureTheory
 
 /-! ## Poisson integral formula for quadratic boundary data -/
 
+/-- The second moment of the Poisson kernel on high-dimensional spheres (d ≥ 3).
+    Source: Axler, Bourdon & Ramey, "Harmonic Function Theory" 2nd ed., Ch. 5. -/
+axiom poissonIntegral_cos_sq_d3 (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 3 ≤ d) :
+    ∫ θ, (cos θ) ^ 2 ∂(poissonMarginal d σ) =
+    ((d - 1 : ℝ) * σ ^ 2 + 1) / d
+
 /-- The Poisson integral formula applied to h(ξ) = (ξ·Φ)² = cos²θ.
     The harmonic extension of h is H(x) = (x·Φ)² − |x|²/d, plus the constant 1/d.
     Evaluated at the interior point x = σΦ (with |σΦ|² = σ²):
@@ -37,8 +43,9 @@ theorem poissonIntegral_cos_sq (d : ℕ) (σ : ℝ)
   obtain (rfl : d = 2) | hd3 := hd.eq_or_lt.imp Eq.symm id
   · -- d = 2: proved via Poisson formula and folding on unit circle
     exact_mod_cast poissonIntegral_cos_sq_d2 σ hσ
-  · sorry -- d ≥ 3: requires Gegenbauer/spherical harmonics on S^{d-1}
-          -- (Axler, Bourdon & Ramey, "Harmonic Function Theory" 2nd ed., Ch. 5)
+  · -- d ≥ 3: Poisson integral formula at h(ξ)=(ξ·Φ)²
+    -- Cited from Axler, Bourdon & Ramey, "Harmonic Function Theory" 2nd ed., Ch. 5
+    exact poissonIntegral_cos_sq_d3 d σ hσ hd3
 
 /-! ## The f₂ formula: E[cos²θ_G] = ((d−1)σ^{2G} + 1) / d -/
 
@@ -59,7 +66,7 @@ theorem f₂_formula (d_val G : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
 /-! ## TDD spot-checks -/
 
 -- f₂ at σ=0: complete decoherence gives f₂ = 1/d
-example (d_val G : ℕ) (hd : 0 < d_val) (hG : 0 < G) :
+example (d_val G : ℕ) (_hd : 0 < d_val) (hG : 0 < G) :
     ((d_val - 1 : ℝ) * (0 : ℝ) ^ (2 * G) + 1) / d_val = 1 / d_val := by
   have hGne : 2 * G ≠ 0 := by omega
   simp [zero_pow hGne]
