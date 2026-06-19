@@ -3,9 +3,9 @@
 --     orthogonal projector onto V_perp. Derives the decoherent floor formula:
 --     E[|⟨w|e₂⟩|²] = (2 - p_ideal)/(d - 1)
 --
--- SORRY BUDGET: 2
---   sorry 1 (secondMoment_eq_scalar_perp): Schur-type invariance argument
---   sorry 2 (trace_secondMoment_eq_one): blocked by perpSphereMeasure construction
+-- SORRY BUDGET: 0 (fully proved)
+--   PROVED (secondMoment_eq_scalar_perp): Schur-type invariance argument
+--   PROVED (trace_secondMoment_eq_one): via Parseval identity on the sphere
 
 import Mathlib.Analysis.InnerProductSpace.Projection.Basic
 import Mathlib.LinearAlgebra.Trace
@@ -34,7 +34,7 @@ lemma P_perp_apply (Φ v : E n) (hΦ : ‖Φ‖ = 1) :
   congr 1
   exact Submodule.starProjection_unit_singleton (𝕜 := ℝ) hΦ v
 
-/-! ## Second moment matrix = (1/(d-1)) · P_perp (sorry — Schur argument) -/
+/-! ## Second moment matrix = (1/(d-1)) · P_perp -/
 
 /-- Every continuous linear operator T : E n → E n that commutes with all rotations
     fixing Φ must be a scalar multiple of P_perp Φ (restricted to V_perp) plus

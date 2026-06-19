@@ -2,9 +2,8 @@
 -- M4: The cross term in E[p_e] vanishes because E[e₂] = 0.
 --     Derives the expanded form: E[p_e] = f₂ · p_ideal + (1-f₂) · E[|⟨w|e₂⟩|²]
 --
--- SORRY BUDGET: 2
---   sorry 1 (perpSphereMeasure_neg_invariant): antipodal symmetry of sphere measure
---   sorry 2 (stub for future): (none currently)
+-- SORRY BUDGET: 0 (fully proved)
+--   PROVED (perpSphereMeasure_neg_invariant): antipodal symmetry of sphere measure
 
 import Mathlib.Analysis.InnerProductSpace.Projection.Basic
 import Mathlib.Analysis.InnerProductSpace.Projection.Reflection
