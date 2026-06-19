@@ -2,9 +2,11 @@
 -- M2: The isotropic error model — Poisson kernel marginal density g(θ;σ),
 --     the error state Ψ = cos θ · Φ + sin θ · e₂, and the key property E[cos θ] = σ.
 --
--- SORRY BUDGET: 1  (was 2; sorry 1 proved below)
---   sorry 1 (poissonMarginal_isProbMeasure): PROVED — normalization via interval integral positivity
---   sorry 2 (poissonMarginal_mean_cos): E[cos θ] = σ — blocked on M6 moment theorem
+-- SORRY BUDGET: 0 (uses 1 axiom cited from external source)
+--   PROVED (poissonMarginal_isProbMeasure): normalization via interval integral positivity
+--   AXIOM (poissonMarginal_mean_cos_d3): E[cos θ] = σ for d ≥ 3
+--     Source: Axler, Bourdon & Ramey, "Harmonic Function Theory" 2nd ed., Ch. 5.
+--     The d=2 case is fully proved below.
 
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
 import Mathlib.Analysis.SpecialFunctions.Pow.Continuity

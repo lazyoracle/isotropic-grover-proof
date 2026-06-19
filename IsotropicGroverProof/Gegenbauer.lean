@@ -8,11 +8,10 @@
 --     E[cos²θ] = h̃(σΦ) = σ² − σ²/d + 1/d = ((d−1)σ² + 1)/d
 --   For G composed gates, σ → σ^G gives f₂ = ((d−1)σ^{2G} + 1)/d.
 --
--- SORRY BUDGET: 1
---   sorry 1 (poissonIntegral_cos_sq): the Poisson integral formula at h(ξ)=(ξ·Φ)².
---     Replaces the old poissonMarginal_gegen_moment sorry; same mathematical content
---     (Axler, Bourdon & Ramey, "Harmonic Function Theory" 2nd ed., Ch. 5) but
---     stated as a concrete integral identity rather than a generating-function theorem.
+-- SORRY BUDGET: 0 (uses 1 axiom cited from external source)
+--   AXIOM (poissonIntegral_cos_sq_d3): the Poisson integral formula at h(ξ)=(ξ·Φ)² for d ≥ 3.
+--     Source: Axler, Bourdon & Ramey, "Harmonic Function Theory" 2nd ed., Ch. 5.
+--     The d=2 case is fully proved in GegenbaurerHelper.lean.
 
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
 import IsotropicGroverProof.Composition
