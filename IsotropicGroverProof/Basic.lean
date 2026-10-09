@@ -7,5 +7,6 @@ import IsotropicGroverProof.Composition
 import IsotropicGroverProof.CrossTerm
 import IsotropicGroverProof.SecondMoment
 import IsotropicGroverProof.Gegenbauer
+import IsotropicGroverProof.Sequential
 import IsotropicGroverProof.MainTheorem
 import IsotropicGroverProof.LimitingCases
