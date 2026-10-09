@@ -46,16 +46,19 @@ instance composedMeasure_isProbMeasure (d G : ℕ) (σ : ℝ) (hσ : σ ∈ Set.
   exact poissonMarginal_isProbMeasure d (σ ^ G) ⟨pow_pos hσ.1 G,
     pow_lt_one₀ hσ.1.le hσ.2 hG.ne'⟩ hd
 
-/-! ## Corollary: E[cos θ_G] = σ^G -/
+/-! ## Corollary: E[cos θ_G] = σ^G (auxiliary property) -/
 
-/-- The mean perturbation angle after G gates has cosine expectation σ^G.
-    This follows directly from poissonMarginal_mean_cos applied to σ^G. -/
-theorem composedMeasure_mean_cos (d G : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
-    (hG : 0 < G) (hd : 2 ≤ d) :
-    ∫ θ, cos θ ∂(composedMeasure d G σ) = σ ^ G := by
+/-- Auxiliary property: The mean perturbation angle after G gates has cosine
+    expectation σ^G for d = 2.
+    This follows directly from poissonMarginal_mean_cos_d2 applied to σ^G.
+    Note: isotropicGrover_main depends only on f₂ (the second moment), not on
+    this first-moment corollary. -/
+theorem composedMeasure_mean_cos_d2 (G : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
+    (hG : 0 < G) :
+    ∫ θ, cos θ ∂(composedMeasure 2 G σ) = σ ^ G := by
   simp only [composedMeasure]
-  exact poissonMarginal_mean_cos d (σ ^ G) ⟨pow_pos hσ.1 G,
-    pow_lt_one₀ hσ.1.le hσ.2 hG.ne'⟩ hd
+  exact poissonMarginal_mean_cos_d2 (σ ^ G) ⟨pow_pos hσ.1 G,
+    pow_lt_one₀ hσ.1.le hσ.2 hG.ne'⟩
 
 /-! ## Non-negativity of f₂ -/
 
@@ -76,9 +79,9 @@ example : (1/2 : ℝ) ^ 3 = 1/8 := by norm_num
 -- f₂ is non-negative for any parameters
 example (d G : ℕ) (σ : ℝ) : 0 ≤ f₂ d G σ := f₂_nonneg d G σ
 
--- composedMeasure_mean_cos at G=1: E[cos θ] = σ
-example (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d) :
-    ∫ θ, cos θ ∂(composedMeasure d 1 σ) = σ := by
-  simpa using composedMeasure_mean_cos d 1 σ hσ one_pos hd
+-- composedMeasure_mean_cos_d2 at G=1: E[cos θ] = σ
+example (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
+    ∫ θ, cos θ ∂(composedMeasure 2 1 σ) = σ := by
+  simpa using composedMeasure_mean_cos_d2 1 σ hσ one_pos
 
 end IsotropicGrover
