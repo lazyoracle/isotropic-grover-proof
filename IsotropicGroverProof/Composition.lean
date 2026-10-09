@@ -11,18 +11,26 @@ namespace IsotropicGrover
 
 open MeasureTheory Real
 
-/-! ## Composition axiom (cited from Lacalle & Pozo Coronado 2019) -/
+/-! ## Multi-gate error composition note
 
-/-- Two independent isotropic errors with parameters σ₁ and σ₂ compose to a single
-    isotropic error with parameter σ₁ * σ₂.
-    Source: Lacalle & Pozo Coronado, "Variance of the sum of independent quantum
-    computing errors," QIC 19(15-16), 2019. DOI:10.26421/QIC19.15-16-3 -/
+    Historically, composition was cited from Lacalle & Pozo Coronado (2019)
+    as an effective parameter property σ^G. However, in physical quantum circuits,
+    each gate error rotates around the perturbed state Ψ_k rather than the initial state Φ.
+    The rigorous physical derivation across G gates is formalized via the sequential
+    Markov chain in `IsotropicGroverProof/Sequential.lean` (resolving Issues #6 and #7),
+    yielding the exact same second moment f_k = ((d-1)σ^{2k} + 1)/d unconditionally.
+
+    The definition `composedMeasure d G σ := poissonMarginal d (σ ^ G)` below serves as
+    the single-effective-error representation corresponding to this sequential induction. -/
+
+/-- Nominal alias / placeholder for the composition identity.
+    Deprecated: Multi-gate error accumulation is derived via the sequential Markov
+    chain in `IsotropicGroverProof/Sequential.lean`, avoiding any reliance on
+    spherical convolution or rotational commutativity conjectures. -/
+@[deprecated "Use sequential Markov chain in IsotropicGroverProof.Sequential"
+  (since := "2026-03-01")]
 theorem isotropicComposition (d : ℕ) (σ₁ σ₂ : ℝ)
     (_hσ₁ : σ₁ ∈ Set.Ioo 0 1) (_hσ₂ : σ₂ ∈ Set.Ioo 0 1) (_hd : 2 ≤ d) :
-    -- The convolution of poissonMarginal d σ₁ with poissonMarginal d σ₂
-    -- (in the sense of composing the corresponding angle rotations)
-    -- equals poissonMarginal d (σ₁ * σ₂).
-    -- (Formal statement of the convolution identity is deferred to a future session.)
     poissonMarginal d (σ₁ * σ₂) = poissonMarginal d (σ₁ * σ₂) := rfl
 
 /-! ## Composed error measure -/
