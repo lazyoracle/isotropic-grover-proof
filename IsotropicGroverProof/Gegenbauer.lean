@@ -52,13 +52,23 @@ theorem poissonIntegral_cos_sq (d : ℕ) (σ : ℝ)
     Proof: composedMeasure d G σ = poissonMarginal d (σ^G) by definition.
     Apply poissonIntegral_cos_sq at σ := σ^G, then use (σ^G)² = σ^{2G}. -/
 theorem f₂_formula (d_val G : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
-    (hd : 3 ≤ d_val) (hG : 0 < G) :
+    (hd : 2 ≤ d_val) (hG : 0 < G) :
     f₂ d_val G σ = ((d_val - 1 : ℝ) * σ ^ (2 * G) + 1) / d_val := by
   simp only [f₂, composedMeasure]
-  have hd2 : 2 ≤ d_val := by omega
   have hσG : σ ^ G ∈ Set.Ioo 0 1 :=
     ⟨pow_pos hσ.1 G, pow_lt_one₀ hσ.1.le hσ.2 hG.ne'⟩
-  rw [poissonIntegral_cos_sq d_val (σ ^ G) hσG hd2]
+  rw [poissonIntegral_cos_sq d_val (σ ^ G) hσG hd]
+  have hpow : (σ ^ G) ^ 2 = σ ^ (2 * G) := by ring
+  rw [hpow]
+
+/-- The second moment f₂ for d = 2, proved directly using `poissonIntegral_cos_sq_d2`
+    without invoking the d ≥ 3 Poisson integral formula axiom. -/
+theorem f₂_formula_d2 (G : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hG : 0 < G) :
+    f₂ 2 G σ = ((2 - 1 : ℝ) * σ ^ (2 * G) + 1) / 2 := by
+  simp only [f₂, composedMeasure]
+  have hσG : σ ^ G ∈ Set.Ioo 0 1 :=
+    ⟨pow_pos hσ.1 G, pow_lt_one₀ hσ.1.le hσ.2 hG.ne'⟩
+  rw [poissonIntegral_cos_sq_d2 (σ ^ G) hσG]
   have hpow : (σ ^ G) ^ 2 = σ ^ (2 * G) := by ring
   rw [hpow]
 

@@ -80,12 +80,12 @@ theorem isotropicGrover_rhs_eq_mixtureProb (G : ℕ) (σ : ℝ) (Φ : E n) (w : 
 /-- The LHS of `isotropicGrover_main` (the expected noisy Grover success probability under
     the error model) equals `mixtureProb` evaluated at fidelity `σ^(2G)`. -/
 theorem isotropicGrover_lhs_eq_mixtureProb (G : ℕ) (hG : 0 < G) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
-    (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) (hn : 2 ≤ n) :
+    (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) :
     (∫ θ, ∫ e₂, succProb n (isotropicError Φ e₂ θ) w
           ∂(perpSphereMeasure Φ)
       ∂(composedMeasure (d n) G σ)) =
     mixtureProb (succProb n Φ w) (2 ^ n) (σ ^ (2 * G)) := by
-  rw [isotropicGrover_main G hG σ hσ Φ hΦ w hn]
+  rw [isotropicGrover_main G hG σ hσ Φ hΦ w]
   simp only [mixtureProb, Nat.cast_pow, Nat.cast_ofNat]
 
 /-! ## Limiting behavior under per-gate fidelity parameter σ -/
@@ -116,7 +116,7 @@ theorem tendsto_mixtureProb_pow_as_sigma_zero (p : ℝ) (N : ℕ) {G : ℕ} (hG 
 /-- Limiting case 1: As per-gate fidelity `σ → 1` within `(0, 1)`,
     the expected noisy success probability converges to the ideal success probability `p_ideal`. -/
 theorem tendsto_expectedSuccProb_as_sigma_one (G : ℕ) (hG : 0 < G)
-    (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) (hn : 2 ≤ n) :
+    (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) :
     Tendsto (fun σ => ∫ θ, ∫ e₂, succProb n (isotropicError Φ e₂ θ) w
                ∂(perpSphereMeasure Φ)
              ∂(composedMeasure (d n) G σ))
@@ -126,7 +126,7 @@ theorem tendsto_expectedSuccProb_as_sigma_one (G : ℕ) (hG : 0 < G)
                ∂(composedMeasure (d n) G σ)) =ᶠ[𝓝[Set.Ioo 0 1] 1]
              (fun σ => mixtureProb (succProb n Φ w) (2 ^ n) (σ ^ (2 * G))) := by
     filter_upwards [self_mem_nhdsWithin] with σ hσ
-    exact isotropicGrover_lhs_eq_mixtureProb G hG σ hσ Φ hΦ w hn
+    exact isotropicGrover_lhs_eq_mixtureProb G hG σ hσ Φ hΦ w
   refine Tendsto.congr' heq.symm ?_
   exact (tendsto_mixtureProb_pow_as_sigma_one (succProb n Φ w) (2 ^ n) G).mono_left
     nhdsWithin_le_nhds
@@ -134,18 +134,18 @@ theorem tendsto_expectedSuccProb_as_sigma_one (G : ℕ) (hG : 0 < G)
 /-- Limiting case 1 (left neighborhood): As `σ → 1⁻` (from the left),
     the expected noisy success probability converges to the ideal success probability. -/
 theorem tendsto_expectedSuccProb_as_sigma_one_left (G : ℕ) (hG : 0 < G)
-    (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) (hn : 2 ≤ n) :
+    (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) :
     Tendsto (fun σ => ∫ θ, ∫ e₂, succProb n (isotropicError Φ e₂ θ) w
                ∂(perpSphereMeasure Φ)
              ∂(composedMeasure (d n) G σ))
       (𝓝[<] 1) (𝓝 (succProb n Φ w)) := by
   rw [← nhdsWithin_Ioo_eq_nhdsLT zero_lt_one]
-  exact tendsto_expectedSuccProb_as_sigma_one G hG Φ hΦ w hn
+  exact tendsto_expectedSuccProb_as_sigma_one G hG Φ hΦ w
 
 /-- Limiting case 2: As per-gate fidelity `σ → 0` within `(0, 1)`,
     the expected noisy success probability converges to `1 / 2^n` (random guess). -/
 theorem tendsto_expectedSuccProb_as_sigma_zero (G : ℕ) (hG : 0 < G)
-    (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) (hn : 2 ≤ n) :
+    (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) :
     Tendsto (fun σ => ∫ θ, ∫ e₂, succProb n (isotropicError Φ e₂ θ) w
                ∂(perpSphereMeasure Φ)
              ∂(composedMeasure (d n) G σ))
@@ -155,7 +155,7 @@ theorem tendsto_expectedSuccProb_as_sigma_zero (G : ℕ) (hG : 0 < G)
                ∂(composedMeasure (d n) G σ)) =ᶠ[𝓝[Set.Ioo 0 1] 0]
              (fun σ => mixtureProb (succProb n Φ w) (2 ^ n) (σ ^ (2 * G))) := by
     filter_upwards [self_mem_nhdsWithin] with σ hσ
-    exact isotropicGrover_lhs_eq_mixtureProb G hG σ hσ Φ hΦ w hn
+    exact isotropicGrover_lhs_eq_mixtureProb G hG σ hσ Φ hΦ w
   refine Tendsto.congr' heq.symm ?_
   have hlim := tendsto_mixtureProb_pow_as_sigma_zero (succProb n Φ w) (2 ^ n) hG
   simp only [Nat.cast_pow, Nat.cast_ofNat] at hlim
@@ -164,13 +164,13 @@ theorem tendsto_expectedSuccProb_as_sigma_zero (G : ℕ) (hG : 0 < G)
 /-- Limiting case 2 (right neighborhood): As `σ → 0⁺` (from the right),
     the expected noisy success probability converges to `1 / 2^n`. -/
 theorem tendsto_expectedSuccProb_as_sigma_zero_right (G : ℕ) (hG : 0 < G)
-    (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) (hn : 2 ≤ n) :
+    (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) :
     Tendsto (fun σ => ∫ θ, ∫ e₂, succProb n (isotropicError Φ e₂ θ) w
                ∂(perpSphereMeasure Φ)
              ∂(composedMeasure (d n) G σ))
       (𝓝[>] 0) (𝓝 (1 / (2 ^ n : ℝ))) := by
   rw [← nhdsWithin_Ioo_eq_nhdsGT zero_lt_one]
-  exact tendsto_expectedSuccProb_as_sigma_zero G hG Φ hΦ w hn
+  exact tendsto_expectedSuccProb_as_sigma_zero G hG Φ hΦ w
 
 /-! ## TDD spot-checks -/
 
