@@ -2,17 +2,22 @@
 
 #### Goal
 
-We want a closed-form expression for $\mathrm{E}[p_e(n)]$, the **expected success probability** of Grover's algorithm on $n$ qubits when every gate is subject to an independent isotropic error with per-gate fidelity parameter $\sigma \in (0,1)$. Once we have this, the repetition overhead
+The mathematical derivation in this document establishes a closed-form expression for $\mathrm{E}[p_e]$, the **expected success probability** of a quantum state (such as the output state of Grover's algorithm on $n$ qubits) when every gate is subject to an isotropic error with per-gate fidelity parameter $\sigma \in (0,1)$ across $G$ gate operations:
 
-$$k(n) = \frac{\log(1-p_\mathrm{ideal})}{\log(1-\mathrm{E}[p_e])}$$
+$$\boxed{\mathrm{E}[p_e] = \sigma^{2G} \cdot p_\mathrm{ideal} + \frac{1-\sigma^{2G}}{N},}$$
 
-can be fit as an exponential in $n$ of the form $a\cdot b^n + c$. (This follows from requiring that $k$ independent repetitions collectively succeed with probability $p_\mathrm{ideal}$: $(1-\mathrm{E}[p_e])^k = 1-p_\mathrm{ideal}$, solved for $k$.)
+where $N = 2^n$ is the database size and $p_\mathrm{ideal}$ is the ideal success probability.
 
-The result we will derive is the mixture model
+**Downstream Application (Repetition Overhead):**
+Once the expected success probability $\mathrm{E}[p_e]$ is derived, the repetition overhead required for $k$ independent runs to collectively succeed with probability $p_\mathrm{ideal}$,
+$$k(n) = \frac{\log(1-p_\mathrm{ideal})}{\log(1-\mathrm{E}[p_e])},$$
+can be calculated and fit as an exponential in $n$ of the form $a\cdot b^n + c$ (derived from $(1-\mathrm{E}[p_e])^k = 1-p_\mathrm{ideal}$, solved for $k$). Note that computing $k(n)$ and fitting an exponential are downstream application steps that build on the mixture model rather than parts of the core derivation.
 
-$$\boxed{\mathrm{E}[p_e] = \sigma^{2G(n)} \cdot p_\mathrm{ideal} + \frac{1-\sigma^{2G(n)}}{N},}$$
+**Role of Gate Count $G(n)$:**
+The gate count $G$ is treated as an externally specified parameter. In empirical/simulation studies, $G = G(n)$ is typically taken directly from transpiled circuit simulation data at optimal Grover iterations. In theoretical analyses, one can substitute asymptotic approximations such as $G(n) \sim \frac{\pi}{4}\sqrt{N}$ (or gate-decomposed counts proportional to $\frac{\pi}{4}\sqrt{2^n}$). The derivation does not produce a closed-form expression for $G(n)$ in terms of $n$ alone.
 
-where $N = 2^n$ is the database size and $G(n)$ is the gate count at optimal Grover iterations (taken directly from simulation data). This formula is **exact** for the isotropic error model; all intermediate dimension-dependent factors cancel, as shown below.
+**Exactness and Assumptions:**
+The formula is **exact** within the algebraic framework of the isotropic error model: all intermediate dimension-dependent factors cancel, as shown below. However, this exactness is conditional on the underlying model assumptions: unitary error commutation, the Poisson marginal angle distribution, and independent uniform equatorial perturbations. (See also tracking issues [#6](https://github.com/lazyoracle/isotropic-grover-proof/issues/6), [#7](https://github.com/lazyoracle/isotropic-grover-proof/issues/7), [#8](https://github.com/lazyoracle/isotropic-grover-proof/issues/8), and [#9](https://github.com/lazyoracle/isotropic-grover-proof/issues/9) for formalization status).
 
 The derivation proceeds in six steps:
 
@@ -112,6 +117,8 @@ where $E'$ has the same distribution as $E$. An isotropic error has no preferred
 $$\Psi = \cos\theta_G\;\Phi + \sin\theta_G\;\mathbf{e}_2.$$
 
 By the tower property and the per-gate property, a brief induction establishes $\mathrm{E}[\cos\theta_G] = \sigma^{G(n)}$: conditioning on $\Psi_k$ and using the Poisson integral formula with $h(\xi)=\xi\cdot\Psi_k$ (whose harmonic extension $\tilde{h}(\mathbf{x})=\mathbf{x}\cdot\Psi_k$ evaluates to $\sigma|\Psi_k|^2=\sigma$ at $\mathbf{x}=\sigma\Psi_k$) yields $\mathrm{E}[\Psi_{k+1}\cdot\Phi\mid\Psi_k]=\sigma\,(\Psi_k\cdot\Phi)$ (the cross term vanishes as in §4); taking the full expectation gives $\mathrm{E}[\Psi_{k+1}\cdot\Phi]=\sigma\,\mathrm{E}[\Psi_k\cdot\Phi]$, so inductively $\mathrm{E}[\cos\theta_G]=\mathrm{E}[\Psi_G\cdot\Phi]=\sigma^{G(n)}$. The second moment $F = \mathrm{E}[\cos^2\!\theta_G]$ — the key quantity for §4–§7 — is computed in §6.
+
+*(Note on formalization)*: Collapsing $G$ gate errors to a single effective error rotation with parameter $\sigma^G$ assumes rotational commutativity and composition. In Lean, this composition is currently modeled by defining `composedMeasure d G σ := poissonMarginal d (σ^G)` directly ([#6](https://github.com/lazyoracle/isotropic-grover-proof/issues/6)). The sequential error dynamics with per-gate rotations around intermediate states $\Psi_k$ (as analyzed via induction in §6) provides the physical justification for this step, and its step-by-step Lean formalization is tracked in [#7](https://github.com/lazyoracle/isotropic-grover-proof/issues/7).
 
 ---
 
@@ -239,6 +246,8 @@ $$d\cdot f_{k+1} = (d-1)\sigma^{2k}\cdot\sigma^2 + 1 = (d-1)\sigma^{2(k+1)} + 1.
 Setting $k = G$:
 
 $$F = \mathrm{E}[\cos^2\!\theta_G] = \frac{(d-1)\sigma^{2G}+1}{d}.$$
+
+*(Note on formalization)*: In the Lean formalization, the evaluation of the second moment $\mathrm{E}[\cos^2\theta] = \frac{(d-1)\sigma^2+1}{d}$ is proved for $d=2$ via Mathlib's complex Poisson formula, while the general case for $d \ge 3$ is currently introduced as an axiom (`poissonIntegral_cos_sq_d3`, tracked in [#9](https://github.com/lazyoracle/isotropic-grover-proof/issues/9)).
 
 ---
 
