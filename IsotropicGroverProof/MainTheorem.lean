@@ -20,18 +20,37 @@ open Real MeasureTheory
 
 variable {n : ℕ}
 
-/-! ## Main theorem -/
+/-! ## Main theorem
+
+`isotropicGrover_main` is the general geometric engine: it establishes the exact
+σ^{2G} mixture formula for any arbitrary unit vector Φ ∈ E(n) and gate
+count G > 0, relying on the spherical symmetry of the isotropic error measure.
+
+The general unit-vector invariance specializes to Grover's algorithm via
+`IsotropicGroverProof.GroverCircuit`:
+- Uniform superposition |s⟩ (`uniformSuperposition`): `isotropicGrover_uniformSuperposition`
+  proves that prior to Grover iterations (or with ideal success prob 1/2^n),
+  E[p_e] = 1 / 2^n identically for any G and σ.
+- 2D Grover search plane (`groverState2D`, `groverState2D_prob`):
+  `isotropicGrover_groverState2D` and `isotropicGrover_groverState2D_prob` instantiate
+  Φ with states in the plane span(|w⟩, |w^⟂⟩), yielding
+  σ^{2G} * sin²(α) + (1 - σ^{2G}) / 2^n and σ^{2G} * p_ideal + (1 - σ^{2G}) / 2^n.
+- Target basis state |w⟩ (`targetBasisState`): `isotropicGrover_targetBasisState`
+  evaluates the ideal Grover output state (p_ideal = 1) to σ^{2G} + (1 - σ^{2G}) / 2^n.
+-/
 
 /-- **The σ^{2G} mixture formula.**
-    The expected success probability of Grover's algorithm on n qubits, subject to
-    G(n) independent isotropic errors with per-gate fidelity σ ∈ (0,1), is:
+    The expected success probability on n qubits subject to G independent isotropic
+    errors with per-gate fidelity parameter σ ∈ (0,1) is:
 
         E[p_e] = σ^{2G} · p_ideal + (1 - σ^{2G}) / N
 
     where N = 2^n is the database size, p_ideal = succProb n Φ w is the ideal
-    Grover success probability, and G = G(n) is the gate count at optimal iteration.
+    success probability of the unit vector Φ, and G is the gate count.
 
-    The formula interpolates between perfect Grover (σ^{2G} = 1) and uniform
+    This theorem serves as the geometric invariant engine: its general unit-vector
+    invariance specializes directly to Grover's algorithm components via `GroverCircuit.lean`.
+    The formula interpolates between perfect fidelity (σ^{2G} = 1) and uniform
     random guessing (σ^{2G} = 0). No approximations are made — all finite-d
     corrections cancel exactly in the algebra below. -/
 theorem isotropicGrover_main (G : ℕ) (hG : 0 < G) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
