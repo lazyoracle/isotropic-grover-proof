@@ -104,21 +104,50 @@ The parameter $\sigma$ therefore measures the average amplitude overlap between 
 
 ---
 
-#### §3 — $G(n)$ gate errors reduce to a single effective error
+#### §3 — $G(n)$ gate errors: effective ansatz vs. sequential Markov chain
 
-**Commutativity with gates.** Isotropic errors commute with unitary quantum gates [[Lacalle & Pozo Coronado (2019)](#references)]:
+**Commutativity with gates.** In quantum circuits, isotropic noise channels commute with unitary gates in distribution [[Lacalle & Pozo Coronado (2019)](#references)]:
 
-$$U \circ E = E' \circ U,$$
+$$U \circ E \stackrel{d}{=} E' \circ U,$$
 
-where $E'$ has the same distribution as $E$. An isotropic error has no preferred axis. It perturbs the state in all equatorial directions equally, so it cannot "know" which gate acts before or after it, and the order is irrelevant. This means every per-gate error can be commuted past all subsequent gates to the end of the circuit, just before measurement.
+where $E'$ has the same isotropic distribution as $E$. Because an isotropic error has no preferred axis, it perturbs the state across all equatorial directions with equal probability. In the physical literature, this property motivates commuting all per-gate errors past subsequent gates to the end of the circuit, just before measurement.
 
-**Effective accumulated rotation.** After commuting all $G(n)$ errors to the end, the final state is the ideal state $\Phi$ rotated by $G(n)$ successive isotropic perturbations. Because every individual error is isotropic and has no preferred axis, the accumulated rotation direction is also isotropic [[Lacalle & Pozo Coronado (2019)](#references)]: the noise direction $\mathbf{e}_2$ is uniform in $V_\perp$ and independent of the accumulated angle $\theta_G$, exactly as for a single gate (§2). The final noisy state therefore has the same structural form:
+**Two distinct modeling perspectives.** When analyzing the accumulation of $G(n)$ gate errors across the circuit, two distinct mathematical perspectives must be distinguished:
 
-$$\Psi = \cos\theta_G\;\Phi + \sin\theta_G\;\mathbf{e}_2.$$
+1. **Perspective A: The single-step effective error representation (ansatz).**  
+   One models the net cumulative error as a single effective isotropic perturbation acting directly on the ideal output state $\Phi$:
+   $$\Psi = \cos\theta_G\;\Phi + \sin\theta_G\;\mathbf{e}_2,$$
+   where $\mathbf{e}_2$ is uniformly distributed on the unit sphere of the orthogonal complement $V_\perp(\Phi) = \{\mathbf{v} \in \mathbb{R}^d : \mathbf{v}\cdot\Phi = 0\}$, and the effective noise angle $\theta_G$ is independent of $\mathbf{e}_2$ with parameter $\sigma_\mathrm{eff} = \sigma^{G(n)}$.
+   
+   *Strengths and limitations:* This ansatz provides an intuitive, analytically compact representation that mirrors the single-gate structural form (§2) and directly matches the definition `composedMeasure d G σ := poissonMarginal d (σ^G)` currently formalized in Lean. However, as a microscopic derivation, asserting that $G$ sequential rotations across dynamically perturbed intermediate states collapse identically into a single uniform rotation around $\Phi$ with independent angle $\theta_G$ relies on a spherical convolution property on $SO(d)$ / $S^{d-1}$ that previous literature asserted by citation rather than derived.
 
-By the tower property and the per-gate property, a brief induction establishes $\mathrm{E}[\cos\theta_G] = \sigma^{G(n)}$: conditioning on $\Psi_k$ and using the Poisson integral formula with $h(\xi)=\xi\cdot\Psi_k$ (whose harmonic extension $\tilde{h}(\mathbf{x})=\mathbf{x}\cdot\Psi_k$ evaluates to $\sigma|\Psi_k|^2=\sigma$ at $\mathbf{x}=\sigma\Psi_k$) yields $\mathrm{E}[\Psi_{k+1}\cdot\Phi\mid\Psi_k]=\sigma\,(\Psi_k\cdot\Phi)$ (the cross term vanishes as in §4); taking the full expectation gives $\mathrm{E}[\Psi_{k+1}\cdot\Phi]=\sigma\,\mathrm{E}[\Psi_k\cdot\Phi]$, so inductively $\mathrm{E}[\cos\theta_G]=\mathrm{E}[\Psi_G\cdot\Phi]=\sigma^{G(n)}$. The second moment $F = \mathrm{E}[\cos^2\!\theta_G]$ — the key quantity for §4–§7 — is computed in §6.
+2. **Perspective B: Sequential gate-level Markov chain evolution.**  
+   In physical quantum circuits, errors act sequentially. The $(k+1)$-th gate error perturbs the *already perturbed* state $\Psi_k$, rotating around $\Psi_k$ rather than the initial state $\Phi$:
+   $$\Psi_0 = \Phi, \qquad \Psi_{k+1} = \cos\theta_{k+1}\,\Psi_k + \sin\theta_{k+1}\,\mathbf{e}_{2,k+1} \quad (k = 0, 1, \dots, G-1),$$
+   where at each step $\theta_{k+1}$ is drawn from the per-gate distribution with parameter $\sigma$, and $\mathbf{e}_{2,k+1}$ is uniformly distributed on the equatorial unit sphere $V_\perp^{(\Psi_k)} = \{\mathbf{v} \in \mathbb{R}^d : \mathbf{v}\cdot\Psi_k = 0\}$, independent of $\theta_{k+1}$.
+   
+   In this sequential reality, the noise vector at step $k+1$ is orthogonal to $\Psi_k$, not to $\Phi$. As errors accumulate, the state $\Psi_k$ undergoes a Markov random walk on $S^{d-1}$, and the successive equatorial rotation planes tilt relative to $\Phi$.
 
-*(Note on formalization)*: Collapsing $G$ gate errors to a single effective error rotation with parameter $\sigma^G$ assumes rotational commutativity and composition. In Lean, this composition is currently modeled by defining `composedMeasure d G σ := poissonMarginal d (σ^G)` directly ([#6](https://github.com/lazyoracle/isotropic-grover-proof/issues/6)). The sequential error dynamics with per-gate rotations around intermediate states $\Psi_k$ (as analyzed via induction in §6) provides the physical justification for this step, and its step-by-step Lean formalization is tracked in [#7](https://github.com/lazyoracle/isotropic-grover-proof/issues/7).
+**Why $\mathrm{E}[p_e]$ does not depend on global commutativity or spherical convolution.**  
+Crucially, the headline formula for the expected success probability,
+$$\mathrm{E}[p_e] = \sigma^{2G}\,p_\mathrm{ideal} + \frac{1-\sigma^{2G}}{N},$$
+does **not** depend on whether the single-effective-error representation (Perspective A) holds as an exact distributional identity, nor does it require global spherical convolution or commutativity.
+
+As derived in §4, the expected success probability depends solely on the second moment of the noisy state projection along the target state, namely $F = \mathrm{E}[(\Psi_G\cdot\Phi)^2]$. Under the sequential Markov dynamics of Perspective B, this second moment is computed rigorously in §6 via the exact one-step recurrence:
+$$f_k = \mathrm{E}[(\Psi_k\cdot\Phi)^2], \qquad f_{k+1} = \lambda\,f_k + (1-\lambda)\,\frac{1-f_k}{d-1},$$
+where $\lambda = \mathrm{E}[\cos^2\theta_{k+1}\mid\Psi_k] = \frac{(d-1)\sigma^2+1}{d}$.
+
+This recurrence relies **only on single-step local properties** at each step $k$:
+1. *Subspace symmetry around the current state $\Psi_k$*: $\mathrm{E}[\mathbf{e}_{2,k+1}\mid\Psi_k] = \mathbf{0}$ (causing cross terms to vanish) and $\mathrm{E}[(\mathbf{e}_{2,k+1}\cdot\Phi)^2\mid\Psi_k] = \frac{1 - (\Psi_k\cdot\Phi)^2}{d-1}$ (by equatorial uniformity in $V_\perp^{(\Psi_k)}$, derived in §5).
+2. *Per-gate Poisson second moment*: $\mathrm{E}[\cos^2\theta_{k+1}\mid\Psi_k] = \lambda$, which is constant and strictly independent of $\Psi_k$.
+
+Solving this recurrence with initial condition $f_0 = (\Phi\cdot\Phi)^2 = 1$ gives the exact closed form:
+$$F = f_G = \frac{(d-1)\sigma^{2G}+1}{d},$$
+proving the headline result without any global spherical convolution assumption. Similarly, the first moment $\mathrm{E}[\Psi_G\cdot\Phi] = \sigma^G$ follows by induction from the per-step expectation $\mathrm{E}[\Psi_{k+1}\cdot\Phi\mid\Psi_k] = \sigma\,(\Psi_k\cdot\Phi)$ via harmonic extension of the coordinate function (§2).
+
+*(Note on formalization)*: The distinction between Perspectives A and B mirrors the gap between current Lean formalization and the full physical circuit model:
+- Lean currently models Perspective A via `composedMeasure d G σ := poissonMarginal d (σ^G)` with a placeholder `isotropicComposition` theorem (`:= rfl`). Rigorously formalizing or axiomatizing this spherical convolution identity is tracked in [#6](https://github.com/lazyoracle/isotropic-grover-proof/issues/6).
+- Rigorously formalizing Perspective B by defining the sequential state process $(\Psi_k)_{k=0}^G$ and proving the §6 induction directly in Lean is tracked in [#7](https://github.com/lazyoracle/isotropic-grover-proof/issues/7). Because the §6 induction relies only on single-step properties already formalized in Lean (subspace symmetry and per-step second moment), Perspective B offers a direct, mathematically verified path to circuit-level error accumulation without needing global spherical convolution.
 
 ---
 
@@ -144,12 +173,12 @@ $$\mathrm{E}[\mathbf{e}_2] = \mathrm{E}[-\mathbf{e}_2] = -\mathrm{E}[\mathbf{e}_
 
 Therefore the cross term contributes zero to the expectation.
 
-*Remaining terms.* By the independence of $\theta_G$ and $\mathbf{e}_2$ (stated in §3), the expectation of their product factors:
+*Remaining terms.* Under Perspective A, by the independence of $\theta_G$ and $\mathbf{e}_2$ (stated in §3), the expectation of their product factors:
 
 $$\mathrm{E}\!\left[\cos^2\!\theta_G\,(\Phi\cdot\hat{u})^2\right] = \mathrm{E}[\cos^2\!\theta_G]\,(\Phi\cdot\hat{u})^2 = F\,(\Phi\cdot\hat{u})^2,$$
 $$\mathrm{E}\!\left[\sin^2\!\theta_G\,(\mathbf{e}_2\cdot\hat{u})^2\right] = \mathrm{E}[\sin^2\!\theta_G]\,\mathrm{E}\!\left[(\mathbf{e}_2\cdot\hat{u})^2\right] = (1-F)\,\mathrm{E}\!\left[(\mathbf{e}_2\cdot\hat{u})^2\right],$$
 
-where $F = \mathrm{E}[\cos^2\!\theta_G]$ and $\mathrm{E}[\sin^2\!\theta_G] = \mathrm{E}[1-\cos^2\!\theta_G] = 1-F$ (by linearity, since $\sin^2\theta + \cos^2\theta = 1$ identically). Since $\mathbf{e}_2 \perp \Phi$, we have $\Psi\cdot\Phi = \cos\theta_G$, so equivalently $F = \mathrm{E}[(\Psi\cdot\Phi)^2]$ — this is the form computed in §6.
+where $F = \mathrm{E}[\cos^2\!\theta_G]$ and $\mathrm{E}[\sin^2\!\theta_G] = \mathrm{E}[1-\cos^2\!\theta_G] = 1-F$ (by linearity, since $\sin^2\theta + \cos^2\theta = 1$ identically). Since $\mathbf{e}_2 \perp \Phi$, we have $\Psi\cdot\Phi = \cos\theta_G$, so equivalently $F = \mathrm{E}[(\Psi\cdot\Phi)^2]$ — this is the exact second moment computed via induction in §6 under the sequential Markov dynamics of Perspective B.
 
 Summing over both real components $\hat{u}_{2w}$ and $\hat{u}_{2w+1}$ and using $(\Phi\cdot\hat{u}_{2w})^2 + (\Phi\cdot\hat{u}_{2w+1})^2 = p_\mathrm{ideal}$:
 
