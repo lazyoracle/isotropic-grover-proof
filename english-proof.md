@@ -156,13 +156,11 @@ It remains to compute the two unknowns: the decoherent floor $\mathrm{E}[(\mathb
 
 We need $\mathrm{E}[(\mathbf{e}_2\cdot\hat{u})^2]$ for a fixed unit vector $\hat{u}$. Rather than computing an integral, we determine the full **second moment matrix** $M = \mathrm{E}[\mathbf{e}_2\mathbf{e}_2^\top]$ from symmetry and then read off the scalar result [[Muirhead (1982)](#references); [Mardia & Jupp (2000)](#references)].
 
-$M$ is a $d\times d$ symmetric positive semidefinite matrix. It is pinned down by three constraints:
+$M$ is a $d\times d$ symmetric positive semidefinite matrix. It is pinned down by two constraints:
 
-**1. Range.** Since $\mathbf{e}_2 \in V_\perp$ always, every component of $\mathbf{e}_2$ in the direction of $\Phi$ is zero. The outer product $\mathbf{e}_2\mathbf{e}_2^\top$ therefore maps every vector into $V_\perp$ and annihilates the $\Phi$-direction. So $M$ must be of the form $M = c\,P_{V_\perp}$ for some scalar $c$, where $P_{V_\perp}$ is the orthogonal projector onto $V_\perp$ (this also follows from constraint 2).
+**1. Subspace symmetry.** The uniform distribution on the unit sphere of $V_\perp$ is supported on $V_\perp$ (hence $M\Phi = \mathbf{0}$) and invariant under any orthogonal transformation $R$ acting within $V_\perp$ (i.e.\ $R\Phi = \Phi$, $R$ orthogonal). Under such a transformation, $\mathbf{e}_2\to R\mathbf{e}_2$, so $M\to RMR^\top = M$. By Schur's lemma (or symmetry of the uniform spherical measure), the only symmetric matrices supported on $V_\perp$ and commuting with all orthogonal transformations of $V_\perp$ are scalar multiples of the identity on that subspace, fixing $M = c\,P_{V_\perp}$ for some scalar $c$, where $P_{V_\perp}$ is the orthogonal projector onto $V_\perp$.
 
-**2. Rotational symmetry within $V_\perp$.** The uniform distribution on the unit sphere of $V_\perp$ is invariant under any rotation $R$ that acts within $V_\perp$ (i.e.\ $R\Phi = \Phi$, $R$ orthogonal). Under such a rotation, $\mathbf{e}_2\to R\mathbf{e}_2$, so $M\to RMR^\top = M$. The only matrices commuting with all rotations within a subspace $V_\perp$ are scalar multiples of the identity on that subspace, confirming $M = c\,P_{V_\perp}$.
-
-**3. Trace constraint.** Since $|\mathbf{e}_2|^2 = 1$ always:
+**2. Normalization.** Since $|\mathbf{e}_2|^2 = 1$ always:
 
 $$\mathrm{tr}(M) = \mathrm{E}\!\left[\mathrm{tr}(\mathbf{e}_2\mathbf{e}_2^\top)\right] = \mathrm{E}\!\left[\mathbf{e}_2^\top\mathbf{e}_2\right] = \mathrm{E}[|\mathbf{e}_2|^2] = 1.$$
 
