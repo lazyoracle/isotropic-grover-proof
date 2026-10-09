@@ -55,13 +55,6 @@ This identity is derived via harmonic polynomial extension on the Euclidean unit
   - `poissonIntegral_val_sigma_one` and `poissonIntegral_val_sigma_zero`: validate the noiseless limit $\sigma = 1 \implies 1$ and complete decoherence floor $\sigma = 0 \implies 1/d$.
   - TDD numeric sanity checks for $d = 3, 4, 8, 16, 32, 64$.
 
-### Open Gaps & Tracking Issues
-While the Lean code compiles without `sorry`s, the formalization currently models a single-step geometric identity on an arbitrary unit vector rather than a fully verified, end-to-end quantum circuit execution. The open gaps are tracked in the following issues:
-1. **Composition Law ([#6](https://github.com/lazyoracle/isotropic-grover-proof/issues/6)):** The theorem `isotropicComposition` in `Composition.lean` is currently a placeholder `rfl` tautology, and multi-gate noise is defined directly as `composedMeasure d G σ := poissonMarginal d (σ ^ G)`. The formal convolution of independent error rotations remains to be proved.
-2. **Sequential Error Dynamics vs. Single Effective Error ([#7](https://github.com/lazyoracle/isotropic-grover-proof/issues/7)):** The formal theorem models a single effective rotation around an arbitrary initial state $\Phi$ rather than modeling $G$ sequential gate applications rotating around intermediate noisy states $\Psi_k$. The step-by-step induction from `english-proof.md` §6 is not yet formalized in Lean.
-3. **Arbitrary State vs. Formalized Grover Circuit ([#8](https://github.com/lazyoracle/isotropic-grover-proof/issues/8)):** `isotropicGrover_main` proves a geometric property of an arbitrary unit vector $\Phi \in \mathbb{R}^{2N}$ and arbitrary integer $G > 0$. The Grover algorithm itself (uniform superposition preparation, oracle, and diffusion operators) is not yet formalized.
-4. **Analytic Second-Moment Identity for $d \ge 3$ ([#9](https://github.com/lazyoracle/isotropic-grover-proof/issues/9)):** The Poisson second-moment integral identity for $d \ge 3$ is axiomatized (`poissonIntegral_cos_sq_d3`) due to the absence of high-dimensional Euclidean ball Poisson representation theory in Mathlib. Its harmonic polynomial extension derivation ($H(\mathbf{x}) = (\mathbf{x}\cdot\Phi)^2 - |\mathbf{x}|^2/d + 1/d$) and algebraic decomposition are formally documented and verified in `Gegenbauer.lean`.
-
 ## Repository structure
 
 - The english language proof is in `english-proof.md`

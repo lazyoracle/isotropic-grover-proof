@@ -8,7 +8,7 @@ Every new feature or bug fix must adhere to the following general outline:
 1. A github issue describes the request and defines the scope and/or definition of success.
 2. All issue related work including brainstorming, spec definition and plan writing happens in isolated worktrees that live inside `.claude/worktrees/` subdirectory from the root of the repo. This allows simultaneous working on many different issues by different parallel agents in different worktrees. The worktrees need to share the lake cache from main checkout, otherwise every worktree will spend forever recloning everything, create a symbolic link from within the worktree to `.lake/packages` of the main checkout.
 3. Absolutely no changes should be made in the main checkout of the repository, make sure all sub-agents strictly follow this instruction and always work only in the isolated worktree for the session.
-4. `superpowers:brainstorming` to better understand the request and clarify any open questions and get all assumptions and design choices codified into a design document.
+4. `superpowers:brainstorming` to better understand the request and clarify any open questions and get all assumptions and design choices codified into a design document. Design spec and plans are stored in `notes/`.
 5. `superpowers:writing-plans` to come up with a detailed step by step plan that breaks down the issue into manageable individual tasks.
 6. Each task is developed in a `subagent-driven development` and `test-driven development` process using the appropriate skills.
 7. When development is finished, the `finishing-a-development-branch` skill verifies tests and then runs a final review.
