@@ -1,12 +1,13 @@
 -- IsotropicGroverProof/IsotropicError.lean
 -- M2: The isotropic error model — Poisson kernel marginal density g(θ;σ),
---     the error state Ψ = cos θ · Φ + sin θ · e₂, and the key property E[cos θ] = σ.
+--     the error state Ψ = cos θ · Φ + sin θ · e₂, and the auxiliary property E[cos θ] = σ.
 --
--- SORRY BUDGET: 0 (uses 1 axiom cited from external source)
+-- SORRY BUDGET: 0
+-- AXIOM BUDGET: 0
 --   PROVED (poissonMarginal_isProbMeasure): normalization via interval integral positivity
---   AXIOM (poissonMarginal_mean_cos_d3): E[cos θ] = σ for d ≥ 3
---     Source: Axler, Bourdon & Ramey, "Harmonic Function Theory" 2nd ed., Ch. 5.
---     The d=2 case is fully proved below.
+--   PROVED (poissonMarginal_mean_cos_d2): auxiliary property E[cos θ] = σ for d = 2 via complex Poisson.
+--     (Note: E[cos θ] = σ is an auxiliary property; the main theorem isotropicGrover_main relies
+--      solely on the second moment E[cos^2 θ] in Gegenbauer.lean, so no d ≥ 3 axiom is needed here.)
 
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
 import Mathlib.Analysis.SpecialFunctions.Pow.Continuity
@@ -304,51 +305,54 @@ private lemma poissonNormConst_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
     poissonNormConst 2 σ = Real.pi := by
   unfold poissonNormConst; rw [Icc_to_interval_d2]; exact halfcircle_norm_d2 σ hσ
 
-/-- The first moment of the Poisson kernel on high-dimensional spheres (d ≥ 3).
-    Source: Axler, Bourdon & Ramey, "Harmonic Function Theory" 2nd ed., Ch. 5. -/
-axiom poissonMarginal_mean_cos_d3 (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 3 ≤ d) :
-    ∫ θ, cos θ ∂(poissonMarginal d σ) = σ
+/-! ## First moment of the Poisson marginal (auxiliary property)
 
-/-- The mean of cos θ under the Poisson marginal equals σ.
+In the physical motivation (§2/§3), the isotropic error model is characterized by
+the first moment `E[cos θ] = σ`, representing the average amplitude overlap between
+the perturbed and ideal states.
+
+Note on axiom footprint:
+`isotropicGrover_main` requires solely the second moment `F = E[cos^2 θ]` (formalized
+in `Gegenbauer.lean`), and does NOT depend on the first moment `E[cos θ] = σ`.
+Consequently, the first moment is retained strictly as an auxiliary property. To keep
+the axiom footprint clean, the unused axiom for d ≥ 3 (`poissonMarginal_mean_cos_d3`)
+has been removed, and we provide the fully verified theorem for d = 2
+(`poissonMarginal_mean_cos_d2`) via the complex Poisson integral formula. -/
+
+/-- Auxiliary theorem: The mean of cos θ under the Poisson marginal equals σ for d = 2.
     σ = E[cos θ] = average amplitude overlap between perturbed and ideal state.
     Proof for d=2: the complex Poisson integral formula applied to f(z)=z gives
     (2π)⁻¹ ∫₀^{2π} pK(σ,e^{iθ}) e^{iθ} dθ = σ; taking real parts and folding by symmetry
-    yields ∫₀^π pKDens2(σ,θ) cos θ dθ = π σ, which divided by the normalization constant π gives σ.
-    For d≥3: Poisson integral formula at h(ξ) = ξ·Φ. -/
-theorem poissonMarginal_mean_cos (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d) :
-    ∫ θ, cos θ ∂(poissonMarginal d σ) = σ := by
-  -- d=2 case: full proof via complex Poisson formula
-  by_cases hd2 : d = 2
-  · subst hd2
-    unfold poissonMarginal
-    have hnc : poissonNormConst 2 σ = Real.pi := poissonNormConst_d2 σ hσ
-    have hnc_pos : 0 < poissonNormConst 2 σ := by rw [hnc]; exact Real.pi_pos
-    have h_meas : Measurable (fun θ =>
-        ENNReal.ofReal (poissonKernelDensity 2 σ θ / poissonNormConst 2 σ)) :=
-      ((poissonKernelDensity_d2_cont σ hσ).measurable.div_const _).ennreal_ofReal
-    have h_lt_top : ∀ᵐ θ ∂MeasureTheory.volume.restrict (Set.Icc 0 Real.pi),
-        ENNReal.ofReal (poissonKernelDensity 2 σ θ / poissonNormConst 2 σ) < ⊤ :=
-      ae_of_all _ (fun _ => ENNReal.ofReal_lt_top)
-    rw [integral_withDensity_eq_integral_toReal_smul h_meas h_lt_top]
-    have hnn_ae : ∀ᵐ θ ∂MeasureTheory.volume.restrict (Set.Icc 0 Real.pi),
-        0 ≤ poissonKernelDensity 2 σ θ / poissonNormConst 2 σ := by
-      rw [ae_restrict_iff' measurableSet_Icc]
-      exact ae_of_all _ (fun θ _ => div_nonneg (poissonKernelDensity_d2_pos σ θ hσ).le hnc_pos.le)
-    have step1 : ∫ θ,
-          (ENNReal.ofReal (poissonKernelDensity 2 σ θ /
-            poissonNormConst 2 σ)).toReal • cos θ
-          ∂MeasureTheory.volume.restrict (Set.Icc 0 Real.pi) =
-        ∫ θ in Set.Icc 0 Real.pi, poissonKernelDensity 2 σ θ / poissonNormConst 2 σ * cos θ := by
-      apply MeasureTheory.integral_congr_ae
-      filter_upwards [hnn_ae] with θ hθ
-      rw [ENNReal.toReal_ofReal hθ, smul_eq_mul]
-    rw [step1]
-    simp_rw [div_mul_eq_mul_div]
-    rw [MeasureTheory.integral_div, Icc_to_interval_d2, halfcircle_cos_d2 σ hσ, hnc]
-    field_simp [Real.pi_pos.ne']
-  -- d≥3 case: Poisson integral formula at h(ξ) = ξ·Φ
-  · have hd3 : 3 ≤ d := by omega
-    exact poissonMarginal_mean_cos_d3 d σ hσ hd3
+    yields ∫₀^π pKDens2(σ,θ) cos θ dθ = π σ, which divided by the normalization constant π
+    gives σ. -/
+theorem poissonMarginal_mean_cos_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
+    ∫ θ, cos θ ∂(poissonMarginal 2 σ) = σ := by
+  unfold poissonMarginal
+  have hnc : poissonNormConst 2 σ = Real.pi := poissonNormConst_d2 σ hσ
+  have hnc_pos : 0 < poissonNormConst 2 σ := by rw [hnc]; exact Real.pi_pos
+  have h_meas : Measurable (fun θ =>
+      ENNReal.ofReal (poissonKernelDensity 2 σ θ / poissonNormConst 2 σ)) :=
+    ((poissonKernelDensity_d2_cont σ hσ).measurable.div_const _).ennreal_ofReal
+  have h_lt_top : ∀ᵐ θ ∂MeasureTheory.volume.restrict (Set.Icc 0 Real.pi),
+      ENNReal.ofReal (poissonKernelDensity 2 σ θ / poissonNormConst 2 σ) < ⊤ :=
+    ae_of_all _ (fun _ => ENNReal.ofReal_lt_top)
+  rw [integral_withDensity_eq_integral_toReal_smul h_meas h_lt_top]
+  have hnn_ae : ∀ᵐ θ ∂MeasureTheory.volume.restrict (Set.Icc 0 Real.pi),
+      0 ≤ poissonKernelDensity 2 σ θ / poissonNormConst 2 σ := by
+    rw [ae_restrict_iff' measurableSet_Icc]
+    exact ae_of_all _ (fun θ _ => div_nonneg (poissonKernelDensity_d2_pos σ θ hσ).le hnc_pos.le)
+  have step1 : ∫ θ,
+        (ENNReal.ofReal (poissonKernelDensity 2 σ θ /
+          poissonNormConst 2 σ)).toReal • cos θ
+        ∂MeasureTheory.volume.restrict (Set.Icc 0 Real.pi) =
+      ∫ θ in Set.Icc 0 Real.pi, poissonKernelDensity 2 σ θ / poissonNormConst 2 σ * cos θ := by
+    apply MeasureTheory.integral_congr_ae
+    filter_upwards [hnn_ae] with θ hθ
+    rw [ENNReal.toReal_ofReal hθ, smul_eq_mul]
+  rw [step1]
+  simp_rw [div_mul_eq_mul_div]
+  rw [MeasureTheory.integral_div, Icc_to_interval_d2, halfcircle_cos_d2 σ hσ, hnc]
+  field_simp [Real.pi_pos.ne']
 
 /-! ## The isotropic error state -/
 
