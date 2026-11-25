@@ -7,6 +7,12 @@ import Mathlib.Topology.Algebra.Order.LiminfLimsup
 import Mathlib.Topology.Order.OrderClosed
 import IsotropicGroverProof.MainTheorem
 
+/-!
+# Limiting Cases of the Mixture Formula
+
+Establishes continuity of the mixture formula and its limits as `σ^{2G} → 1` and `σ^{2G} → 0`.
+-/
+
 namespace IsotropicGrover
 
 open Filter Topology Real MeasureTheory

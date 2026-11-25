@@ -15,6 +15,13 @@ import IsotropicGroverProof.Defs
 import IsotropicGroverProof.Composition
 import IsotropicGroverProof.Gegenbauer
 
+/-!
+# Sequential Markov Chain Error Accumulation
+
+Formalizes the `G`-gate fidelity recurrence `f_{k+1} = λ f_k + (1 - λ)(1 - f_k)/(d - 1)`
+and solves it in closed form `f_k = ((d - 1) σ^{2k} + 1) / d`.
+-/
+
 namespace IsotropicGrover
 
 open Real MeasureTheory

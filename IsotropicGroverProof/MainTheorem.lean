@@ -14,6 +14,13 @@
 import IsotropicGroverProof.SecondMoment
 import IsotropicGroverProof.Gegenbauer
 
+/-!
+# Main Mixture Theorem for Isotropic Grover Errors
+
+Combines the expanded expectation, decoherent floor, and second-moment formula to prove
+`E[p_e] = σ^{2G} · p_ideal + (1 - σ^{2G}) / 2^n`.
+-/
+
 namespace IsotropicGrover
 
 open Real MeasureTheory
@@ -118,5 +125,14 @@ example (p σ2G : ℝ) (N : ℕ) (hN : 0 < N) : -- d = 2N
 
 #check @isotropicGrover_main
 #check @isotropicGrover_n0
+
+/--
+info: 'IsotropicGrover.isotropicGrover_main' depends on axioms: [propext,
+ Classical.choice,
+ poissonIntegral_cos_sq_d3,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms isotropicGrover_main
 
 end IsotropicGrover

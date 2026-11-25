@@ -12,6 +12,13 @@ import Mathlib.LinearAlgebra.Trace
 import Mathlib.MeasureTheory.Function.L2Space
 import IsotropicGroverProof.CrossTerm
 
+/-!
+# Second Moment on the Perpendicular Sphere
+
+Proves `E[e₂ e₂ᵀ] = P_{V⊥} / (d - 1)` by orthogonal invariance and trace normalization,
+deriving the decoherent floor `E[|⟨w|e₂⟩|²] = (2 - p_ideal) / (d - 1)`.
+-/
+
 namespace IsotropicGrover
 
 open MeasureTheory InnerProductSpace ContinuousLinearMap Real
@@ -22,7 +29,7 @@ variable {n : ℕ}
 
 /-- The orthogonal projector onto V_perp(Φ) = (ℝ · Φ)^⊥. -/
 noncomputable def P_perp (Φ : E n) : E n →L[ℝ] E n :=
-  (V_perp Φ).subtypeL ∘L (V_perp Φ).orthogonalProjection
+  (V_perp Φ).subtypeL ∘L (V_perp Φ).orthogonalProjectionOnto
 
 /-- P_perp acts as the identity minus projection onto Φ:
     P_perp Φ v = v - ⟪Φ, v⟫ · Φ (when ‖Φ‖ = 1). -/
@@ -67,7 +74,7 @@ theorem secondMoment_eq_scalar_perp (Φ : E n) (hΦ : ‖Φ‖ = 1) :
     have : (fun e₂ : E n => ‖e₂‖ ^ 2) = fun e₂ => ∑ w : Fin (2 ^ n), succProb n e₂ w := by
       ext e₂; exact (sum_succProb_eq_norm_sq n e₂).symm
     rw [this]
-    exact integrable_finset_sum _ (fun w _ => succProb_integrable Φ w)
+    exact integrable_finsetSum _ (fun w _ => succProb_integrable Φ w)
   have smul_int : ∀ v : E n, Integrable (fun e₂ : E n => inner (𝕜 := ℝ) e₂ v • e₂)
       (perpSphereMeasure Φ) := by
     intro v
@@ -180,7 +187,7 @@ theorem secondMoment_eq_scalar_perp (Φ : E n) (hΦ : ‖Φ‖ = 1) :
   simp_rw [integrand_rw]
   -- ∫ ∑ᵢ ∑ⱼ aᵢ bⱼ ⟨e₂, bᵢ⟩ ⟨e₂, bⱼ⟩ = ∑ᵢ ∑ⱼ aᵢ bⱼ ∫ ⟨e₂, bᵢ⟩ ⟨e₂, bⱼ⟩
   -- Exchange integral and sum
-  rw [integral_finset_sum _ (fun i _ => ?_)]
+  rw [integral_finsetSum _ (fun i _ => ?_)]
   · -- After exchange, use off-diagonal vanishing and diagonal equality
     -- ∑ᵢ ∑ⱼ aᵢ bⱼ ∫ ⟨e₂, bᵢ⟩⟨e₂, bⱼ⟩ = ∑ᵢ aᵢ bᵢ * c (diagonal only)
     -- First: the inner product ⟪P_perp u, P_perp w⟫ via ONB
@@ -192,7 +199,7 @@ theorem secondMoment_eq_scalar_perp (Φ : E n) (hΦ : ‖Φ‖ = 1) :
       congr 1; ext i; rw [real_inner_comm]
     rw [inner_onb, Finset.mul_sum]
     congr 1; ext i
-    rw [integral_finset_sum _ (fun j _ => ?_)]
+    rw [integral_finsetSum _ (fun j _ => ?_)]
     · -- For each (i,j): ∫ aᵢ bⱼ ⟨e₂, bᵢ⟩⟨e₂, bⱼ⟩ =
       --   aᵢ bⱼ ∫ ⟨e₂, bᵢ⟩⟨e₂, bⱼ⟩
       -- Use integral_perpSphere_inner_mul_ortho for i ≠ j,
@@ -249,7 +256,7 @@ theorem secondMoment_eq_scalar_perp (Φ : E n) (hΦ : ‖Φ‖ = 1) :
           (⟪a, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ * ⟪a, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ)) := by ext; ring
       rw [hrw]; exact (prod_int _ _).const_mul _
   · -- Integrability of the outer summand for each i (a sum over j)
-    apply integrable_finset_sum; intro j _
+    apply integrable_finsetSum; intro j _
     have hrw : (fun a => ⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪a, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ *
         (⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ * ⟪a, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ)) =
       (fun a => (⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ) *
@@ -275,7 +282,7 @@ lemma trace_secondMoment_eq_one (Φ : E n) (_hΦ : ‖Φ‖ = 1) :
       nlinarith [sq_abs (inner (𝕜 := ℝ) e₂ (stdBasisVec n i)),
                  abs_nonneg (inner (𝕜 := ℝ) e₂ (stdBasisVec n i))]
   -- Exchange sum and integral
-  rw [← integral_finset_sum Finset.univ (fun i _ => hint i)]
+  rw [← integral_finsetSum Finset.univ (fun i _ => hint i)]
   -- Parseval identity: ∑ ⟨e₂, eᵢ⟩² = ‖e₂‖²
   have hparseval : ∀ e₂ : E n,
       ∑ i : Fin (d n), inner (𝕜 := ℝ) e₂ (stdBasisVec n i) ^ 2 = ‖e₂‖ ^ 2 := by
@@ -291,7 +298,7 @@ lemma trace_secondMoment_eq_one (Φ : E n) (_hΦ : ‖Φ‖ = 1) :
     rw [he₂, one_pow]
   rw [integral_congr_ae hae]
   -- ∫ 1 dμ = 1 (probability measure)
-  haveI : IsProbabilityMeasure (perpSphereMeasure Φ) := perpSphereMeasure_isProbMeasure Φ
+  have : IsProbabilityMeasure (perpSphereMeasure Φ) := perpSphereMeasure_isProbMeasure Φ
   rw [integral_const]
   simp [Measure.real, IsProbabilityMeasure.measure_univ]
 
@@ -330,7 +337,7 @@ theorem secondMoment_coeff (Φ : E n) (hΦ : ‖Φ‖ = 1) (_hn : 2 ≤ d n) :
         have : (fun e₂ : E n => ‖e₂‖ ^ 2) = fun e₂ => ∑ w : Fin (2 ^ n), succProb n e₂ w := by
           ext e₂; exact (sum_succProb_eq_norm_sq n e₂).symm
         rw [this]
-        exact integrable_finset_sum _ (fun w _ => succProb_integrable Φ w)
+        exact integrable_finsetSum _ (fun w _ => succProb_integrable Φ w)
       have smul_int : ∀ v : E n, Integrable (fun e₂ : E n => inner (𝕜 := ℝ) e₂ v • e₂)
           (perpSphereMeasure Φ) := by
         intro v
@@ -389,7 +396,7 @@ theorem decoherent_floor (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) (hn :
     have : (fun e₂ : E n => ‖e₂‖ ^ 2) = fun e₂ => ∑ w : Fin (2 ^ n), succProb n e₂ w := by
       ext e₂; exact (sum_succProb_eq_norm_sq n e₂).symm
     rw [this]
-    exact integrable_finset_sum _ (fun w _ => succProb_integrable Φ w)
+    exact integrable_finsetSum _ (fun w _ => succProb_integrable Φ w)
   -- Integrability of ⟨e₂, u⟩ • e₂ via Cauchy-Schwarz bound
   have smul_int : ∀ v : E n, Integrable (fun e₂ : E n => inner (𝕜 := ℝ) e₂ v • e₂)
       (perpSphereMeasure Φ) := by

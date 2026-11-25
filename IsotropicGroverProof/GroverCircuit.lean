@@ -12,6 +12,13 @@
 
 import IsotropicGroverProof.MainTheorem
 
+/-!
+# Grover Circuit State Specializations
+
+Specializes `isotropicGrover_main` to the target basis state, uniform superposition,
+and 2D Grover search plane.
+-/
+
 namespace IsotropicGrover
 
 open Real MeasureTheory
@@ -152,7 +159,7 @@ lemma norm_targetPerpState (n : ℕ) (w : Fin (2 ^ n)) (hn : 1 < 2 ^ n) :
         by_cases hx : x = w
         · subst hx
           simp
-        · simp only [hx, if_false, one_mul]
+        · simp only [hx, ite_false, one_mul]
           have hy_eq : ∀ y : Fin (2 ^ n),
               (if y = w then (0 : ℝ) else 1) *
                 (if succProbIdx0 n x = succProbIdx0 n y then 1 else 0) =

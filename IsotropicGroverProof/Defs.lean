@@ -6,6 +6,17 @@
 
 import Mathlib.Analysis.InnerProductSpace.PiL2
 import Mathlib.Analysis.InnerProductSpace.Basic
+import QuantumInfo.States.Mixed.MState
+import QuantumInfo.Channels.CPTP
+import QuantumComputation.Algorithms.Grover.Amplitude
+import QuantumComputation.Circuits.ResourceCounting
+
+/-!
+# Core Definitions for the Isotropic Grover Proof
+
+Ambient Euclidean space, unit sphere, standard basis vectors, and the success-probability
+formula for Grover's algorithm.
+-/
 
 namespace IsotropicGrover
 
@@ -29,10 +40,10 @@ noncomputable def stdBasisVec (n : ℕ) (i : Fin (d n)) : E n :=
 @[simp]
 lemma stdBasisVec_apply (n : ℕ) (i j : Fin (d n)) :
     stdBasisVec n i j = if j = i then 1 else 0 := by
-  simp [stdBasisVec, EuclideanSpace.single_apply]
+  simp [stdBasisVec, PiLp.single_apply]
 
 lemma stdBasisVec_norm (n : ℕ) (i : Fin (d n)) : ‖stdBasisVec n i‖ = 1 := by
-  simp [stdBasisVec, EuclideanSpace.norm_single]
+  simp [stdBasisVec, PiLp.norm_single]
 
 /-! ## Index bounds for the success probability -/
 
@@ -96,5 +107,21 @@ example : d 0 = 2 := by norm_num [d]
 example : d 1 = 4 := by norm_num [d]
 example : d 2 = 8 := by norm_num [d]
 example : d 3 = 16 := by norm_num [d]
+
+/-- Smoke check that `Physlib`'s `QuantumInfo` (`MState.uniform`, `CPTPMap.id`) and
+`formal-quantum-computation`'s `QuantumComputation` (`Grover.p_succ_eq_sin_sq`, `Circuit.size`)
+are available and carry zero `sorryAx` or custom axioms. -/
+lemma quantumInfo_quantumComputation_smoke (n K : ℕ) :
+    ((CPTPMap.id (dIn := Fin 2)) (MState.uniform (d := Fin 2))).M.trace = 1 ∧
+    Grover.p_succ K (2 ^ n) =
+      Real.sin ((2 * (K : ℝ) + 1) * Real.arcsin (1 / √((2 ^ n : ℕ) : ℝ))) ^ 2 ∧
+    (Circuit.identity : Circuit n).size = 0 :=
+  ⟨((CPTPMap.id (dIn := Fin 2)) (MState.uniform (d := Fin 2))).tr,
+   Grover.p_succ_eq_sin_sq K (2 ^ n),
+   rfl⟩
+
+/-- info: 'IsotropicGrover.quantumInfo_quantumComputation_smoke' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms quantumInfo_quantumComputation_smoke
 
 end IsotropicGrover

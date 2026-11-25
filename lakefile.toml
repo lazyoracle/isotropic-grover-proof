@@ -2,17 +2,19 @@ name = "isotropic-grover-proof"
 version = "0.1.0"
 keywords = ["math"]
 defaultTargets = ["IsotropicGroverProof"]
+allowNonModules = true
 
 [leanOptions]
 pp.unicode.fun = true # pretty-prints `fun a ↦ b`
 relaxedAutoImplicit = false
 weak.linter.mathlibStandardSet = true
 maxSynthPendingDepth = 3
+weak.linter.style.header = false
 
 [[require]]
-name = "mathlib"
-scope = "leanprover-community"
-rev = "v4.29.0-rc6"
+name = "formal-quantum-computation"
+git = "https://github.com/google-deepmind/formal-quantum-computation"
+rev = "489edc7039aa4cdded53724b39ea90e33d2c88b4"
 
 [[lean_lib]]
 name = "IsotropicGroverProof"
