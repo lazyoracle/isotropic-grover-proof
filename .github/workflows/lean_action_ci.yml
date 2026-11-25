@@ -46,7 +46,8 @@ jobs:
           key: lake-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}-${{ github.sha }}
           restore-keys: lake-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}-
 
-      - uses: leanprover/lean-action@v1
+      - name: Build project
+        uses: leanprover/lean-action@v1
         with:
           use-mathlib-cache: false
           use-github-cache: false

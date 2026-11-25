@@ -51,7 +51,7 @@ noncomputable def composedMeasure (d G : ℕ) (σ : ℝ) : Measure ℝ :=
 noncomputable def f₂ (d G : ℕ) (σ : ℝ) : ℝ :=
   ∫ θ, (cos θ) ^ 2 ∂(composedMeasure d G σ)
 
-/-! ## Probability measure instance -/
+/-! ## Probability measure -/
 
 /-- The composed error measure is a probability measure when σ ∈ (0,1), G > 0, d ≥ 2. -/
 theorem composedMeasure_isProbMeasure (d G : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
