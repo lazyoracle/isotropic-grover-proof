@@ -7,6 +7,13 @@
 import Mathlib.Analysis.InnerProductSpace.PiL2
 import Mathlib.Analysis.InnerProductSpace.Basic
 
+/-!
+# Core Definitions for the Isotropic Grover Proof
+
+Ambient Euclidean space, unit sphere, standard basis vectors, and the success-probability
+formula for Grover's algorithm.
+-/
+
 namespace IsotropicGrover
 
 /-! ## Dimension setup -/
@@ -29,10 +36,10 @@ noncomputable def stdBasisVec (n : ℕ) (i : Fin (d n)) : E n :=
 @[simp]
 lemma stdBasisVec_apply (n : ℕ) (i j : Fin (d n)) :
     stdBasisVec n i j = if j = i then 1 else 0 := by
-  simp [stdBasisVec, EuclideanSpace.single_apply]
+  simp [stdBasisVec, PiLp.single_apply]
 
 lemma stdBasisVec_norm (n : ℕ) (i : Fin (d n)) : ‖stdBasisVec n i‖ = 1 := by
-  simp [stdBasisVec, EuclideanSpace.norm_single]
+  simp [stdBasisVec, PiLp.norm_single]
 
 /-! ## Index bounds for the success probability -/
 

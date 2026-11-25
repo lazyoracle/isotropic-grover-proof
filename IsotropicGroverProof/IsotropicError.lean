@@ -5,9 +5,10 @@
 -- SORRY BUDGET: 0
 -- AXIOM BUDGET: 0
 --   PROVED (poissonMarginal_isProbMeasure): normalization via interval integral positivity
---   PROVED (poissonMarginal_mean_cos_d2): auxiliary property E[cos θ] = σ for d = 2 via complex Poisson.
---     (Note: E[cos θ] = σ is an auxiliary property; the main theorem isotropicGrover_main relies
---      solely on the second moment E[cos^2 θ] in Gegenbauer.lean, so no d ≥ 3 axiom is needed here.)
+--   PROVED (poissonMarginal_mean_cos_d2): auxiliary property E[cos θ] = σ for d = 2 via
+--     complex Poisson. (Note: E[cos θ] = σ is an auxiliary property; the main theorem
+--     isotropicGrover_main relies solely on the second moment E[cos^2 θ] in Gegenbauer.lean,
+--     so no d ≥ 3 axiom is needed here.)
 
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
 import Mathlib.Analysis.SpecialFunctions.Pow.Continuity
@@ -22,6 +23,13 @@ import Mathlib.Analysis.Complex.Poisson
 import Mathlib.MeasureTheory.Integral.CircleAverage
 import Mathlib.Analysis.SpecialFunctions.Complex.CircleMap
 import IsotropicGroverProof.Defs
+
+/-!
+# Isotropic Error Model
+
+Poisson kernel marginal density `g(θ; σ)`, the error state `Ψ = cos θ · Φ + sin θ · e₂`,
+and the auxiliary first-moment property `E[cos θ] = σ` for `d = 2`.
+-/
 
 namespace IsotropicGrover
 
@@ -210,10 +218,7 @@ private lemma fullcircle_re_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (f : ℂ �
   have key : (((2 * Real.pi)⁻¹ : ℝ) • ∫ (θ : ℝ) in (0:ℝ)..2 * Real.pi,
       (poissonKernel (0:ℂ) (↑σ) • f) (circleMap 0 1 θ) : ℂ).re = (f (σ : ℂ)).re := key0
   simp only [Complex.smul_re, smul_eq_mul] at key
-  rw [show (∫ (θ : ℝ) in (0:ℝ)..2 * Real.pi, (poissonKernel (0:ℂ) (↑σ) • f) (circleMap 0 1 θ)).re
-    = ∫ (θ : ℝ) in (0:ℝ)..2 * Real.pi, ((poissonKernel (0:ℂ) (↑σ) • f) (circleMap 0 1 θ)).re from by
-    convert ((RCLike.reCLM (K := ℂ)).intervalIntegral_comp_comm hf_intbl).symm using 1] at key
-  linarith
+  rwa [← Complex.reCLM_apply, ← Complex.reCLM.intervalIntegral_comp_comm hf_intbl] at key
 
 private lemma fullcircle_cos_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
     (2 * Real.pi)⁻¹ * ∫ θ in (0:ℝ)..2 * Real.pi, poissonKernelDensity 2 σ θ * cos θ = σ := by

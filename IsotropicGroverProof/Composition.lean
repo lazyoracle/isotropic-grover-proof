@@ -7,6 +7,12 @@
 
 import IsotropicGroverProof.IsotropicError
 
+/-!
+# Composed Isotropic Error Measure
+
+Composition of `G` independent isotropic errors and the second moment `f₂ = E[cos² θ_G]`.
+-/
+
 namespace IsotropicGrover
 
 open MeasureTheory Real
@@ -45,10 +51,10 @@ noncomputable def composedMeasure (d G : ℕ) (σ : ℝ) : Measure ℝ :=
 noncomputable def f₂ (d G : ℕ) (σ : ℝ) : ℝ :=
   ∫ θ, (cos θ) ^ 2 ∂(composedMeasure d G σ)
 
-/-! ## Probability measure instance -/
+/-! ## Probability measure -/
 
 /-- The composed error measure is a probability measure when σ ∈ (0,1), G > 0, d ≥ 2. -/
-instance composedMeasure_isProbMeasure (d G : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
+theorem composedMeasure_isProbMeasure (d G : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
     (hG : 0 < G) (hd : 2 ≤ d) : IsProbabilityMeasure (composedMeasure d G σ) := by
   simp only [composedMeasure]
   exact poissonMarginal_isProbMeasure d (σ ^ G) ⟨pow_pos hσ.1 G,

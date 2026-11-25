@@ -10,7 +10,7 @@ import Mathlib.Analysis.InnerProductSpace.Projection.Reflection
 import Mathlib.Analysis.InnerProductSpace.Continuous
 import Mathlib.Analysis.Normed.Lp.MeasurableSpace
 import Mathlib.Analysis.Normed.Group.BallSphere
-import Mathlib.MeasureTheory.Measure.MeasureSpace
+import Mathlib.MeasureTheory.Measure.Module
 import Mathlib.MeasureTheory.Group.MeasurableEquiv
 import Mathlib.MeasureTheory.Integral.Prod
 import Mathlib.MeasureTheory.Constructions.HaarToSphere
@@ -20,6 +20,13 @@ import Mathlib.MeasureTheory.Measure.Lebesgue.EqHaar
 import Mathlib.Analysis.InnerProductSpace.Projection.FiniteDimensional
 import Mathlib.LinearAlgebra.Dimension.Finite
 import IsotropicGroverProof.Composition
+
+/-!
+# Cross Term Vanishing and Expanded Success Probability
+
+Proves that the cross term in `E[p_e]` vanishes by antipodal symmetry of the perpendicular
+sphere measure and derives `E[p_e] = f₂ · p_ideal + (1 - f₂) · E[|⟨w|e₂⟩|²]`.
+-/
 
 namespace IsotropicGrover
 
@@ -124,7 +131,7 @@ instance perpSphereMeasure_isProbMeasure (Φ : E n) :
   have htotalMass_ne_zero : (V_perp_rawSph Φ) Set.univ ≠ 0 := by
     intro h; exact hrawSph_ne_zero (Measure.measure_univ_eq_zero.mp h)
   have htotalMass_ne_top : (V_perp_rawSph Φ) Set.univ ≠ ⊤ := by
-    haveI := V_perp_rawSph_isFinite Φ; exact (measure_lt_top _ _).ne
+    have := V_perp_rawSph_isFinite Φ; exact (measure_lt_top _ _).ne
   constructor
   show perpSphereMeasure Φ Set.univ = 1
   simp only [perpSphereMeasure]
@@ -138,7 +145,7 @@ lemma perpSphereMeasure_norm_ae (Φ : E n) :
   have htoEn_meas : Measurable
       (fun x : Metric.sphere (0 : ↥(V_perp Φ)) 1 => ((x.val : ↥(V_perp Φ)) : E n)) :=
     measurable_subtype_coe.comp measurable_subtype_coe
-  haveI := V_perp_rawSph_isFinite Φ
+  have := V_perp_rawSph_isFinite Φ
   have htotalMass_inv_ne_zero : (V_perp_rawSph Φ Set.univ)⁻¹ ≠ 0 :=
     ENNReal.inv_ne_zero.mpr (measure_lt_top _ _).ne
   simp only [perpSphereMeasure]
@@ -291,10 +298,8 @@ private lemma V_perp_rawSph_isometry_invariant (Φ : E n)
     Measure.map fSph (V_perp_rawSph Φ) = V_perp_rawSph Φ := by
   intro fSph
   have hb : BorelSpace ↥(V_perp Φ) := inferInstance
-  have hfSph_meas : Measurable fSph := by
-    have hcont : Continuous fSph := (f.continuous.comp continuous_subtype_val).subtype_mk _
-    letI : BorelSpace (Metric.sphere (0 : ↥(V_perp Φ)) 1) := inferInstance
-    exact hcont.measurable
+  have hfSph_meas : Measurable fSph :=
+    ((f.continuous.comp continuous_subtype_val).subtype_mk _).measurable
   have hf_meas : Measurable (f : ↥(V_perp Φ) → ↥(V_perp Φ)) :=
     @Continuous.measurable _ _ _ _ (@BorelSpace.opensMeasurable _ _ _ hb) _ _ hb
       (f : ↥(V_perp Φ) → ↥(V_perp Φ)) f.continuous
@@ -364,7 +369,7 @@ lemma perpSphereMeasure_neg_invariant (Φ : E n) :
     simp only [Function.comp, toEn, negSph, Submodule.coe_neg]
   rw [Measure.map_map measurable_neg htoEn_meas, hcomm,
       ← Measure.map_map htoEn_meas hnegSph_meas,
-      Measure.map_smul, V_perp_rawSph_neg_invariant]
+      Measure.map_smul _ hnegSph_meas.aemeasurable, V_perp_rawSph_neg_invariant]
 
 /-! ## Integrability of inner products over perpSphereMeasure -/
 
@@ -530,7 +535,7 @@ theorem expanded_E_pe (G : ℕ) (hG : 0 < G) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 
     f₂ (d n) G σ * succProb n Φ w +
     (1 - f₂ (d n) G σ) * ∫ e₂, succProb n e₂ w ∂(perpSphereMeasure Φ) := by
   have hd : 2 ≤ d n := by simp only [d]; have := @Nat.one_le_two_pow n; omega
-  haveI : IsProbabilityMeasure (composedMeasure (d n) G σ) :=
+  have : IsProbabilityMeasure (composedMeasure (d n) G σ) :=
     composedMeasure_isProbMeasure (d n) G σ hσ hG hd
   simp_rw [integral_e₂_succProb Φ _ w]
   -- Goal: ∫ θ, (cos²θ · p + sin²θ · q) ∂μ = f₂·p + (1-f₂)·q
@@ -573,21 +578,6 @@ theorem expanded_E_pe (G : ℕ) (hG : 0 < G) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 
 
 /-! ## Isometry invariance helpers for the Schur argument -/
 
--- Helper: any submodule of V_perp has HasOrthogonalProjection
--- (via FiniteDimensional → closed → complete → HasOrthogonalProjection)
-private lemma V_perp_submodule_hasOrthogonalProjection (Φ : E n)
-    (K : Submodule ℝ ↥(V_perp Φ)) : K.HasOrthogonalProjection := by
-  haveI : IsUniformAddGroup ↥(V_perp Φ) :=
-    (V_perp Φ).toAddSubgroup.isUniformAddGroup
-  constructor
-  intro v
-  have hc : IsComplete (K : Set ↥(V_perp Φ)) :=
-    K.complete_of_finiteDimensional
-  obtain ⟨w, hwK, hw⟩ :=
-    K.exists_norm_eq_iInf_of_complete_subspace hc v
-  exact ⟨w, hwK, (K.mem_orthogonal' _).2
-    ((K.norm_eq_iInf_iff_inner_eq_zero hwK).mp hw)⟩
-
 /-- Off-diagonal vanishing: for orthogonal u, v ∈ V_perp, ∫ ⟨e₂,u⟩⟨e₂,v⟩ dμ = 0.
     Uses reflection in (span{u})ᗮ inside V_perp: the reflection negates the u-component
     and preserves the v-component, while the sphere measure is invariant. -/
@@ -612,8 +602,6 @@ lemma integral_perpSphere_inner_mul_ortho (Φ : E n)
   -- Construct the reflection R in (span{u})ᗮ inside V_perp
   let K : Submodule ℝ ↥(V_perp Φ) :=
     (Submodule.span ℝ {(u : ↥(V_perp Φ))})ᗮ
-  haveI : K.HasOrthogonalProjection :=
-    V_perp_submodule_hasOrthogonalProjection Φ K
   let R : ↥(V_perp Φ) ≃ₗᵢ[ℝ] ↥(V_perp Φ) := K.reflection
   -- Define fSph (R restricted to sphere)
   let fSph :
@@ -624,8 +612,6 @@ lemma integral_perpSphere_inner_mul_ortho (Φ : E n)
         (by rw [R.norm_map]; exact norm_eq_of_mem_sphere x)⟩
   have hfSph_cont : Continuous fSph :=
     (R.continuous.comp continuous_subtype_val).subtype_mk _
-  letI : BorelSpace (Metric.sphere (0 : ↥(V_perp Φ)) 1) :=
-    inferInstance
   have hfSph_meas : Measurable fSph := hfSph_cont.measurable
   -- Measure invariance
   have hinv : Measure.map fSph rawSph = rawSph :=
@@ -633,7 +619,7 @@ lemma integral_perpSphere_inner_mul_ortho (Φ : E n)
   have hinv_norm :
       Measure.map fSph (totalMass⁻¹ • rawSph) =
         totalMass⁻¹ • rawSph := by
-    rw [Measure.map_smul, hinv]
+    rw [Measure.map_smul _ hfSph_meas.aemeasurable, hinv]
   -- Set up the integrand
   set h :=
     fun (x : Metric.sphere (0 : ↥(V_perp Φ)) 1) =>
@@ -743,8 +729,6 @@ lemma integral_perpSphere_inner_sq_eq (Φ : E n)
   let K : Submodule ℝ ↥(V_perp Φ) :=
     (Submodule.span ℝ
       {(u : ↥(V_perp Φ)) - (v : ↥(V_perp Φ))})ᗮ
-  haveI : K.HasOrthogonalProjection :=
-    V_perp_submodule_hasOrthogonalProjection Φ K
   let R : ↥(V_perp Φ) ≃ₗᵢ[ℝ] ↥(V_perp Φ) := K.reflection
   -- R u = v by reflection_sub
   have hRu :
@@ -770,8 +754,6 @@ lemma integral_perpSphere_inner_sq_eq (Φ : E n)
         (by rw [R.norm_map]; exact norm_eq_of_mem_sphere x)⟩
   have hfSph_cont : Continuous fSph :=
     (R.continuous.comp continuous_subtype_val).subtype_mk _
-  letI : BorelSpace (Metric.sphere (0 : ↥(V_perp Φ)) 1) :=
-    inferInstance
   have hfSph_meas : Measurable fSph := hfSph_cont.measurable
   -- Measure invariance
   have hinv : Measure.map fSph rawSph = rawSph :=
@@ -779,7 +761,7 @@ lemma integral_perpSphere_inner_sq_eq (Φ : E n)
   have hinv_norm :
       Measure.map fSph (totalMass⁻¹ • rawSph) =
         totalMass⁻¹ • rawSph := by
-    rw [Measure.map_smul, hinv]
+    rw [Measure.map_smul _ hfSph_meas.aemeasurable, hinv]
   -- The integrand transforms: ⟪toEn(fSph x), u⟫² = ⟪toEn x, v⟫²
   have htransform :
       ∀ x : Metric.sphere (0 : ↥(V_perp Φ)) 1,
@@ -819,7 +801,7 @@ example (i j : Fin (d n)) (hij : i ≠ j) :
   have key : inner (𝕜 := ℝ) (stdBasisVec n i) (stdBasisVec n j) = if i = j then 1 else 0 := by
     simp only [stdBasisVec]
     exact h i j
-  rw [key, if_neg hij]
+  rw [key, ite_eq_right hij]
 
 -- Negation stays in V_perp
 example (Φ v : E n) (hv : v ∈ V_perp Φ) : -v ∈ V_perp Φ :=

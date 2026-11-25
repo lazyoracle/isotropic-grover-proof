@@ -32,6 +32,12 @@ import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
 import IsotropicGroverProof.Composition
 import IsotropicGroverProof.GegenbaurerHelper
 
+/-!
+# Second Moment `f₂` via Harmonic Extension and Poisson Integral
+
+Evaluates `f₂ = E[cos² θ_G] = ((d - 1) σ^{2G} + 1) / d`.
+-/
+
 namespace IsotropicGrover
 
 open Real MeasureTheory
@@ -57,14 +63,13 @@ lemma harmonicExtension_boundary (d : ℝ) (dot : ℝ) :
 lemma harmonicExtension_eval (d σ : ℝ) (hd : d ≠ 0) :
     σ ^ 2 - σ ^ 2 / d + 1 / d = ((d - 1) * σ ^ 2 + 1) / d := by
   field_simp [hd]
-  try ring
 
 /-- Boundary limit of the second moment at σ = 1 (perfect gate fidelity):
     ((d − 1) * 1² + 1) / d = 1 for any d ≠ 0. -/
 lemma poissonIntegral_val_sigma_one (d : ℝ) (hd : d ≠ 0) :
     ((d - 1 : ℝ) * (1 : ℝ) ^ 2 + 1) / d = 1 := by
   field_simp [hd]
-  try ring
+  ring
 
 /-- Center limit of the second moment at σ = 0 (complete decoherence / uniform Haar state):
     ((d − 1) * 0² + 1) / d = 1 / d for any d. -/

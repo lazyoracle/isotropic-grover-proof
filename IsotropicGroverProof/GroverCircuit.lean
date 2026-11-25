@@ -10,7 +10,21 @@
 --    or ideal success probability p_ideal ∈ [0, 1].
 -- 5. Specialization of `isotropicGrover_main` to the Grover search plane and ideal output state.
 
+import QuantumInfo.States.Pure.Braket
+import QuantumInfo.States.Mixed.MState
+import QuantumInfo.Channels.CPTP
+import QuantumInfo.Measurements.POVM
+import QuantumComputation.Algorithms.Grover.Operators
+import QuantumComputation.Algorithms.Grover.Amplitude
+import QuantumComputation.Circuits.ResourceCounting
 import IsotropicGroverProof.MainTheorem
+
+/-!
+# Grover Circuit State Specializations
+
+Specializes `isotropicGrover_main` to the target basis state, uniform superposition,
+and 2D Grover search plane.
+-/
 
 namespace IsotropicGrover
 
@@ -152,7 +166,7 @@ lemma norm_targetPerpState (n : ℕ) (w : Fin (2 ^ n)) (hn : 1 < 2 ^ n) :
         by_cases hx : x = w
         · subst hx
           simp
-        · simp only [hx, if_false, one_mul]
+        · simp only [hx, ite_false, one_mul]
           have hy_eq : ∀ y : Fin (2 ^ n),
               (if y = w then (0 : ℝ) else 1) *
                 (if succProbIdx0 n x = succProbIdx0 n y then 1 else 0) =
@@ -407,5 +421,37 @@ theorem isotropicGrover_targetBasisState (n : ℕ) (G : ℕ) (hG : 0 < G)
   rw [isotropicGrover_main G hG σ hσ (targetBasisState n w) (norm_targetBasisState n w) w]
   rw [succProb_targetBasisState]
   ring
+
+/-! ## Dependency smoke check -/
+
+open scoped Matrix in
+/-- Smoke check that `Physlib`'s `QuantumInfo` (`Ket`, `MState.pure`, `MState.uniform`,
+`CPTPMap.id`, `POVM.measureDiscard_apply`) and `formal-quantum-computation`'s
+`QuantumComputation` (`Grover.diffuserUnitary`, `Grover.oracleUnitary`,
+`Grover.grover_success_matrix_entry`, `Grover.p_succ_eq_sin_sq`, `Circuit.size`) are
+available and carry zero `sorryAx` or custom axioms. -/
+lemma quantumInfo_quantumComputation_smoke (n K : ℕ) (target : Fin (2 ^ n))
+    (ψ : Ket (Fin 2)) (Λ : POVM (Fin 2) (Fin 2)) :
+    (MState.pure ψ).M.trace = 1 ∧
+    ((CPTPMap.id (dIn := Fin 2)) (MState.uniform (d := Fin 2))).M.trace = 1 ∧
+    Λ.measureDiscard (MState.uniform (d := Fin 2)) =
+      MState.ofClassical (Λ.measure (MState.uniform (d := Fin 2))) ∧
+    Grover.diffuserUnitary (n := n) ≠ Grover.oracleUnitary target ∧
+    ((Grover.groverMatrix target K)ᴴ * compProj target *
+      Grover.groverMatrix target K) 0 0 = (Grover.p_succ K (2 ^ n) : ℂ) ∧
+    Grover.p_succ K (2 ^ n) =
+      Real.sin ((2 * (K : ℝ) + 1) * Real.arcsin (1 / √((2 ^ n : ℕ) : ℝ))) ^ 2 ∧
+    (Circuit.identity : Circuit n).size = 0 :=
+  ⟨(MState.pure ψ).tr,
+   ((CPTPMap.id (dIn := Fin 2)) (MState.uniform (d := Fin 2))).tr,
+   Λ.measureDiscard_apply (MState.uniform (d := Fin 2)),
+   Grover.diffuserUnitary_ne_oracleUnitary target,
+   Grover.grover_success_matrix_entry target K,
+   Grover.p_succ_eq_sin_sq K (2 ^ n),
+   rfl⟩
+
+/-- info: 'IsotropicGrover.quantumInfo_quantumComputation_smoke' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms quantumInfo_quantumComputation_smoke
 
 end IsotropicGrover

@@ -19,7 +19,52 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
-      - uses: leanprover/lean-action@v1
+
+      # Install elan, clone the dependencies, and fetch the Mathlib cache so
+      # the build cache below can be restored into the package checkouts.
+      - name: Fetch dependencies and the Mathlib cache
+        uses: leanprover/lean-action@v1
+        with:
+          use-mathlib-cache: true
+          use-github-cache: false
+          build: false
+          test: false
+          lint: false
+
+      # Cache only build outputs that `lake exe cache get` does not provide:
+      # this repository's, physlib's, and formal-quantum-computation's.
+      # Caching the whole `.lake` (~7 GB, mostly Mathlib) makes cache restore
+      # and save the slowest steps of the job.
+      - name: Restore build cache
+        id: cache-restore
+        uses: actions/cache/restore@v5
+        with:
+          path: |
+            .lake/build
+            .lake/packages/physlib/.lake/build
+            .lake/packages/formal-quantum-computation/.lake/build
+          key: lake-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}-${{ github.sha }}
+          restore-keys: lake-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}-
+
+      - name: Build project
+        uses: leanprover/lean-action@v1
+        with:
+          use-mathlib-cache: false
+          use-github-cache: false
+          test: false
+          lint: false
+          build-args: '--wfail'
+
+      - name: Save build cache
+        if: success() && steps.cache-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            .lake/build
+            .lake/packages/physlib/.lake/build
+            .lake/packages/formal-quantum-computation/.lake/build
+          key: ${{ steps.cache-restore.outputs.cache-primary-key }}
+
       - uses: leanprover-community/docgen-action@v1
         with:
           homepage: '.pages'

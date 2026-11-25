@@ -8,6 +8,13 @@ import Mathlib.MeasureTheory.Integral.Bochner.ContinuousLinearMap
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
 import IsotropicGroverProof.IsotropicError
 
+/-!
+# Complex Poisson Integral Helper for `d = 2`
+
+Proves the Poisson integral formula for `cos² θ` when `d = 2` via Mathlib's complex Poisson
+formula and kernel symmetry.
+-/
+
 namespace IsotropicGrover
 
 open Real MeasureTheory Complex Set MeasureTheory.Measure intervalIntegral
@@ -102,7 +109,7 @@ private lemma hci_F (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
   apply ContinuousOn.circleIntegrable (by norm_num : (0 : ℝ) ≤ 1)
   have heq : poissonKernel 0 (σ : ℂ) • (fun z : ℂ => z ^ 2 / 2 + 1/2) =
       fun z : ℂ => (↑(poissonKernel 0 (σ : ℂ) z) : ℂ) * (z ^ 2 / 2 + 1/2) := by
-    ext z; simp [Complex.real_smul]
+    ext z; exact Complex.real_smul
   rw [heq]
   apply ContinuousOn.mul
   · exact Complex.continuous_ofReal.continuousOn.comp
