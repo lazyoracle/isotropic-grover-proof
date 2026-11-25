@@ -454,4 +454,10 @@ lemma quantumInfo_quantumComputation_smoke (n K : ℕ) (target : Fin (2 ^ n))
 #guard_msgs in
 #print axioms quantumInfo_quantumComputation_smoke
 
+/--
+info: 'IsotropicGrover.isotropicGrover_groverState2D' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms isotropicGrover_groverState2D
+
 end IsotropicGrover

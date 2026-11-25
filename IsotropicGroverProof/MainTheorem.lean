@@ -4,9 +4,9 @@
 --     E[p_e] = σ^{2G} · p_ideal + (1 - σ^{2G}) / N
 --
 -- SORRY BUDGET: 0
---   All sorrys are in dependencies (CrossTerm M4, SecondMoment M5, Gegenbauer M6).
---   The algebra here (ring/field_simp) closes without sorrys once
---   the dependency theorems have their correct statements.
+--   Zero sorrys and zero custom axioms across the entire dependency chain
+--   (CrossTerm M4, SecondMoment M5, Gegenbauer M6).
+--   The algebra here (ring/field_simp) closes directly from those proved theorems.
 --
 -- KEY VERIFICATION: The `ring` call at the end is the integration test —
 -- if any intermediate theorem has the wrong real-arithmetic statement, this will fail.
@@ -86,9 +86,8 @@ theorem isotropicGrover_main (G : ℕ) (hG : 0 < G) (σ : ℝ) (hσ : σ ∈ Set
   rw [hd_eq]
   ring
 
-/-- For n = 0 (1 qubit, d = 2), the main theorem holds unconditionally and evaluates
-    the fully proved d = 2 Poisson integral formula (`poissonIntegral_cos_sq_d2`)
-    via `f₂_formula_d2` without relying on the d ≥ 3 Poisson integral axiom. -/
+/-- Specialization of the main mixture theorem to `n = 0` (`d = 2`), evaluating
+    the `d = 2` second-moment formula `f₂_formula_d2` directly. -/
 theorem isotropicGrover_n0 (G : ℕ) (hG : 0 < G) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
     (Φ : E 0) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ 0)) :
     ∫ θ, ∫ e₂, succProb 0 (isotropicError Φ e₂ θ) w
@@ -127,10 +126,7 @@ example (p σ2G : ℝ) (N : ℕ) (hN : 0 < N) : -- d = 2N
 #check @isotropicGrover_n0
 
 /--
-info: 'IsotropicGrover.isotropicGrover_main' depends on axioms: [propext,
- Classical.choice,
- poissonIntegral_cos_sq_d3,
- Quot.sound]
+info: 'IsotropicGrover.isotropicGrover_main' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms isotropicGrover_main
