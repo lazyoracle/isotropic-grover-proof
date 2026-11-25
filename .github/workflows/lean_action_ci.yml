@@ -55,7 +55,7 @@ jobs:
           lint: false
           build-args: '--wfail'
           axiom-audit: true
-          axiom-audit-root: 'IsotropicGrover'
+          axiom-audit-root: 'IsotropicGroverProof'
 
       - name: Save build cache
         if: success() && steps.cache-restore.outputs.cache-hit != 'true'

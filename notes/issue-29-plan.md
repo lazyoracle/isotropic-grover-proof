@@ -88,7 +88,7 @@ Change the expected `#guard_msgs` docstring in `IsotropicGroverProof/MainTheorem
 1. Remove `import IsotropicGroverProof.GegenbaurerHelper` from `Gegenbauer.lean` and delete `IsotropicGroverProof/GegenbaurerHelper.lean` (`git rm IsotropicGroverProof/GegenbaurerHelper.lean`).
 2. Prove `theorem poissonIntegral_cos_sq` directly for all `d ≥ 2` from `integral_poissonMarginal_eq` + `halfcircle_cos_sq_eq` + `(poissonNormConst_pos ...).ne'`, and derive `theorem poissonIntegral_cos_sq_d2` and `theorem poissonIntegral_cos_sq_d3` as 1-line corollaries (removing `axiom poissonIntegral_cos_sq_d3` completely!). Update comments/docstrings in `Gegenbauer.lean` and `MainTheorem.lean` accurately.
 3. Add `#guard_msgs in #print axioms` guards in `MainTheorem.lean` and `GroverCircuit.lean` confirming `[propext, Classical.choice, Quot.sound]` on `isotropicGrover_main` and `isotropicGrover_groverState2D`.
-4. In `.github/workflows/lean_action_ci.yml`, add `axiom-audit: true` and `axiom-audit-root: 'IsotropicGrover'` to the `Build project` `leanprover/lean-action@v1` step.
+4. In `.github/workflows/lean_action_ci.yml`, add `axiom-audit: true` and `axiom-audit-root: 'IsotropicGroverProof'` to the `Build project` `leanprover/lean-action@v1` step.
 
 - [ ] **Step 3: Run full `lake build --wfail` and verify zero custom axioms across the repo**
 
