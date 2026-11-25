@@ -218,10 +218,7 @@ private lemma fullcircle_re_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (f : ℂ �
   have key : (((2 * Real.pi)⁻¹ : ℝ) • ∫ (θ : ℝ) in (0:ℝ)..2 * Real.pi,
       (poissonKernel (0:ℂ) (↑σ) • f) (circleMap 0 1 θ) : ℂ).re = (f (σ : ℂ)).re := key0
   simp only [Complex.smul_re, smul_eq_mul] at key
-  rw [show (∫ (θ : ℝ) in (0:ℝ)..2 * Real.pi, (poissonKernel (0:ℂ) (↑σ) • f) (circleMap 0 1 θ)).re
-    = ∫ (θ : ℝ) in (0:ℝ)..2 * Real.pi, ((poissonKernel (0:ℂ) (↑σ) • f) (circleMap 0 1 θ)).re from
-    (Complex.reCLM.intervalIntegral_comp_comm hf_intbl).symm] at key
-  linarith
+  rwa [← Complex.reCLM_apply, ← Complex.reCLM.intervalIntegral_comp_comm hf_intbl] at key
 
 private lemma fullcircle_cos_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
     (2 * Real.pi)⁻¹ * ∫ θ in (0:ℝ)..2 * Real.pi, poissonKernelDensity 2 σ θ * cos θ = σ := by

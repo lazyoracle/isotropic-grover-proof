@@ -298,9 +298,8 @@ lemma trace_secondMoment_eq_one (Φ : E n) (_hΦ : ‖Φ‖ = 1) :
     rw [he₂, one_pow]
   rw [integral_congr_ae hae]
   -- ∫ 1 dμ = 1 (probability measure)
-  have : IsProbabilityMeasure (perpSphereMeasure Φ) := perpSphereMeasure_isProbMeasure Φ
   rw [integral_const]
-  simp [Measure.real, IsProbabilityMeasure.measure_univ]
+  simp [Measure.real]
 
 /-- The trace of P_perp equals d - 1 (the dimension of V_perp). -/
 lemma trace_P_perp (Φ : E n) (hΦ : ‖Φ‖ = 1) :
