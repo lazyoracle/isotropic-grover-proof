@@ -86,23 +86,15 @@ theorem isotropicGrover_main (G : ℕ) (hG : 0 < G) (σ : ℝ) (hσ : σ ∈ Set
   rw [hd_eq]
   ring
 
-/-- Specialization of the main mixture theorem to `n = 0` (`d = 2`), evaluating
-    the `d = 2` second-moment formula `f₂_formula_d2` directly. -/
+/-- Specialization of `isotropicGrover_main` to `n = 0` (`d = 2`, retained for backwards
+    compatibility). -/
 theorem isotropicGrover_n0 (G : ℕ) (hG : 0 < G) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
     (Φ : E 0) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ 0)) :
     ∫ θ, ∫ e₂, succProb 0 (isotropicError Φ e₂ θ) w
           ∂(perpSphereMeasure Φ)
       ∂(composedMeasure (d 0) G σ) =
-    σ ^ (2 * G) * succProb 0 Φ w + (1 - σ ^ (2 * G)) / (2 ^ 0 : ℝ) := by
-  have hd2 : 2 ≤ d 0 := by simp [d]
-  rw [expanded_E_pe G hG σ hσ Φ hΦ w]
-  rw [decoherent_floor Φ hΦ w hd2]
-  have hd_eq : d 0 = 2 := by simp [d]
-  rw [hd_eq]
-  rw [f₂_formula_d2 G σ hσ hG]
-  have hN_ne : (2 : ℝ) ^ 0 ≠ 0 := by positivity
-  field_simp [hN_ne]
-  ring
+    σ ^ (2 * G) * succProb 0 Φ w + (1 - σ ^ (2 * G)) / (2 ^ 0 : ℝ) :=
+  isotropicGrover_main G hG σ hσ Φ hΦ w
 
 /-! ## TDD spot-checks — algebra verification -/
 

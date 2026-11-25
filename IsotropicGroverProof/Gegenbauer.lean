@@ -90,10 +90,9 @@ theorem poissonIntegral_cos_sq (d : ℕ) (σ : ℝ)
     (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d) :
     ∫ θ, (cos θ) ^ 2 ∂(poissonMarginal d σ) =
     ((d - 1 : ℝ) * σ ^ 2 + 1) / d := by
-  have hnc_ne : poissonNormConst d σ ≠ 0 := (poissonNormConst_pos d σ hσ hd).ne'
-  rw [integral_poissonMarginal_eq d σ hσ hd (f := fun θ => cos θ ^ 2) (continuous_cos.pow 2),
-      halfcircle_cos_sq_eq d σ hσ hd, ← poissonNormConst_eq_intervalIntegral]
-  exact mul_div_cancel_right₀ _ hnc_ne
+  rw [integral_poissonMarginal_eq d σ hσ hd, halfcircle_cos_sq_eq d σ hσ hd,
+      ← poissonNormConst_eq_intervalIntegral]
+  exact mul_div_cancel_right₀ _ (poissonNormConst_pos d σ hσ hd).ne'
 
 /-- Specialization of `poissonIntegral_cos_sq` to `d = 2`:
     `E[cos² θ] = ((2 - 1) σ² + 1) / 2`. -/
@@ -117,22 +116,13 @@ theorem poissonIntegral_cos_sq_d3 (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1
 theorem f₂_formula (d_val G : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
     (hd : 2 ≤ d_val) (hG : 0 < G) :
     f₂ d_val G σ = ((d_val - 1 : ℝ) * σ ^ (2 * G) + 1) / d_val := by
-  simp only [f₂, composedMeasure]
-  have hσG : σ ^ G ∈ Set.Ioo 0 1 :=
-    ⟨pow_pos hσ.1 G, pow_lt_one₀ hσ.1.le hσ.2 hG.ne'⟩
-  rw [poissonIntegral_cos_sq d_val (σ ^ G) hσG hd]
-  have hpow : (σ ^ G) ^ 2 = σ ^ (2 * G) := by ring
-  rw [hpow]
+  rw [f₂, composedMeasure, poissonIntegral_cos_sq d_val (σ ^ G) (pow_mem_Ioo_zero_one hσ hG) hd,
+      show (σ ^ G) ^ 2 = σ ^ (2 * G) by ring]
 
-/-- Specialization of `f₂_formula` to `d = 2` via `poissonIntegral_cos_sq_d2`. -/
+/-- Specialization of `f₂_formula` to `d = 2` (retained for backwards compatibility). -/
 theorem f₂_formula_d2 (G : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hG : 0 < G) :
     f₂ 2 G σ = ((2 - 1 : ℝ) * σ ^ (2 * G) + 1) / 2 := by
-  simp only [f₂, composedMeasure]
-  have hσG : σ ^ G ∈ Set.Ioo 0 1 :=
-    ⟨pow_pos hσ.1 G, pow_lt_one₀ hσ.1.le hσ.2 hG.ne'⟩
-  rw [poissonIntegral_cos_sq_d2 (σ ^ G) hσG]
-  have hpow : (σ ^ G) ^ 2 = σ ^ (2 * G) := by ring
-  rw [hpow]
+  exact_mod_cast f₂_formula 2 G σ hσ (by norm_num) hG
 
 /-! ## TDD spot-checks -/
 

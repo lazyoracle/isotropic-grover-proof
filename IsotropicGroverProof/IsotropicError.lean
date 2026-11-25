@@ -61,7 +61,7 @@ noncomputable def poissonMarginal (d : ℕ) (σ : ℝ) : Measure ℝ :=
   (volume.restrict (Set.Icc 0 Real.pi)).withDensity
     (fun θ => ENNReal.ofReal (poissonKernelDensity d σ θ / poissonNormConst d σ))
 
-/-! ## Private helpers for the probability measure proof -/
+/-! ## Normalization and marginal integral helpers -/
 
 private lemma denom_pos (σ θ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
     0 < 1 + σ ^ 2 - 2 * σ * cos θ := by
@@ -115,7 +115,7 @@ lemma poissonNormConst_pos (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
     ⟨Real.pi / 2, hpi2_mem, hf_pos_pi2⟩
 
 /-- Set integral over `[0, π]` equals the interval integral `0..π`. -/
-lemma Icc_to_interval_d2 (f : ℝ → ℝ) :
+lemma Icc_to_interval (f : ℝ → ℝ) :
     ∫ θ in Set.Icc (0 : ℝ) Real.pi, f θ = ∫ θ in (0 : ℝ)..Real.pi, f θ := by
   rw [intervalIntegral.integral_of_le Real.pi_pos.le,
     ← integral_Icc_eq_integral_Ioc' (f := f) Real.volume_singleton]
@@ -123,40 +123,28 @@ lemma Icc_to_interval_d2 (f : ℝ → ℝ) :
 /-- `poissonNormConst d σ` expressed as an `intervalIntegral` over `0..π`. -/
 lemma poissonNormConst_eq_intervalIntegral (d : ℕ) (σ : ℝ) :
     poissonNormConst d σ = ∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ :=
-  Icc_to_interval_d2 _
+  Icc_to_interval _
 
 /-- Generic reduction of expectations under `poissonMarginal d σ` to an `intervalIntegral`
     over `0..π` divided by `poissonNormConst d σ`. -/
 lemma integral_poissonMarginal_eq (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d)
-    {f : ℝ → ℝ} (hf : Continuous f) :
+    (f : ℝ → ℝ) :
     ∫ θ, f θ ∂(poissonMarginal d σ) =
     (∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ * f θ) / poissonNormConst d σ := by
-  let _ := hf
   unfold poissonMarginal
-  have hnc_pos : 0 < poissonNormConst d σ := poissonNormConst_pos d σ hσ hd
+  have hnc := poissonNormConst_pos d σ hσ hd
   have h_meas : Measurable (fun θ =>
       ENNReal.ofReal (poissonKernelDensity d σ θ / poissonNormConst d σ)) :=
     ((poissonKernelDensity_continuous d σ hσ).measurable.div_const _).ennreal_ofReal
-  have h_lt_top : ∀ᵐ θ ∂MeasureTheory.volume.restrict (Set.Icc 0 Real.pi),
-      ENNReal.ofReal (poissonKernelDensity d σ θ / poissonNormConst d σ) < ⊤ :=
-    ae_of_all _ (fun _ => ENNReal.ofReal_lt_top)
-  rw [integral_withDensity_eq_integral_toReal_smul h_meas h_lt_top]
-  have hnn_ae : ∀ᵐ θ ∂MeasureTheory.volume.restrict (Set.Icc 0 Real.pi),
-      0 ≤ poissonKernelDensity d σ θ / poissonNormConst d σ := by
-    rw [ae_restrict_iff' measurableSet_Icc]
-    exact ae_of_all _
-      (fun θ hθ => div_nonneg (poissonKernelDensity_nonneg d σ hσ θ hθ hd) hnc_pos.le)
-  have step1 : ∫ θ,
-        (ENNReal.ofReal (poissonKernelDensity d σ θ /
-          poissonNormConst d σ)).toReal • f θ
-        ∂MeasureTheory.volume.restrict (Set.Icc 0 Real.pi) =
-      ∫ θ in Set.Icc 0 Real.pi, poissonKernelDensity d σ θ / poissonNormConst d σ * f θ := by
-    apply MeasureTheory.integral_congr_ae
-    filter_upwards [hnn_ae] with θ hθ
-    rw [ENNReal.toReal_ofReal hθ, smul_eq_mul]
-  rw [step1]
-  simp_rw [div_mul_eq_mul_div]
-  rw [MeasureTheory.integral_div, Icc_to_interval_d2]
+  rw [integral_withDensity_eq_integral_toReal_smul h_meas
+        (ae_of_all _ fun _ => ENNReal.ofReal_lt_top),
+      ← Icc_to_interval, ← MeasureTheory.integral_div]
+  refine integral_congr_ae
+    ((ae_restrict_iff' measurableSet_Icc).mpr (ae_of_all _ fun θ hθ => ?_))
+  dsimp only
+  rw [ENNReal.toReal_ofReal
+    (div_nonneg (poissonKernelDensity_nonneg d σ hσ θ hθ hd) hnc.le),
+    smul_eq_mul, div_mul_eq_mul_div]
 
 /-! ## Probability measure instance -/
 
@@ -344,123 +332,91 @@ private lemma halfcircle_norm_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
 private noncomputable abbrev poissonDenom (σ θ : ℝ) : ℝ :=
   1 + σ ^ 2 - 2 * σ * cos θ
 
+private lemma poissonKernelDensity_eq_mul_rpow_neg (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
+    (θ : ℝ) :
+    poissonKernelDensity d σ θ =
+      (1 - σ ^ 2) * sin θ ^ (d - 2) * poissonDenom σ θ ^ (-(d : ℝ) / 2) := by
+  unfold poissonKernelDensity poissonDenom
+  rw [show -(d : ℝ) / 2 = -((d : ℝ) / 2) by ring, Real.rpow_neg (denom_pos σ θ hσ).le,
+      div_eq_mul_inv]
+
+private lemma poissonKernelDensity_add_two_mul_denom (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
+    (hd : 2 ≤ d) (θ : ℝ) :
+    poissonKernelDensity (d + 2) σ θ * poissonDenom σ θ =
+      poissonKernelDensity d σ θ * sin θ ^ 2 := by
+  have hD : poissonDenom σ θ ≠ 0 := (denom_pos σ θ hσ).ne'
+  rw [poissonKernelDensity_eq_mul_rpow_neg (d + 2) σ hσ θ,
+      poissonKernelDensity_eq_mul_rpow_neg d σ hσ θ,
+      show -((d + 2 : ℕ) : ℝ) / 2 = -(d : ℝ) / 2 - 1 by push_cast; ring,
+      Real.rpow_sub_one hD, mul_assoc, div_mul_cancel₀ _ hD,
+      show (d + 2) - 2 = (d - 2) + 2 by omega, pow_add]
+  ring
+
 private lemma hasDerivAt_poissonDenom (σ θ : ℝ) :
     HasDerivAt (poissonDenom σ) (2 * σ * sin θ) θ := by
-  have h := (hasDerivAt_const θ (1 + σ ^ 2)).sub ((Real.hasDerivAt_cos θ).const_mul (2 * σ))
-  convert h using 1
+  convert (hasDerivAt_const θ (1 + σ ^ 2)).sub
+    ((Real.hasDerivAt_cos θ).const_mul (2 * σ)) using 1
   ring
+
+private lemma hasDerivAt_poissonDenom_rpow (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (p θ : ℝ) :
+    HasDerivAt (fun x => poissonDenom σ x ^ p)
+      (2 * σ * sin θ * p * poissonDenom σ θ ^ (p - 1)) θ :=
+  (hasDerivAt_poissonDenom σ θ).rpow_const (p := p) (Or.inl (denom_pos σ θ hσ).ne')
 
 private lemma hasDerivAt_sin_pow_pred (d : ℕ) (hd : 2 ≤ d) (θ : ℝ) :
     HasDerivAt (fun x => sin x ^ (d - 1)) (((d : ℝ) - 1) * sin θ ^ (d - 2) * cos θ) θ := by
-  have h := (Real.hasDerivAt_sin θ).pow (d - 1)
-  have hd1 : ((d - 1 : ℕ) : ℝ) = (d : ℝ) - 1 := by
-    rw [Nat.cast_sub (by omega : 1 ≤ d), Nat.cast_one]
-  have hd2 : d - 1 - 1 = d - 2 := by omega
-  change HasDerivAt (fun x => sin x ^ (d - 1)) _ θ at h
-  rwa [hd1, hd2] at h
+  convert (Real.hasDerivAt_sin θ).pow (d - 1) using 1
+  rw [Nat.cast_sub (by omega : 1 ≤ d), Nat.cast_one, show d - 1 - 1 = d - 2 by omega]
 
-private lemma intervalIntegral_eq_zero_of_hasDerivAt {F f' : ℝ → ℝ}
-    (hderiv : ∀ θ : ℝ, HasDerivAt F (f' θ) θ) (hf' : Continuous f')
+private lemma intervalIntegral_eq_of_hasDerivAt_sub {F u v : ℝ → ℝ}
+    (hderiv : ∀ θ : ℝ, HasDerivAt F (u θ - v θ) θ) (hu : Continuous u) (hv : Continuous v)
     (hend : F Real.pi = F 0) :
-    ∫ θ in (0 : ℝ)..Real.pi, f' θ = 0 := by
-  rw [intervalIntegral.integral_eq_sub_of_hasDerivAt (fun θ _ => hderiv θ)
-    (hf'.intervalIntegrable 0 Real.pi), hend, sub_self]
-
-/-- Smooth antiderivative `F̃₀(θ) = (1 - σ²) sin^{d-1}θ · D(σ, θ)^{1 - d/2}` for the
-    three-term moment relation connecting `I₂(d)`, `I₁(d)`, and `I₀(d)`. -/
-private noncomputable def antiderivF0 (d : ℕ) (σ θ : ℝ) : ℝ :=
-  (1 - σ ^ 2) * (sin θ ^ (d - 1) * poissonDenom σ θ ^ (1 - (d : ℝ) / 2))
-
-private lemma hasDerivAt_antiderivF0 (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d)
-    (θ : ℝ) :
-    HasDerivAt (antiderivF0 d σ)
-      (((d : ℝ) - 1) * (1 + σ ^ 2) * (poissonKernelDensity d σ θ * cos θ) -
-        σ * (d : ℝ) * (poissonKernelDensity d σ θ * cos θ ^ 2) -
-        ((d : ℝ) - 2) * σ * poissonKernelDensity d σ θ) θ := by
-  have hD : 0 < poissonDenom σ θ := denom_pos σ θ hσ
-  have h1 := hasDerivAt_sin_pow_pred d hd θ
-  have h2 := (hasDerivAt_poissonDenom σ θ).rpow_const
-    (p := 1 - (d : ℝ) / 2) (Or.inl hD.ne')
-  have h := (h1.mul h2).const_mul (1 - σ ^ 2)
-  unfold antiderivF0
-  convert h using 1
-  have hr1 : poissonDenom σ θ ^ (1 - (d : ℝ) / 2) =
-      poissonDenom σ θ * (poissonDenom σ θ ^ ((d : ℝ) / 2))⁻¹ := by
-    rw [Real.rpow_sub hD, Real.rpow_one, div_eq_mul_inv]
-  have hr2 : poissonDenom σ θ ^ (1 - (d : ℝ) / 2 - 1) =
-      (poissonDenom σ θ ^ ((d : ℝ) / 2))⁻¹ := by
-    rw [show (1 : ℝ) - (d : ℝ) / 2 - 1 = -((d : ℝ) / 2) by ring, Real.rpow_neg hD.le]
-  have hsin : sin θ ^ (d - 1) = sin θ ^ (d - 2) * sin θ := by
-    rw [show d - 1 = (d - 2) + 1 by omega, pow_succ]
-  rw [hr1, hr2, hsin]
-  unfold poissonKernelDensity poissonDenom
-  set P := (1 + σ ^ 2 - 2 * σ * cos θ) ^ ((d : ℝ) / 2)
-  simp only [div_eq_mul_inv]
-  linear_combination
-    (1 - σ ^ 2) * sin θ ^ (d - 2) * ((d : ℝ) - 2) * σ * P⁻¹ * Real.sin_sq_add_cos_sq θ
-
-private lemma halfcircle_three_term (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d) :
-    σ * (d : ℝ) * (∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ * cos θ ^ 2) =
-    ((d : ℝ) - 1) * (1 + σ ^ 2) *
-      (∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ * cos θ) -
-    ((d : ℝ) - 2) * σ * (∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ) := by
-  have hg := poissonKernelDensity_continuous d σ hσ
-  have hi0 : IntervalIntegrable (poissonKernelDensity d σ) volume 0 Real.pi :=
-    hg.intervalIntegrable 0 Real.pi
-  have hi1 : IntervalIntegrable (fun θ => poissonKernelDensity d σ θ * cos θ) volume 0 Real.pi :=
-    (hg.mul continuous_cos).intervalIntegrable 0 Real.pi
-  have hi2 : IntervalIntegrable
-      (fun θ => poissonKernelDensity d σ θ * cos θ ^ 2) volume 0 Real.pi :=
-    (hg.mul (continuous_cos.pow 2)).intervalIntegrable 0 Real.pi
-  have hcont : Continuous (fun θ =>
-      ((d : ℝ) - 1) * (1 + σ ^ 2) * (poissonKernelDensity d σ θ * cos θ) -
-        σ * (d : ℝ) * (poissonKernelDensity d σ θ * cos θ ^ 2) -
-        ((d : ℝ) - 2) * σ * poissonKernelDensity d σ θ) :=
-    ((continuous_const.mul (hg.mul continuous_cos)).sub
-      (continuous_const.mul (hg.mul (continuous_cos.pow 2)))).sub
-      (continuous_const.mul hg)
-  have hend : antiderivF0 d σ Real.pi = antiderivF0 d σ 0 := by
-    simp [antiderivF0, Real.sin_pi, Real.sin_zero, zero_pow (by omega : d - 1 ≠ 0)]
-  have hftc := intervalIntegral_eq_zero_of_hasDerivAt
-    (hasDerivAt_antiderivF0 d σ hσ hd) hcont hend
-  rw [intervalIntegral.integral_sub
-        ((hi1.const_mul _).sub (hi2.const_mul _)) (hi0.const_mul _),
-      intervalIntegral.integral_sub (hi1.const_mul _) (hi2.const_mul _),
-      intervalIntegral.integral_const_mul,
-      intervalIntegral.integral_const_mul,
-      intervalIntegral.integral_const_mul] at hftc
+    ∫ θ in (0 : ℝ)..Real.pi, u θ = ∫ θ in (0 : ℝ)..Real.pi, v θ := by
+  have h := intervalIntegral.integral_eq_sub_of_hasDerivAt (fun θ _ => hderiv θ)
+    ((hu.sub hv).intervalIntegrable 0 Real.pi)
+  rw [hend, sub_self, intervalIntegral.integral_sub
+    (hu.intervalIntegrable 0 Real.pi) (hv.intervalIntegrable 0 Real.pi)] at h
   linarith
+
+private lemma intervalIntegral_eq_of_hasDerivAt_sub_sub {F u₁ u₂ v : ℝ → ℝ}
+    (hderiv : ∀ θ : ℝ, HasDerivAt F (u₁ θ - u₂ θ - v θ) θ)
+    (hu₁ : Continuous u₁) (hu₂ : Continuous u₂) (hv : Continuous v)
+    (hend : F Real.pi = F 0) :
+    (∫ θ in (0 : ℝ)..Real.pi, u₁ θ) - (∫ θ in (0 : ℝ)..Real.pi, u₂ θ) =
+      ∫ θ in (0 : ℝ)..Real.pi, v θ := by
+  rw [← intervalIntegral.integral_sub
+    (hu₁.intervalIntegrable 0 Real.pi) (hu₂.intervalIntegrable 0 Real.pi)]
+  exact intervalIntegral_eq_of_hasDerivAt_sub hderiv (hu₁.sub hu₂) hv hend
 
 /-- Smooth antiderivative `G̃₀(θ) = (1 - σ²) sin^{d-1}θ · D(σ, θ)^{-d/2}` relating
     `I₀(d + 2)` to `I₁(d)`. -/
 private noncomputable def antiderivG0 (d : ℕ) (σ θ : ℝ) : ℝ :=
   (1 - σ ^ 2) * (sin θ ^ (d - 1) * poissonDenom σ θ ^ (-(d : ℝ) / 2))
 
+private lemma antiderivG0_eq (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d) (θ : ℝ) :
+    antiderivG0 d σ θ = poissonKernelDensity d σ θ * sin θ := by
+  rw [antiderivG0, poissonKernelDensity_eq_mul_rpow_neg d σ hσ θ,
+      show d - 1 = (d - 2) + 1 by omega, pow_succ]
+  ring
+
+private lemma antiderivG0_zero (d : ℕ) (hd : 2 ≤ d) (σ : ℝ) : antiderivG0 d σ 0 = 0 := by
+  simp [antiderivG0, zero_pow (by omega : d - 1 ≠ 0)]
+
+private lemma antiderivG0_pi (d : ℕ) (hd : 2 ≤ d) (σ : ℝ) : antiderivG0 d σ Real.pi = 0 := by
+  simp [antiderivG0, zero_pow (by omega : d - 1 ≠ 0)]
+
 private lemma hasDerivAt_antiderivG0 (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d)
     (θ : ℝ) :
     HasDerivAt (antiderivG0 d σ)
       (((d : ℝ) - 1) * (poissonKernelDensity d σ θ * cos θ) -
         (d : ℝ) * σ * poissonKernelDensity (d + 2) σ θ) θ := by
-  have hD : 0 < poissonDenom σ θ := denom_pos σ θ hσ
-  have h1 := hasDerivAt_sin_pow_pred d hd θ
-  have h2 := (hasDerivAt_poissonDenom σ θ).rpow_const
-    (p := -(d : ℝ) / 2) (Or.inl hD.ne')
-  have h := (h1.mul h2).const_mul (1 - σ ^ 2)
   unfold antiderivG0
-  convert h using 1
-  have hr1 : poissonDenom σ θ ^ (-(d : ℝ) / 2) =
-      (poissonDenom σ θ ^ ((d : ℝ) / 2))⁻¹ := by
-    rw [show -(d : ℝ) / 2 = -((d : ℝ) / 2) by ring, Real.rpow_neg hD.le]
-  have hr2 : poissonDenom σ θ ^ (-(d : ℝ) / 2 - 1) =
-      (poissonDenom σ θ ^ (((d + 2 : ℕ) : ℝ) / 2))⁻¹ := by
-    have hexp : -(d : ℝ) / 2 - 1 = -(((d + 2 : ℕ) : ℝ) / 2) := by push_cast; ring
-    rw [hexp, Real.rpow_neg hD.le]
-  have hsin : sin θ ^ ((d + 2) - 2) = sin θ ^ (d - 1) * sin θ := by
-    rw [show (d + 2) - 2 = (d - 1) + 1 by omega, pow_succ]
-  rw [hr1, hr2]
-  unfold poissonKernelDensity poissonDenom at *
-  rw [hsin]
-  simp only [div_eq_mul_inv]
+  convert ((hasDerivAt_sin_pow_pred d hd θ).mul
+    (hasDerivAt_poissonDenom_rpow σ hσ (-(d : ℝ) / 2) θ)).const_mul (1 - σ ^ 2) using 1
+  rw [poissonKernelDensity_eq_mul_rpow_neg d σ hσ θ,
+      poissonKernelDensity_eq_mul_rpow_neg (d + 2) σ hσ θ,
+      show -(d : ℝ) / 2 - 1 = -((d + 2 : ℕ) : ℝ) / 2 by push_cast; ring,
+      show (d + 2) - 2 = (d - 1) + 1 by omega, pow_succ]
   ring
 
 private lemma halfcircle_step_norm (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d) :
@@ -468,21 +424,44 @@ private lemma halfcircle_step_norm (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 
     ((d : ℝ) - 1) * (∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ * cos θ) := by
   have hg := poissonKernelDensity_continuous d σ hσ
   have hg2 := poissonKernelDensity_continuous (d + 2) σ hσ
-  have hi1 : IntervalIntegrable (fun θ => poissonKernelDensity d σ θ * cos θ) volume 0 Real.pi :=
-    (hg.mul continuous_cos).intervalIntegrable 0 Real.pi
-  have hi0_next : IntervalIntegrable (poissonKernelDensity (d + 2) σ) volume 0 Real.pi :=
-    hg2.intervalIntegrable 0 Real.pi
-  have hcont : Continuous (fun θ =>
-      ((d : ℝ) - 1) * (poissonKernelDensity d σ θ * cos θ) -
-        (d : ℝ) * σ * poissonKernelDensity (d + 2) σ θ) :=
-    (continuous_const.mul (hg.mul continuous_cos)).sub (continuous_const.mul hg2)
-  have hend : antiderivG0 d σ Real.pi = antiderivG0 d σ 0 := by
-    simp [antiderivG0, Real.sin_pi, Real.sin_zero, zero_pow (by omega : d - 1 ≠ 0)]
-  have hftc := intervalIntegral_eq_zero_of_hasDerivAt
-    (hasDerivAt_antiderivG0 d σ hσ hd) hcont hend
-  rw [intervalIntegral.integral_sub (hi1.const_mul _) (hi0_next.const_mul _),
-      intervalIntegral.integral_const_mul,
-      intervalIntegral.integral_const_mul] at hftc
+  have h := intervalIntegral_eq_of_hasDerivAt_sub (hasDerivAt_antiderivG0 d σ hσ hd)
+    (continuous_const.mul (hg.mul continuous_cos)) (continuous_const.mul hg2)
+    (by rw [antiderivG0_pi d hd σ, antiderivG0_zero d hd σ])
+  simp only [intervalIntegral.integral_const_mul] at h
+  exact h.symm
+
+/-- Smooth antiderivative `F̃₀(θ) = D(σ, θ) · G̃₀(θ) = (1 - σ²) sin^{d-1}θ · D(σ, θ)^{1 - d/2}`
+    for the three-term moment relation connecting `I₂(d)`, `I₁(d)`, and `I₀(d)`. -/
+private noncomputable def antiderivF0 (d : ℕ) (σ θ : ℝ) : ℝ :=
+  poissonDenom σ θ * antiderivG0 d σ θ
+
+private lemma hasDerivAt_antiderivF0 (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d)
+    (θ : ℝ) :
+    HasDerivAt (antiderivF0 d σ)
+      (((d : ℝ) - 1) * (1 + σ ^ 2) * (poissonKernelDensity d σ θ * cos θ) -
+        σ * (d : ℝ) * (poissonKernelDensity d σ θ * cos θ ^ 2) -
+        ((d : ℝ) - 2) * σ * poissonKernelDensity d σ θ) θ := by
+  unfold antiderivF0
+  convert (hasDerivAt_poissonDenom σ θ).mul (hasDerivAt_antiderivG0 d σ hσ hd θ) using 1
+  have h1 := antiderivG0_eq d σ hσ hd θ
+  have h2 := poissonKernelDensity_add_two_mul_denom d σ hσ hd θ
+  have hD : poissonDenom σ θ = 1 + σ ^ 2 - 2 * σ * cos θ := rfl
+  linear_combination -2 * σ * sin θ * h1 + (d : ℝ) * σ * h2 -
+    ((d : ℝ) - 1) * poissonKernelDensity d σ θ * cos θ * hD +
+    ((d : ℝ) - 2) * σ * poissonKernelDensity d σ θ * Real.sin_sq_add_cos_sq θ
+
+private lemma halfcircle_three_term (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d) :
+    σ * (d : ℝ) * (∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ * cos θ ^ 2) =
+    ((d : ℝ) - 1) * (1 + σ ^ 2) *
+      (∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ * cos θ) -
+    ((d : ℝ) - 2) * σ * (∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ) := by
+  have hg := poissonKernelDensity_continuous d σ hσ
+  have h := intervalIntegral_eq_of_hasDerivAt_sub_sub (hasDerivAt_antiderivF0 d σ hσ hd)
+    (continuous_const.mul (hg.mul continuous_cos))
+    (continuous_const.mul (hg.mul (continuous_cos.pow 2)))
+    (continuous_const.mul hg)
+    (by simp [antiderivF0, antiderivG0_pi d hd σ, antiderivG0_zero d hd σ])
+  simp only [intervalIntegral.integral_const_mul] at h
   linarith
 
 /-- Smooth antiderivative `G̃₁(θ) = cos θ · G̃₀(θ)` relating `I₁(d + 2)` to `I₂(d)` and `I₀(d)`. -/
@@ -495,23 +474,9 @@ private lemma hasDerivAt_antiderivG1 (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 
       ((d : ℝ) * (poissonKernelDensity d σ θ * cos θ ^ 2) -
         poissonKernelDensity d σ θ -
         (d : ℝ) * σ * (poissonKernelDensity (d + 2) σ θ * cos θ)) θ := by
-  have hD : 0 < poissonDenom σ θ := denom_pos σ θ hσ
-  have h := (Real.hasDerivAt_cos θ).mul (hasDerivAt_antiderivG0 d σ hσ hd θ)
   unfold antiderivG1
-  convert h using 1
-  unfold antiderivG0
-  have hr1 : poissonDenom σ θ ^ (-(d : ℝ) / 2) =
-      (poissonDenom σ θ ^ ((d : ℝ) / 2))⁻¹ := by
-    rw [show -(d : ℝ) / 2 = -((d : ℝ) / 2) by ring, Real.rpow_neg hD.le]
-  have hsin : sin θ ^ (d - 1) = sin θ ^ (d - 2) * sin θ := by
-    rw [show d - 1 = (d - 2) + 1 by omega, pow_succ]
-  rw [hr1, hsin]
-  have hg_eq : (1 - σ ^ 2) * (sin θ ^ (d - 2) * sin θ * (poissonDenom σ θ ^ ((d : ℝ) / 2))⁻¹) =
-      poissonKernelDensity d σ θ * sin θ := by
-    unfold poissonKernelDensity poissonDenom
-    simp only [div_eq_mul_inv]
-    ring
-  rw [hg_eq]
+  convert (Real.hasDerivAt_cos θ).mul (hasDerivAt_antiderivG0 d σ hσ hd θ) using 1
+  rw [antiderivG0_eq d σ hσ hd θ]
   linear_combination poissonKernelDensity d σ θ * Real.sin_sq_add_cos_sq θ
 
 private lemma halfcircle_step_cos (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d) :
@@ -520,29 +485,11 @@ private lemma halfcircle_step_cos (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1
       (∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ) := by
   have hg := poissonKernelDensity_continuous d σ hσ
   have hg2 := poissonKernelDensity_continuous (d + 2) σ hσ
-  have hi0 : IntervalIntegrable (poissonKernelDensity d σ) volume 0 Real.pi :=
-    hg.intervalIntegrable 0 Real.pi
-  have hi2 : IntervalIntegrable
-      (fun θ => poissonKernelDensity d σ θ * cos θ ^ 2) volume 0 Real.pi :=
-    (hg.mul (continuous_cos.pow 2)).intervalIntegrable 0 Real.pi
-  have hi1_next : IntervalIntegrable
-      (fun θ => poissonKernelDensity (d + 2) σ θ * cos θ) volume 0 Real.pi :=
-    (hg2.mul continuous_cos).intervalIntegrable 0 Real.pi
-  have hcont : Continuous (fun θ =>
-      (d : ℝ) * (poissonKernelDensity d σ θ * cos θ ^ 2) -
-        poissonKernelDensity d σ θ -
-        (d : ℝ) * σ * (poissonKernelDensity (d + 2) σ θ * cos θ)) :=
-    ((continuous_const.mul (hg.mul (continuous_cos.pow 2))).sub hg).sub
-      (continuous_const.mul (hg2.mul continuous_cos))
-  have hend : antiderivG1 d σ Real.pi = antiderivG1 d σ 0 := by
-    simp [antiderivG1, antiderivG0, Real.sin_pi, Real.sin_zero, zero_pow (by omega : d - 1 ≠ 0)]
-  have hftc := intervalIntegral_eq_zero_of_hasDerivAt
-    (hasDerivAt_antiderivG1 d σ hσ hd) hcont hend
-  rw [intervalIntegral.integral_sub
-        ((hi2.const_mul _).sub hi0) (hi1_next.const_mul _),
-      intervalIntegral.integral_sub (hi2.const_mul _) hi0,
-      intervalIntegral.integral_const_mul,
-      intervalIntegral.integral_const_mul] at hftc
+  have h := intervalIntegral_eq_of_hasDerivAt_sub_sub (hasDerivAt_antiderivG1 d σ hσ hd)
+    (continuous_const.mul (hg.mul (continuous_cos.pow 2))) hg
+    (continuous_const.mul (hg2.mul continuous_cos))
+    (by simp [antiderivG1, antiderivG0_pi d hd σ, antiderivG0_zero d hd σ])
+  simp only [intervalIntegral.integral_const_mul] at h
   linarith
 
 private lemma halfcircle_cos_step (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d)
@@ -553,19 +500,10 @@ private lemma halfcircle_cos_step (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1
   have h3 := halfcircle_three_term d σ hσ hd
   have hG0 := halfcircle_step_norm d σ hσ hd
   have hG1 := halfcircle_step_cos d σ hσ hd
-  have hd_pos : (0 : ℝ) < d := by exact_mod_cast (by omega : 0 < d)
-  have hdσ_ne : (d : ℝ) * σ ≠ 0 := mul_ne_zero hd_pos.ne' hσ.1.ne'
   rw [ih] at h3 hG0
-  have hI2 : (d : ℝ) * (∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ * cos θ ^ 2) =
-      (((d : ℝ) - 1) * σ ^ 2 + 1) * (∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ) := by
-    apply mul_left_cancel₀ hσ.1.ne'
-    linear_combination h3
-  have hkey : (d : ℝ) * σ *
-      (∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity (d + 2) σ θ * cos θ) =
-      (d : ℝ) * σ *
-      (σ * ∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity (d + 2) σ θ) := by
-    linear_combination hG1 + hI2 - σ * hG0
-  exact mul_left_cancel₀ hdσ_ne hkey
+  have hd_ne : (d : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (by omega)
+  apply mul_left_cancel₀ (mul_ne_zero hd_ne (pow_ne_zero 2 hσ.1.ne'))
+  linear_combination σ * hG1 + h3 - σ ^ 2 * hG0
 
 /-- Smooth antiderivative `H̃₃(θ)` for the `d = 3` base case `I₁(3) = σ I₀(3)`. -/
 private noncomputable def antiderivH3 (σ θ : ℝ) : ℝ :=
@@ -576,51 +514,35 @@ private noncomputable def antiderivH3 (σ θ : ℝ) : ℝ :=
 private lemma hasDerivAt_antiderivH3 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (θ : ℝ) :
     HasDerivAt (antiderivH3 σ)
       (poissonKernelDensity 3 σ θ * cos θ - σ * poissonKernelDensity 3 σ θ) θ := by
-  have hD : 0 < poissonDenom σ θ := denom_pos σ θ hσ
-  have hm := ((hasDerivAt_poissonDenom σ θ).rpow_const
-    (p := -(1 : ℝ) / 2) (Or.inl hD.ne')).const_mul (1 - σ ^ 2)
-  have hp := (hasDerivAt_poissonDenom σ θ).rpow_const
-    (p := (1 : ℝ) / 2) (Or.inl hD.ne')
-  have h := (hm.add hp).const_mul (-(1 - σ ^ 2) / (2 * σ ^ 2))
+  have hD := denom_pos σ θ hσ
+  have hm := (hasDerivAt_poissonDenom_rpow σ hσ (-(1 : ℝ) / 2) θ).const_mul (1 - σ ^ 2)
+  have hp := hasDerivAt_poissonDenom_rpow σ hσ ((1 : ℝ) / 2) θ
   unfold antiderivH3
-  convert h using 1
-  have hr1 : poissonDenom σ θ ^ (-(1 : ℝ) / 2 - 1) =
-      (poissonDenom σ θ ^ ((3 : ℝ) / 2))⁻¹ := by
-    rw [show -(1 : ℝ) / 2 - 1 = -((3 : ℝ) / 2) by ring, Real.rpow_neg hD.le]
-  have hr2 : poissonDenom σ θ ^ ((1 : ℝ) / 2 - 1) =
-      poissonDenom σ θ / poissonDenom σ θ ^ ((3 : ℝ) / 2) := by
-    rw [show (1 : ℝ) / 2 - 1 = 1 - (3 : ℝ) / 2 by ring, Real.rpow_sub hD, Real.rpow_one]
-  rw [hr1, hr2]
-  unfold poissonKernelDensity poissonDenom
-  have hDp_ne : (1 + σ ^ 2 - 2 * σ * cos θ) ^ ((3 : ℝ) / 2) ≠ 0 :=
-    (Real.rpow_pos_of_pos hD _).ne'
-  have hσ_ne : σ ≠ 0 := hσ.1.ne'
+  convert (hm.add hp).const_mul (-(1 - σ ^ 2) / (2 * σ ^ 2)) using 1
+  rw [poissonKernelDensity_eq_mul_rpow_neg 3 σ hσ θ,
+      show -(1 : ℝ) / 2 - 1 = -((3 : ℕ) : ℝ) / 2 by norm_num,
+      show (1 : ℝ) / 2 - 1 = -((3 : ℕ) : ℝ) / 2 + 1 by norm_num,
+      Real.rpow_add hD, Real.rpow_one]
+  unfold poissonDenom
   norm_num
-  field_simp [hDp_ne, hσ_ne]
+  field_simp [hσ.1.ne']
   ring
-
-private lemma sq_rpow_half_of_pos {a : ℝ} (ha : 0 < a) :
-    (a ^ 2) ^ ((1 : ℝ) / 2) = a := by
-  rw [← Real.rpow_natCast a 2, ← Real.rpow_mul ha.le]
-  norm_num
-
-private lemma sq_rpow_neg_half_of_pos {a : ℝ} (ha : 0 < a) :
-    (a ^ 2) ^ (-(1 : ℝ) / 2) = a⁻¹ := by
-  rw [← Real.rpow_natCast a 2, ← Real.rpow_mul ha.le]
-  norm_num
-  exact Real.rpow_neg_one a
 
 private lemma antiderivH3_endpoints (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
     antiderivH3 σ Real.pi = antiderivH3 σ 0 := by
-  unfold antiderivH3 poissonDenom
+  have hsq : ∀ {a : ℝ}, 0 ≤ a →
+      (a ^ 2) ^ ((1 : ℝ) / 2) = a ∧ (a ^ 2) ^ (-(1 : ℝ) / 2) = a⁻¹ := fun {a} ha => by
+    have h : (a ^ 2) ^ ((1 : ℝ) / 2) = a := by
+      rw [← Real.rpow_natCast a 2, ← Real.rpow_mul ha]; norm_num
+    exact ⟨h, by rw [show -(1 : ℝ) / 2 = -((1 : ℝ) / 2) by ring,
+      Real.rpow_neg (sq_nonneg _), h]⟩
   have h1m : 0 < 1 - σ := by linarith [hσ.2]
   have h1p : 0 < 1 + σ := by linarith [hσ.1]
-  have hD0 : 1 + σ ^ 2 - 2 * σ * cos 0 = (1 - σ) ^ 2 := by
-    rw [Real.cos_zero]; ring
-  have hDpi : 1 + σ ^ 2 - 2 * σ * cos Real.pi = (1 + σ) ^ 2 := by
-    rw [Real.cos_pi]; ring
-  rw [hD0, hDpi, sq_rpow_half_of_pos h1m, sq_rpow_neg_half_of_pos h1m,
-      sq_rpow_half_of_pos h1p, sq_rpow_neg_half_of_pos h1p]
+  unfold antiderivH3 poissonDenom
+  rw [Real.cos_zero, Real.cos_pi,
+      show 1 + σ ^ 2 - 2 * σ * 1 = (1 - σ) ^ 2 by ring,
+      show 1 + σ ^ 2 - 2 * σ * -1 = (1 + σ) ^ 2 by ring,
+      (hsq h1m.le).1, (hsq h1m.le).2, (hsq h1p.le).1, (hsq h1p.le).2]
   congr 1
   field_simp [h1m.ne', h1p.ne']
   ring
@@ -629,18 +551,9 @@ private lemma halfcircle_cos_d3 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
     ∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity 3 σ θ * cos θ =
     σ * ∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity 3 σ θ := by
   have hg := poissonKernelDensity_continuous 3 σ hσ
-  have hi0 : IntervalIntegrable (poissonKernelDensity 3 σ) volume 0 Real.pi :=
-    hg.intervalIntegrable 0 Real.pi
-  have hi1 : IntervalIntegrable (fun θ => poissonKernelDensity 3 σ θ * cos θ) volume 0 Real.pi :=
-    (hg.mul continuous_cos).intervalIntegrable 0 Real.pi
-  have hcont : Continuous
-      (fun θ => poissonKernelDensity 3 σ θ * cos θ - σ * poissonKernelDensity 3 σ θ) :=
-    (hg.mul continuous_cos).sub (continuous_const.mul hg)
-  have hftc := intervalIntegral_eq_zero_of_hasDerivAt
-    (hasDerivAt_antiderivH3 σ hσ) hcont (antiderivH3_endpoints σ hσ)
-  rw [intervalIntegral.integral_sub hi1 (hi0.const_mul _),
-      intervalIntegral.integral_const_mul] at hftc
-  linarith
+  have h := intervalIntegral_eq_of_hasDerivAt_sub (hasDerivAt_antiderivH3 σ hσ)
+    (hg.mul continuous_cos) (continuous_const.mul hg) (antiderivH3_endpoints σ hσ)
+  rwa [intervalIntegral.integral_const_mul] at h
 
 /-! ## All-dimension first and second moment identities -/
 
@@ -665,10 +578,9 @@ lemma halfcircle_cos_eq (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 
     and ideal state. -/
 theorem poissonMarginal_mean_cos (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d) :
     ∫ θ, cos θ ∂(poissonMarginal d σ) = σ := by
-  have hnc_ne : poissonNormConst d σ ≠ 0 := (poissonNormConst_pos d σ hσ hd).ne'
-  rw [integral_poissonMarginal_eq d σ hσ hd continuous_cos,
-      halfcircle_cos_eq d σ hσ hd, ← poissonNormConst_eq_intervalIntegral]
-  exact mul_div_cancel_right₀ σ hnc_ne
+  rw [integral_poissonMarginal_eq d σ hσ hd, halfcircle_cos_eq d σ hσ hd,
+      ← poissonNormConst_eq_intervalIntegral]
+  exact mul_div_cancel_right₀ σ (poissonNormConst_pos d σ hσ hd).ne'
 
 /-- Specialization of `poissonMarginal_mean_cos` to `d = 2` (retained for backwards
     compatibility). -/
@@ -684,19 +596,10 @@ theorem halfcircle_cos_sq_eq (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd
     ((d - 1 : ℝ) * σ ^ 2 + 1) / d * ∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ := by
   have h3 := halfcircle_three_term d σ hσ hd
   rw [halfcircle_cos_eq d σ hσ hd] at h3
-  have hd_pos : (0 : ℝ) < d := by exact_mod_cast (by omega : 0 < d)
-  have hd_ne : (d : ℝ) ≠ 0 := hd_pos.ne'
-  have hσ_ne : σ ≠ 0 := hσ.1.ne'
-  apply mul_left_cancel₀ (mul_ne_zero hσ_ne hd_ne)
-  calc
-    σ * (d : ℝ) * ∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ * cos θ ^ 2
-      = ((d : ℝ) - 1) * (1 + σ ^ 2) *
-          (σ * ∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ) -
-        ((d : ℝ) - 2) * σ * ∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ := h3
-    _ = σ * (d : ℝ) * (((d - 1 : ℝ) * σ ^ 2 + 1) / d *
-          ∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ) := by
-        field_simp [hd_ne]
-        ring
+  have hd_ne : (d : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (by omega)
+  apply mul_left_cancel₀ hσ.1.ne'
+  field_simp [hd_ne]
+  linear_combination h3
 
 /-! ## The isotropic error state -/
 

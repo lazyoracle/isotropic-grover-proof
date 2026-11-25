@@ -53,12 +53,15 @@ noncomputable def f₂ (d G : ℕ) (σ : ℝ) : ℝ :=
 
 /-! ## Probability measure -/
 
+/-- Positive integer powers preserve membership in `(0, 1)`. -/
+lemma pow_mem_Ioo_zero_one {σ : ℝ} (hσ : σ ∈ Set.Ioo 0 1) {G : ℕ} (hG : 0 < G) :
+    σ ^ G ∈ Set.Ioo 0 1 :=
+  ⟨pow_pos hσ.1 G, pow_lt_one₀ hσ.1.le hσ.2 hG.ne'⟩
+
 /-- The composed error measure is a probability measure when σ ∈ (0,1), G > 0, d ≥ 2. -/
 theorem composedMeasure_isProbMeasure (d G : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
-    (hG : 0 < G) (hd : 2 ≤ d) : IsProbabilityMeasure (composedMeasure d G σ) := by
-  simp only [composedMeasure]
-  exact poissonMarginal_isProbMeasure d (σ ^ G) ⟨pow_pos hσ.1 G,
-    pow_lt_one₀ hσ.1.le hσ.2 hG.ne'⟩ hd
+    (hG : 0 < G) (hd : 2 ≤ d) : IsProbabilityMeasure (composedMeasure d G σ) :=
+  poissonMarginal_isProbMeasure d (σ ^ G) (pow_mem_Ioo_zero_one hσ hG) hd
 
 /-! ## Corollary: E[cos θ_G] = σ^G (auxiliary property) -/
 
@@ -67,10 +70,8 @@ theorem composedMeasure_isProbMeasure (d G : ℕ) (σ : ℝ) (hσ : σ ∈ Set.I
     This follows directly from `poissonMarginal_mean_cos` applied to `σ^G`. -/
 theorem composedMeasure_mean_cos (d G : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
     (hG : 0 < G) (hd : 2 ≤ d) :
-    ∫ θ, cos θ ∂(composedMeasure d G σ) = σ ^ G := by
-  simp only [composedMeasure]
-  exact poissonMarginal_mean_cos d (σ ^ G) ⟨pow_pos hσ.1 G,
-    pow_lt_one₀ hσ.1.le hσ.2 hG.ne'⟩ hd
+    ∫ θ, cos θ ∂(composedMeasure d G σ) = σ ^ G :=
+  poissonMarginal_mean_cos d (σ ^ G) (pow_mem_Ioo_zero_one hσ hG) hd
 
 /-- Specialization of `composedMeasure_mean_cos` to `d = 2` (retained for backwards
     compatibility). -/
