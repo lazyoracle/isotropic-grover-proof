@@ -29,14 +29,13 @@ variable {n : ℕ}
 
 /-- The orthogonal projector onto V_perp(Φ) = (ℝ · Φ)^⊥. -/
 noncomputable def P_perp (Φ : E n) : E n →L[ℝ] E n :=
-  (V_perp Φ).subtypeL ∘L (V_perp Φ).orthogonalProjectionOnto
+  (V_perp Φ).starProjection
 
 /-- P_perp acts as the identity minus projection onto Φ:
     P_perp Φ v = v - ⟪Φ, v⟫ · Φ (when ‖Φ‖ = 1). -/
 lemma P_perp_apply (Φ v : E n) (hΦ : ‖Φ‖ = 1) :
     P_perp Φ v = v - ⟪Φ, v⟫_ℝ • Φ := by
   simp only [P_perp, V_perp]
-  change (Submodule.span ℝ {Φ})ᗮ.starProjection v = v - ⟪Φ, v⟫_ℝ • Φ
   rw [Submodule.starProjection_orthogonal_val]
   congr 1
   exact Submodule.starProjection_unit_singleton (𝕜 := ℝ) hΦ v
@@ -457,9 +456,8 @@ theorem decoherent_floor (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) (hn :
 
 -- P_perp is idempotent
 example (n : ℕ) (Φ : E n) (_ : ‖Φ‖ = 1) (v : E n) :
-    P_perp Φ (P_perp Φ v) = P_perp Φ v := by
-  rw [show P_perp Φ = (V_perp Φ).starProjection from rfl]
-  exact congrFun (congrArg DFunLike.coe (V_perp Φ).isIdempotentElem_starProjection) v
+    P_perp Φ (P_perp Φ v) = P_perp Φ v :=
+  congrFun (congrArg DFunLike.coe (V_perp Φ).isIdempotentElem_starProjection) v
 
 -- For large d, decoherent floor → 1/N
 -- (2 - p_ideal)/(d-1) → 1/N as d = 2N → ∞ and p_ideal → 1

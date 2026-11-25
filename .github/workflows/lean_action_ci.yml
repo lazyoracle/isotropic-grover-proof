@@ -51,6 +51,8 @@ jobs:
         with:
           use-mathlib-cache: false
           use-github-cache: false
+          test: false
+          lint: false
           build-args: '--wfail'
 
       - name: Save build cache

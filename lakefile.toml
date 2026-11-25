@@ -16,5 +16,15 @@ name = "formal-quantum-computation"
 git = "https://github.com/google-deepmind/formal-quantum-computation"
 rev = "489edc7039aa4cdded53724b39ea90e33d2c88b4"
 
+[[require]]
+name = "physlib"
+git = "https://github.com/leanprover-community/physlib"
+rev = "v4.35.0"
+
+[[require]]
+name = "mathlib"
+git = "https://github.com/leanprover-community/mathlib4"
+rev = "v4.35.0"
+
 [[lean_lib]]
 name = "IsotropicGroverProof"
