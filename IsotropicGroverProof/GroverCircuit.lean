@@ -15,13 +15,7 @@
 --    (`List 𝐔[Fin (2 ^ n)]`), canonical Grover sequences, and syntactic `Circuit n` (`c.size`),
 --    with concrete 1-qubit (`K = 0`) and 2-qubit (`K = 1`) primitive-gate circuit witnesses.
 
-import QuantumInfo.States.Pure.Braket
-import QuantumInfo.States.Mixed.MState
-import QuantumInfo.Channels.CPTP
-import QuantumInfo.Measurements.POVM
-import QuantumComputation.Algorithms.Grover.Operators
 import QuantumComputation.Algorithms.Grover.Amplitude
-import QuantumComputation.Circuits.ResourceCounting
 import IsotropicGroverProof.MainTheorem
 import IsotropicGroverProof.QuantumChannel
 
@@ -474,20 +468,35 @@ theorem noisyGrover_circuit_trajectory_succProb {n : ℕ} (σ : ℝ) (hσ : σ �
 
 /-! ## Concrete syntactic `Circuit` witnesses -/
 
+@[simp]
+private lemma uzpow_neg_one (b : ZMod 2) :
+    ((-1 : ℤˣ) ^ b : ℤˣ) = if b = 0 then 1 else -1 := by
+  fin_cases b <;> decide
+
 private lemma qubitH_eq_hadamardUnitary : Qubit.H = (hadamardUnitary : 𝐔[Fin (2 ^ 1)]) := by
-  have hb00 : basisBits 1 (0 : Fin (2 ^ 1)) 0 = 0 := by decide
-  have hb10 : basisBits 1 (1 : Fin (2 ^ 1)) 0 = 1 := by decide
-  have hu0 : ((-1 : ℤˣ) ^ (0 : ZMod 2) : ℤˣ) = 1 := by decide
-  have hu1 : ((-1 : ℤˣ) ^ (1 : ZMod 2) : ℤˣ) = -1 := by decide
   apply Subtype.ext
   ext i j
-  fin_cases i <;> fin_cases j <;>
-    simp [Qubit.H, hadamardUnitary, hadamardMatrix, walshMatrix, walshChar,
-      dotProduct, Real.sqrt_inv, hb00, hb10, hu0, hu1]
+  simp only [hadamardUnitary_coe, hadamardMatrix_apply, walshMatrix_apply,
+    walshChar_apply_apply, dotProduct, Fin.sum_univ_one]
+  repeat rw [basisBits_eq_div_mod]
+  fin_cases i <;> fin_cases j <;> simp [Qubit.H, Real.sqrt_inv]
 
 private lemma circuit_H_eval {n : ℕ} (q : Wire n) :
     (Circuit.H q).eval = hadamardAt n q := by
   simp [Circuit.H, PrimitiveGate.eval, qubitH_eq_hadamardUnitary, hadamardAt]
+
+private lemma circuit_Z_eval_val {n : ℕ} (q : Wire n) :
+    (Circuit.Z q).eval.1 =
+      Matrix.diagonal (fun i : Fin (2 ^ n) => if basisBits n i q = 0 then (1 : ℂ) else -1) := by
+  have hZ : Qubit.Z.1 = Matrix.diagonal ![(1 : ℂ), -1] := by
+    ext a b; fin_cases a <;> fin_cases b <;> rfl
+  have hext : ∀ b : ZMod 2,
+      ((basisBits 1).symm (fun _ => b) : Fin 2) = if b = 0 then 0 else 1 := by decide
+  rw [Circuit.eval_single, QRegister.embedUnitary_val, PrimitiveGate.eval, hZ,
+      QRegister.embedMatrix_diagonal]
+  congr 1; ext i
+  simp only [QRegister.extractIndex, QRegister.singleton_apply, hext]
+  split_ifs <;> rfl
 
 /-- Evolving `Ket.basis 0` through the 1-qubit primitive Hadamard circuit `Circuit.H (0 : Wire 1)`
     yields `Grover.groverState target 0`. -/
@@ -526,14 +535,13 @@ theorem noisyGrover_circuit_hadamard1_bornProb (σ : ℝ) (hσ : σ ∈ Set.Icc 
     ((computationalPOVM 1).measure
       (noisyCircuitChannel σ hσ (Circuit.H (0 : Wire 1))
         (MState.pure (Ket.basis (0 : Fin (2 ^ 1))))) target : ℝ) = 1 / 2 := by
-  have hmain := noisyGrover_circuit_bornProb σ hσ (Circuit.H (0 : Wire 1))
-    (Ket.basis (0 : Fin (2 ^ 1))) target 0 (circuit_hadamard1_bornProb target)
-  have hsize : (Circuit.H (0 : Wire 1)).size = 1 := rfl
-  have hp0 : Grover.p_succ 0 (2 ^ 1) = Grover.p_succ 0 2 := rfl
-  rw [hsize, hp0, show 2 * 1 = 2 by rfl, pow_one (2 : ℝ)] at hmain
-  refine ⟨hmain, ?_⟩
-  rw [hmain, p_succ_zero_two]
-  ring
+  have hmain : ((computationalPOVM 1).measure
+      (noisyCircuitChannel σ hσ (Circuit.H (0 : Wire 1))
+        (MState.pure (Ket.basis (0 : Fin (2 ^ 1))))) target : ℝ) =
+      σ ^ 2 * Grover.p_succ 0 2 + (1 - σ ^ 2) / 2 := by
+    simpa [Circuit.size] using noisyGrover_circuit_bornProb σ hσ (Circuit.H (0 : Wire 1))
+      (Ket.basis (0 : Fin (2 ^ 1))) target 0 (circuit_hadamard1_bornProb target)
+  exact ⟨hmain, by rw [hmain, p_succ_zero_two]; ring⟩
 
 /-- Concrete 2-qubit (`n = 2`), 1-iteration (`K = 1`) syntactic Grover circuit for marked state
     `3 : Fin (2 ^ 2)` (`|11⟩`), built exclusively from primitive `H`, `Z`, and `CNOT` gates
@@ -547,119 +555,72 @@ noncomputable def grover2QubitCircuit : Circuit 2 :=
 @[simp]
 lemma size_grover2QubitCircuit : grover2QubitCircuit.size = 14 := rfl
 
+private noncomputable def layerH2 : Circuit 2 :=
+  Circuit.H 0 ;;ᶜ Circuit.H 1
+
+private noncomputable def oracle2Circuit : Circuit 2 :=
+  Circuit.H 1 ;;ᶜ Circuit.CNOT 0 1 (by decide) ;;ᶜ Circuit.H 1
+
+private noncomputable def diffuser2Circuit : Circuit 2 :=
+  layerH2 ;;ᶜ Circuit.Z 0 ;;ᶜ Circuit.Z 1 ;;ᶜ oracle2Circuit ;;ᶜ layerH2
+
 private lemma sqrt_four_eq_two : √(4 : ℝ) = 2 := by
   rw [show (4 : ℝ) = 2 ^ 2 by norm_num, Real.sqrt_sq (by positivity)]
-
-private lemma basisBits2_table :
-    basisBits 2 (0 : Fin (2 ^ 2)) 0 = 0 ∧ basisBits 2 (0 : Fin (2 ^ 2)) 1 = 0 ∧
-    basisBits 2 (1 : Fin (2 ^ 2)) 0 = 1 ∧ basisBits 2 (1 : Fin (2 ^ 2)) 1 = 0 ∧
-    basisBits 2 (2 : Fin (2 ^ 2)) 0 = 0 ∧ basisBits 2 (2 : Fin (2 ^ 2)) 1 = 1 ∧
-    basisBits 2 (3 : Fin (2 ^ 2)) 0 = 1 ∧ basisBits 2 (3 : Fin (2 ^ 2)) 1 = 1 := by
-  decide
-
-private lemma uzpow_neg_one (b : ZMod 2) :
-    ((-1 : ℤˣ) ^ b : ℤˣ) = if b = 0 then 1 else -1 := by
-  fin_cases b <;> decide
 
 private lemma sum_fin_two_pow_two (f : Fin (2 ^ 2) → ℂ) :
     ∑ x, f x = f 0 + f 1 + f 2 + f 3 :=
   Fin.sum_univ_four f
 
-private lemma prep2_eval :
-    (Circuit.H (0 : Wire 2) ;;ᶜ Circuit.H 1).eval = (hadamardUnitary : 𝐔[Fin (2 ^ 2)]) := by
-  obtain ⟨hb00, hb01, hb10, hb11, hb20, hb21, hb30, hb31⟩ := basisBits2_table
+private lemma layerH2_eval :
+    layerH2.eval = (hadamardUnitary : 𝐔[Fin (2 ^ 2)]) := by
   have h11 : (1 : ZMod 2) + 1 = 0 := rfl
   apply Subtype.ext
-  rw [Circuit.eval_seq, circuit_H_eval, circuit_H_eval]
+  rw [layerH2, Circuit.eval_seq, circuit_H_eval, circuit_H_eval]
   change (hadamardAt 2 1).1 * (hadamardAt 2 0).1 = hadamardMatrix 2
   ext i j
-  simp only [Matrix.mul_apply, sum_fin_two_pow_two]
-  fin_cases i <;> fin_cases j <;>
-    simp [hadamardAt_apply, Fin.forall_fin_two, hb00, hb01, hb10, hb11, hb20, hb21, hb30, hb31,
-      h11, uzpow_neg_one, hadamardMatrix, walshMatrix, walshChar, dotProduct]
+  simp only [Matrix.mul_apply, sum_fin_two_pow_two, hadamardAt_apply, Fin.forall_fin_two,
+    hadamardMatrix_apply, walshMatrix_apply, walshChar_apply_apply, dotProduct, Fin.sum_univ_two]
+  repeat rw [basisBits_eq_div_mod]
+  fin_cases i <;> fin_cases j <;> simp [h11]
 
-private lemma cz2_eval :
-    (Circuit.H (1 : Wire 2) ;;ᶜ Circuit.CNOT 0 1 (by decide) ;;ᶜ Circuit.H 1).eval =
-    Grover.oracleUnitary (3 : Fin (2 ^ 2)) := by
-  obtain ⟨hb00, hb01, hb10, hb11, hb20, hb21, hb30, hb31⟩ := basisBits2_table
-  apply Subtype.ext
-  have hcnot : (Circuit.CNOT (0 : Wire 2) 1 (by decide)).eval.1 =
-      (Equiv.swap (1 : Fin 4) 3).permMatrix ℂ := by
-    change ((QRegister.pair (0 : Wire 2) 1 (by decide)).embedUnitary
-      PrimitiveGate.CNOT.eval).1 = _
-    rw [QRegister.pair_zero_one_eq_whole, QRegister.whole_embedUnitary]
-    rfl
-  have hs0 : (Equiv.swap (1 : Fin (2 ^ 2)) 3) 0 = 0 := by decide
-  have hs1 : (Equiv.swap (1 : Fin (2 ^ 2)) 3) 1 = 3 := by decide
-  have hs2 : (Equiv.swap (1 : Fin (2 ^ 2)) 3) 2 = 2 := by decide
-  have hs3 : (Equiv.swap (1 : Fin (2 ^ 2)) 3) 3 = 1 := by decide
+private lemma oracle2Circuit_eval :
+    oracle2Circuit.eval = Grover.oracleUnitary (3 : Fin (2 ^ 2)) := by
   have ha1 : (2 : ℂ)⁻¹ + 2⁻¹ = 1 := by norm_num
   have ha2 : -(2 : ℂ)⁻¹ + -2⁻¹ = -1 := by norm_num
-  rw [Circuit.eval_seq, Circuit.eval_seq, circuit_H_eval]
-  change ((hadamardAt 2 1).1 * (Circuit.CNOT (0 : Wire 2) 1 (by decide)).eval.1) *
+  apply Subtype.ext
+  rw [oracle2Circuit, Circuit.eval_seq, Circuit.eval_seq, circuit_H_eval,
+      Circuit.CNOT, Circuit.eval_gate, QRegister.pair_zero_one_eq_whole,
+      QRegister.whole_embedUnitary]
+  change ((hadamardAt 2 1).1 * (Equiv.swap (1 : Fin (2 ^ 2)) 3).permMatrix ℂ) *
     (hadamardAt 2 1).1 = Grover.oracleMatrix 3
-  rw [hcnot]
   ext i j
-  simp only [Matrix.mul_apply, sum_fin_two_pow_two]
+  simp only [Matrix.mul_apply, sum_fin_two_pow_two, hadamardAt_apply, Fin.forall_fin_two]
+  repeat rw [basisBits_eq_div_mod]
   fin_cases i <;> fin_cases j <;>
-    simp [hadamardAt_apply, Fin.forall_fin_two, hb00, hb01, hb10, hb11, hb20, hb21, hb30, hb31,
-      Equiv.Perm.permMatrix, PEquiv.toMatrix_apply, hs0, hs1, hs2, hs3,
+    simp [Equiv.Perm.permMatrix, PEquiv.toMatrix_apply, Equiv.swap_apply_def,
       Grover.oracleMatrix, ha1, ha2]
 
 private lemma diffuser2_eval :
-    let cz : Circuit 2 := Circuit.H 1 ;;ᶜ Circuit.CNOT 0 1 (by decide) ;;ᶜ Circuit.H 1
-    let prep : Circuit 2 := Circuit.H 0 ;;ᶜ Circuit.H 1
-    (prep ;;ᶜ Circuit.Z 0 ;;ᶜ Circuit.Z 1 ;;ᶜ cz ;;ᶜ prep).eval =
-    (Grover.diffuserUnitary : 𝐔[Fin (2 ^ 2)]) := by
-  obtain ⟨hb00, hb01, hb10, hb11, hb20, hb21, hb30, hb31⟩ := basisBits2_table
-  dsimp only
+    diffuser2Circuit.eval = (Grover.diffuserUnitary : 𝐔[Fin (2 ^ 2)]) := by
   apply Subtype.ext
-  have hz : ∀ q : Wire 2, (Circuit.Z q).eval.1 =
-      Matrix.diagonal (fun i : Fin (2 ^ 2) =>
-        if basisBits 2 i q = 0 then (1 : ℂ) else -1) := by
-    intro q
-    have hZ : Qubit.Z.1 = Matrix.diagonal ![(1 : ℂ), -1] := by
-      ext a b; fin_cases a <;> fin_cases b <;> rfl
-    rw [Circuit.eval_single, QRegister.embedUnitary_val, PrimitiveGate.eval, hZ,
-        QRegister.embedMatrix_diagonal]
-    congr 1; ext i
-    have hext : ∀ b : ZMod 2,
-        ((basisBits 1).symm (fun _ => b) : Fin 2) = if b = 0 then 0 else 1 := by decide
-    simp only [QRegister.extractIndex, QRegister.singleton_apply, hext]
-    split_ifs <;> rfl
-  have hrefl : ((Circuit.Z (0 : Wire 2) ;;ᶜ Circuit.Z 1 ;;ᶜ
-      (Circuit.H 1 ;;ᶜ Circuit.CNOT 0 1 (by decide) ;;ᶜ Circuit.H 1)).eval).1 =
+  have hrefl : Grover.oracleMatrix (3 : Fin (2 ^ 2)) *
+      (Circuit.Z (1 : Wire 2)).eval.1 * (Circuit.Z (0 : Wire 2)).eval.1 =
       (2 : ℂ) • Matrix.single (0 : Fin (2 ^ 2)) (0 : Fin (2 ^ 2)) 1 - 1 := by
-    rw [Circuit.eval_seq, Circuit.eval_seq, cz2_eval]
-    change (Grover.oracleMatrix (3 : Fin (2 ^ 2)) * (Circuit.Z (1 : Wire 2)).eval.1) *
-      (Circuit.Z (0 : Wire 2)).eval.1 = _
-    rw [hz 0, hz 1, Grover.oracleMatrix, Matrix.diagonal_mul_diagonal,
-        Matrix.diagonal_mul_diagonal]
+    rw [circuit_Z_eval_val, circuit_Z_eval_val, Grover.oracleMatrix,
+        Matrix.diagonal_mul_diagonal, Matrix.diagonal_mul_diagonal]
     ext i j
-    by_cases hij : i = j
-    · subst hij
-      fin_cases i <;>
-        simp [hb00, hb01, hb10, hb11, hb20, hb21, hb30, hb31]
-      all_goals norm_num
-    · rw [Matrix.diagonal_apply_ne _ hij, Matrix.sub_apply, Matrix.smul_apply,
-          Matrix.single_apply, Matrix.one_apply, ite_eq_right hij]
-      simp only [sub_zero, smul_eq_mul, zero_eq_mul, two_ne_zero, false_or, ite_eq_right_iff,
-        one_ne_zero, imp_false, not_and]
-      rintro rfl rfl
-      exact hij rfl
-  have hassoc : ((Circuit.H (0 : Wire 2) ;;ᶜ Circuit.H 1) ;;ᶜ Circuit.Z 0 ;;ᶜ Circuit.Z 1 ;;ᶜ
-      (Circuit.H 1 ;;ᶜ Circuit.CNOT 0 1 (by decide) ;;ᶜ Circuit.H 1) ;;ᶜ
-      (Circuit.H 0 ;;ᶜ Circuit.H 1)).eval.1 =
-      (Circuit.H (0 : Wire 2) ;;ᶜ Circuit.H 1).eval.1 *
-        ((Circuit.Z (0 : Wire 2) ;;ᶜ Circuit.Z 1 ;;ᶜ
-          (Circuit.H 1 ;;ᶜ Circuit.CNOT 0 1 (by decide) ;;ᶜ Circuit.H 1)).eval.1 *
-        (Circuit.H 0 ;;ᶜ Circuit.H 1).eval.1) := by
-    simp [Circuit.eval_seq, Matrix.mul_assoc]
-  rw [hassoc, prep2_eval, hrefl]
-  change hadamardMatrix 2 *
-    (((2 : ℂ) • Matrix.single (0 : Fin (2 ^ 2)) (0 : Fin (2 ^ 2)) 1 - 1) *
-      hadamardMatrix 2) = Grover.diffuserMatrix
-  rw [Matrix.sub_mul, Matrix.one_mul, Matrix.mul_sub, hadamardMatrix_mul_self,
+    simp only [Matrix.diagonal_apply, Matrix.sub_apply, Matrix.smul_apply,
+      Matrix.single_apply, Matrix.one_apply]
+    repeat rw [basisBits_eq_div_mod]
+    fin_cases i <;> fin_cases j <;> norm_num [Fin.ext_iff]
+  have hseq : diffuser2Circuit.eval.1 =
+      hadamardMatrix 2 *
+        ((Grover.oracleMatrix (3 : Fin (2 ^ 2)) *
+          (Circuit.Z (1 : Wire 2)).eval.1 * (Circuit.Z (0 : Wire 2)).eval.1) *
+        hadamardMatrix 2) := by
+    simp [diffuser2Circuit, Circuit.eval_seq, layerH2_eval, oracle2Circuit_eval, Matrix.mul_assoc]
+  change diffuser2Circuit.eval.1 = Grover.diffuserMatrix
+  rw [hseq, hrefl, Matrix.sub_mul, Matrix.one_mul, Matrix.mul_sub, hadamardMatrix_mul_self,
       Matrix.smul_mul, Matrix.mul_smul]
   ext i j
   have hsingle : (hadamardMatrix 2 *
@@ -678,24 +639,24 @@ theorem grover2QubitCircuit_evolve_basis_zero :
     Grover.groverState (3 : Fin (2 ^ 2)) 1 := by
   have heval : grover2QubitCircuit.eval =
       Grover.diffuserUnitary * (Grover.oracleUnitary (3 : Fin (2 ^ 2)) * hadamardUnitary) := by
-    dsimp only [grover2QubitCircuit]
-    rw [Circuit.eval_seq, Circuit.eval_seq, prep2_eval, cz2_eval, diffuser2_eval, mul_assoc]
-  have hfull := idealUnitaryTrajectory_groverFullGates 2 (3 : Fin (2 ^ 2)) 1
+    change (layerH2 ;;ᶜ oracle2Circuit ;;ᶜ diffuser2Circuit).eval = _
+    rw [Circuit.eval_seq, Circuit.eval_seq, layerH2_eval, oracle2Circuit_eval, diffuser2_eval,
+        mul_assoc]
   simpa [Circuit.evolve, heval, groverFullGates, groverIterGates, idealUnitaryTrajectory,
-    applyUnitaryKet, Matrix.mulVec_mulVec] using hfull
+    applyUnitaryKet, Matrix.mulVec_mulVec] using
+    idealUnitaryTrajectory_groverFullGates 2 (3 : Fin (2 ^ 2)) 1
 
 /-- At `K = 1` on `n = 2` qubits (`d = 4`), Grover's algorithm succeeds with certainty:
     `Grover.p_succ 1 4 = 1`. -/
 lemma p_succ_one_four : Grover.p_succ 1 4 = 1 := by
   have h := groverState_bornProb (3 : Fin (2 ^ 2)) 1
     (idealUnitaryTrajectory_groverFullGates 2 (3 : Fin (2 ^ 2)) 1)
-  rw [Ket.apply, idealUnitaryTrajectory_groverFullGates] at h
   have hval : Grover.groverState (3 : Fin (2 ^ 2)) 1 (3 : Fin (2 ^ 2)) = 1 := by
     rw [Grover.groverState, Grover.diffuserMatrix_mulVec, Grover.sum_oracleMatrix_mulVec,
         Grover.oracleMatrix_mulVec, ite_eq_left rfl]
     simp only [Grover.groverState, Finset.sum_const, Finset.card_univ, Fintype.card_fin]
     norm_num [sqrt_four_eq_two]
-  rw [hval] at h
+  rw [Ket.apply, idealUnitaryTrajectory_groverFullGates, hval] at h
   simpa using h.symm
 
 /-- **Concrete `Circuit 2` witness (`K = 1`, `c.size = 14`, `Grover.p_succ 1 4 = 1`):**
@@ -711,11 +672,9 @@ theorem noisyGrover_circuit_grover2_bornProb (σ : ℝ) (hσ : σ ∈ Set.Icc 0 
     groverState_bornProb (3 : Fin (2 ^ 2)) 1
       (ψ := applyUnitaryKet grover2QubitCircuit.eval (Ket.basis 0))
       grover2QubitCircuit_evolve_basis_zero
-  have hmain := noisyGrover_circuit_bornProb σ hσ grover2QubitCircuit
-    (Ket.basis (0 : Fin (2 ^ 2))) (3 : Fin (2 ^ 2)) 1 hideal
-  have hp1 : Grover.p_succ 1 (2 ^ 2) = 1 := p_succ_one_four
-  rw [size_grover2QubitCircuit, hp1] at hmain
-  rw [hmain]
+  rw [noisyGrover_circuit_bornProb σ hσ grover2QubitCircuit
+        (Ket.basis (0 : Fin (2 ^ 2))) (3 : Fin (2 ^ 2)) 1 hideal,
+      size_grover2QubitCircuit, show Grover.p_succ 1 (2 ^ 2) = 1 from p_succ_one_four]
   norm_num
 
 /-! ## Verification checks -/
