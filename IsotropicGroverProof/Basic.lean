@@ -10,4 +10,5 @@ import IsotropicGroverProof.Gegenbauer
 import IsotropicGroverProof.Sequential
 import IsotropicGroverProof.MainTheorem
 import IsotropicGroverProof.LimitingCases
+import IsotropicGroverProof.QuantumChannel
 import IsotropicGroverProof.GroverCircuit

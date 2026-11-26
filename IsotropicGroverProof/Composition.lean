@@ -1,6 +1,5 @@
 -- IsotropicGroverProof/Composition.lean
--- M3: Composition of G independent isotropic errors with parameter σ
---     reduces to a single effective error with parameter σ^G.
+-- M3: Effective single-error measure with parameter σ^G and second moment f₂ = E[cos² θ_G].
 --
 -- SORRY BUDGET: 0
 -- AXIOM BUDGET: 0
@@ -10,7 +9,9 @@ import IsotropicGroverProof.IsotropicError
 /-!
 # Composed Isotropic Error Measure
 
-Composition of `G` independent isotropic errors and the second moment `f₂ = E[cos² θ_G]`.
+Effective perturbation-angle measure `composedMeasure d G σ := poissonMarginal d (σ ^ G)` and
+its second moment `f₂ = E[cos² θ_G]`. Multi-gate error accumulation across sequential gates is
+derived via the Markov chain in `IsotropicGroverProof/Sequential.lean`.
 -/
 
 namespace IsotropicGrover
@@ -23,27 +24,16 @@ open MeasureTheory Real
     as an effective parameter property σ^G. However, in physical quantum circuits,
     each gate error rotates around the perturbed state Ψ_k rather than the initial state Φ.
     The rigorous physical derivation across G gates is formalized via the sequential
-    Markov chain in `IsotropicGroverProof/Sequential.lean` (resolving Issues #6 and #7),
+    Markov chain in `IsotropicGroverProof/Sequential.lean` (resolving Issues #6, #7, and #30),
     yielding the exact same second moment f_k = ((d-1)σ^{2k} + 1)/d unconditionally.
 
     The definition `composedMeasure d G σ := poissonMarginal d (σ ^ G)` below serves as
     the single-effective-error representation corresponding to this sequential induction. -/
 
-/-- Nominal alias / placeholder for the composition identity.
-    Deprecated: Multi-gate error accumulation is derived via the sequential Markov
-    chain in `IsotropicGroverProof/Sequential.lean`, avoiding any reliance on
-    spherical convolution or rotational commutativity conjectures. -/
-@[deprecated "Use sequential Markov chain in IsotropicGroverProof.Sequential"
-  (since := "2026-03-01")]
-theorem isotropicComposition (d : ℕ) (σ₁ σ₂ : ℝ)
-    (_hσ₁ : σ₁ ∈ Set.Ioo 0 1) (_hσ₂ : σ₂ ∈ Set.Ioo 0 1) (_hd : 2 ≤ d) :
-    poissonMarginal d (σ₁ * σ₂) = poissonMarginal d (σ₁ * σ₂) := rfl
-
 /-! ## Composed error measure -/
 
-/-- The probability measure on the perturbation angle after G independent gates,
-    each with per-gate fidelity σ. By the composition law, this equals the
-    Poisson marginal with effective parameter σ^G. -/
+/-- Effective angle perturbation measure with parameter `σ ^ G`, corresponding to the
+    effective fidelity parameter after `G` gates of per-gate fidelity `σ`. -/
 noncomputable def composedMeasure (d G : ℕ) (σ : ℝ) : Measure ℝ :=
   poissonMarginal d (σ ^ G)
 

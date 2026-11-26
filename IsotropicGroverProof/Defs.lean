@@ -21,6 +21,9 @@ namespace IsotropicGrover
 /-- The real dimension of the state space: d = 2 * 2^n = 2^{n+1}. -/
 abbrev d (n : ℕ) : ℕ := 2 * 2 ^ n
 
+lemma two_le_d (n : ℕ) : 2 ≤ d n := by
+  simp only [d]; have := @Nat.one_le_two_pow n; omega
+
 /-- The ambient Euclidean space ℝ^d. -/
 abbrev E (n : ℕ) := EuclideanSpace ℝ (Fin (d n))
 
@@ -41,6 +44,16 @@ lemma stdBasisVec_apply (n : ℕ) (i j : Fin (d n)) :
 lemma stdBasisVec_norm (n : ℕ) (i : Fin (d n)) : ‖stdBasisVec n i‖ = 1 := by
   simp [stdBasisVec, PiLp.norm_single]
 
+lemma inner_stdBasisVec (n : ℕ) (i j : Fin (d n)) :
+    inner (𝕜 := ℝ) (stdBasisVec n i) (stdBasisVec n j) = if i = j then 1 else 0 := by
+  have h := (orthonormal_iff_ite (𝕜 := ℝ)).mp
+              (EuclideanSpace.orthonormal_single (𝕜 := ℝ) (ι := Fin (d n)))
+  exact h i j
+
+lemma inner_stdBasisVec_eq_apply {n : ℕ} (v : E n) (i : Fin (d n)) :
+    inner (𝕜 := ℝ) v (stdBasisVec n i) = v i := by
+  simp [stdBasisVec, ← EuclideanSpace.basisFun_apply]
+
 /-! ## Index bounds for the success probability -/
 
 private lemma succProb_idx0_lt (n : ℕ) (w : Fin (2 ^ n)) : 2 * w.val < d n :=
@@ -60,6 +73,27 @@ noncomputable def succProbIdx0 (n : ℕ) (w : Fin (2 ^ n)) : Fin (d n) :=
 noncomputable def succProbIdx1 (n : ℕ) (w : Fin (2 ^ n)) : Fin (d n) :=
   ⟨2 * w.val + 1, succProb_idx1_lt n w⟩
 
+lemma succProbIdx0_inj {n : ℕ} {x y : Fin (2 ^ n)}
+    (h : succProbIdx0 n x = succProbIdx0 n y) : x = y := by
+  ext
+  have hval : (succProbIdx0 n x).val = (succProbIdx0 n y).val := by rw [h]
+  dsimp [succProbIdx0] at hval
+  omega
+
+lemma succProbIdx1_inj {n : ℕ} {x y : Fin (2 ^ n)}
+    (h : succProbIdx1 n x = succProbIdx1 n y) : x = y := by
+  ext
+  have hval : (succProbIdx1 n x).val = (succProbIdx1 n y).val := by rw [h]
+  dsimp [succProbIdx1] at hval
+  omega
+
+lemma succProbIdx0_ne_succProbIdx1 {n : ℕ} (x y : Fin (2 ^ n)) :
+    succProbIdx0 n x ≠ succProbIdx1 n y := by
+  intro h
+  have hval : (succProbIdx0 n x).val = (succProbIdx1 n y).val := by rw [h]
+  dsimp [succProbIdx0, succProbIdx1] at hval
+  omega
+
 /-- The success probability of measuring outcome w given real state vector v.
     In the real representation, p = |a_w|² = α_{2w}² + α_{2w+1}², where
     α_{2w} and α_{2w+1} are the real and imaginary parts of amplitude w. -/
@@ -73,11 +107,7 @@ lemma succProb_nonneg (n : ℕ) (v : E n) (w : Fin (2 ^ n)) : 0 ≤ succProb n v
 /-- Parseval: the success probabilities sum to the squared norm of v. -/
 lemma sum_succProb_eq_norm_sq (n : ℕ) (v : E n) :
     ∑ w : Fin (2 ^ n), succProb n v w = ‖v‖ ^ 2 := by
-  -- Reduce inner products to components: inner ℝ v (single i 1) = v i
-  -- using the @[simp] lemma inner_basisFun_real + basisFun_apply
-  have hi : ∀ (i : Fin (d n)), inner (𝕜 := ℝ) v (stdBasisVec n i) = v i := fun i => by
-    simp [stdBasisVec, ← EuclideanSpace.basisFun_apply]
-  simp only [succProb, hi]
+  simp only [succProb, inner_stdBasisVec_eq_apply]
   -- Parseval: ‖v‖^2 = ∑ i : Fin (d n), (v i)^2
   rw [EuclideanSpace.real_norm_sq_eq]
   -- Reindex RHS via bijection (w,k) ↦ w*2+k : Fin (2^n) × Fin 2 ≃ Fin (d n)

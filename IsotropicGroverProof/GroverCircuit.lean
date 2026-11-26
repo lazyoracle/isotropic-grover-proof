@@ -30,28 +30,6 @@ namespace IsotropicGrover
 
 open Real MeasureTheory
 
-/-! ## Index and standard basis lemmas -/
-
-lemma succProbIdx0_inj {n : ℕ} {x y : Fin (2 ^ n)}
-    (h : succProbIdx0 n x = succProbIdx0 n y) : x = y := by
-  ext
-  have : (succProbIdx0 n x).val = (succProbIdx0 n y).val := by rw [h]
-  dsimp [succProbIdx0] at this
-  omega
-
-lemma succProbIdx0_ne_succProbIdx1 {n : ℕ} (x y : Fin (2 ^ n)) :
-    succProbIdx0 n x ≠ succProbIdx1 n y := by
-  intro h
-  have : (succProbIdx0 n x).val = (succProbIdx1 n y).val := by rw [h]
-  dsimp [succProbIdx0, succProbIdx1] at this
-  omega
-
-lemma inner_stdBasisVec (n : ℕ) (i j : Fin (d n)) :
-    inner (𝕜 := ℝ) (stdBasisVec n i) (stdBasisVec n j) = if i = j then 1 else 0 := by
-  have h := (orthonormal_iff_ite (𝕜 := ℝ)).mp
-              (EuclideanSpace.orthonormal_single (𝕜 := ℝ) (ι := Fin (d n)))
-  exact h i j
-
 /-! ## Target basis state -/
 
 /-- The target basis state vector |w⟩ in ℝ^d with amplitude 1 at real index 2w
