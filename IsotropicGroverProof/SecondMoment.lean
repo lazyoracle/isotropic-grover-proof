@@ -16,7 +16,8 @@ import IsotropicGroverProof.CrossTerm
 # Second Moment on the Perpendicular Sphere
 
 Proves `E[e₂ e₂ᵀ] = P_{V⊥} / (d - 1)` by orthogonal invariance and trace normalization,
-deriving the decoherent floor `E[|⟨w|e₂⟩|²] = (2 - p_ideal) / (d - 1)`.
+derives the decoherent floor `E[|⟨w|e₂⟩|²] = (2 - p_ideal) / (d - 1)`, and establishes the
+general bilinear second-moment identity `isotropicError_bilinear_secondMoment` on `σ ∈ [0, 1]`.
 -/
 
 namespace IsotropicGrover
@@ -452,6 +453,179 @@ theorem decoherent_floor (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) (hn :
   field_simp
   ring
 
+/-! ## General bilinear second-moment identity on `[0, 1]` -/
+
+private lemma perpSphere_smul_integrable (Ψ u : E n) :
+    Integrable (fun e₂ : E n => ⟪e₂, u⟫_ℝ • e₂) (perpSphereMeasure Ψ) := by
+  apply Integrable.mono' (integrable_const ‖u‖)
+  · exact ((inner_integrable Ψ u).aestronglyMeasurable).smul aestronglyMeasurable_id
+  · filter_upwards [perpSphereMeasure_norm_ae Ψ] with e₂ ⟨_, he₂⟩
+    rw [norm_smul, Real.norm_eq_abs, he₂, mul_one]
+    exact le_trans (abs_real_inner_le_norm e₂ u) (by rw [he₂, one_mul])
+
+private lemma perpSphere_inner_mul_integrable (Ψ u v : E n) :
+    Integrable (fun e₂ : E n => ⟪e₂, u⟫_ℝ * ⟪e₂, v⟫_ℝ) (perpSphereMeasure Ψ) := by
+  apply Integrable.mono' (integrable_const (‖u‖ * ‖v‖))
+  · exact (inner_integrable Ψ u).aestronglyMeasurable.mul
+      (inner_integrable Ψ v).aestronglyMeasurable
+  · filter_upwards [perpSphereMeasure_norm_ae Ψ] with e₂ ⟨_, he₂⟩
+    rw [Real.norm_eq_abs, abs_mul]
+    calc |⟪e₂, u⟫_ℝ| * |⟪e₂, v⟫_ℝ|
+        ≤ (‖e₂‖ * ‖u‖) * (‖e₂‖ * ‖v‖) :=
+          mul_le_mul (abs_real_inner_le_norm _ _) (abs_real_inner_le_norm _ _)
+            (abs_nonneg _) (mul_nonneg (norm_nonneg _) (norm_nonneg _))
+      _ = ‖u‖ * ‖v‖ := by rw [he₂]; ring
+
+/-- Bilinear expectation of inner products over `perpSphereMeasure Ψ`:
+    `∫ e₂, ⟪e₂, u⟫ ⟪e₂, v⟫ = (⟪u, v⟫ - ⟪Ψ, u⟫ ⟪Ψ, v⟫) / (d n - 1)`. -/
+theorem perpSphere_inner_mul_inner (Ψ : E n) (hΨ : ‖Ψ‖ = 1) (u v : E n) :
+    ∫ e₂, ⟪e₂, u⟫_ℝ * ⟪e₂, v⟫_ℝ ∂(perpSphereMeasure Ψ) =
+    (⟪u, v⟫_ℝ - ⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) / ((d n : ℝ) - 1) := by
+  have hd2 : 2 ≤ d n := by simp only [d]; have := @Nat.one_le_two_pow n; omega
+  have lhs_eq : ∫ e₂, ⟪e₂, u⟫_ℝ * ⟪e₂, v⟫_ℝ ∂(perpSphereMeasure Ψ) =
+      ⟪∫ e₂, ⟪(e₂ : E n), u⟫_ℝ • (e₂ : E n) ∂(perpSphereMeasure Ψ), v⟫_ℝ := by
+    rw [real_inner_comm, ← integral_inner (perpSphere_smul_integrable Ψ u) v]
+    congr 1; ext e₂
+    rw [real_inner_smul_right, real_inner_comm v]
+  rw [lhs_eq, secondMoment_coeff Ψ hΨ hd2 u, real_inner_smul_left,
+      P_perp_apply Ψ u hΨ, inner_sub_left, real_inner_smul_left]
+  ring
+
+private lemma isotropicError_bilinear_expand (Ψ e₂ u v : E n) (θ : ℝ) :
+    ⟪isotropicError Ψ e₂ θ, u⟫_ℝ * ⟪isotropicError Ψ e₂ θ, v⟫_ℝ =
+    cos θ ^ 2 * (⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) +
+    ((cos θ * sin θ * ⟪Ψ, u⟫_ℝ) * ⟪e₂, v⟫_ℝ +
+     (cos θ * sin θ * ⟪Ψ, v⟫_ℝ) * ⟪e₂, u⟫_ℝ) +
+    sin θ ^ 2 * (⟪e₂, u⟫_ℝ * ⟪e₂, v⟫_ℝ) := by
+  simp only [isotropicError, inner_add_left, real_inner_smul_left]
+  ring
+
+private lemma isotropicError_inner_mul_integrable (Ψ u v : E n) (θ : ℝ) :
+    Integrable (fun e₂ : E n =>
+      ⟪isotropicError Ψ e₂ θ, u⟫_ℝ * ⟪isotropicError Ψ e₂ θ, v⟫_ℝ) (perpSphereMeasure Ψ) := by
+  simp_rw [isotropicError_bilinear_expand]
+  exact ((integrable_const _).add
+    (((inner_integrable Ψ v).const_mul _).add ((inner_integrable Ψ u).const_mul _))).add
+    ((perpSphere_inner_mul_integrable Ψ u v).const_mul _)
+
+private lemma integral_e₂_bilinear (Ψ : E n) (hΨ : ‖Ψ‖ = 1) (u v : E n) (θ : ℝ) :
+    ∫ e₂, ⟪isotropicError Ψ e₂ θ, u⟫_ℝ * ⟪isotropicError Ψ e₂ θ, v⟫_ℝ
+      ∂(perpSphereMeasure Ψ) =
+    cos θ ^ 2 * (⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) +
+    sin θ ^ 2 * ((⟪u, v⟫_ℝ - ⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) / ((d n : ℝ) - 1)) := by
+  have hf1 : Integrable (fun _ : E n => cos θ ^ 2 * (⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ))
+      (perpSphereMeasure Ψ) := integrable_const _
+  have hf2a : Integrable (fun e₂ : E n => (cos θ * sin θ * ⟪Ψ, u⟫_ℝ) * ⟪e₂, v⟫_ℝ)
+      (perpSphereMeasure Ψ) := (inner_integrable Ψ v).const_mul _
+  have hf2b : Integrable (fun e₂ : E n => (cos θ * sin θ * ⟪Ψ, v⟫_ℝ) * ⟪e₂, u⟫_ℝ)
+      (perpSphereMeasure Ψ) := (inner_integrable Ψ u).const_mul _
+  have hf2 : Integrable (fun e₂ : E n =>
+      (cos θ * sin θ * ⟪Ψ, u⟫_ℝ) * ⟪e₂, v⟫_ℝ +
+      (cos θ * sin θ * ⟪Ψ, v⟫_ℝ) * ⟪e₂, u⟫_ℝ) (perpSphereMeasure Ψ) := hf2a.add hf2b
+  have hf12 : Integrable (fun e₂ : E n =>
+      cos θ ^ 2 * (⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) +
+      ((cos θ * sin θ * ⟪Ψ, u⟫_ℝ) * ⟪e₂, v⟫_ℝ +
+       (cos θ * sin θ * ⟪Ψ, v⟫_ℝ) * ⟪e₂, u⟫_ℝ)) (perpSphereMeasure Ψ) := hf1.add hf2
+  have hf3 : Integrable (fun e₂ : E n => sin θ ^ 2 * (⟪e₂, u⟫_ℝ * ⟪e₂, v⟫_ℝ))
+      (perpSphereMeasure Ψ) := (perpSphere_inner_mul_integrable Ψ u v).const_mul _
+  simp_rw [isotropicError_bilinear_expand]
+  rw [integral_add hf12 hf3, integral_add hf1 hf2, integral_add hf2a hf2b,
+      integral_const, integral_const_mul, integral_const_mul, integral_const_mul,
+      integral_perp_inner_eq_zero Ψ v, integral_perp_inner_eq_zero Ψ u,
+      perpSphere_inner_mul_inner Ψ hΨ u v]
+  simp
+
+private lemma cos_sq_integrable_prob {μ : Measure ℝ} [IsProbabilityMeasure μ] :
+    Integrable (fun θ => cos θ ^ 2) μ := by
+  apply Integrable.mono' (integrable_const (1 : ℝ))
+  · exact (continuous_cos.pow 2).measurable.aestronglyMeasurable
+  · filter_upwards with θ
+    rw [Real.norm_eq_abs, abs_of_nonneg (sq_nonneg _)]
+    nlinarith [Real.sin_sq_add_cos_sq θ, sq_nonneg (Real.sin θ)]
+
+private lemma sin_sq_integrable_prob {μ : Measure ℝ} [IsProbabilityMeasure μ] :
+    Integrable (fun θ => sin θ ^ 2) μ := by
+  apply Integrable.mono' (integrable_const (1 : ℝ))
+  · exact (continuous_sin.pow 2).measurable.aestronglyMeasurable
+  · filter_upwards with θ
+    rw [Real.norm_eq_abs, abs_of_nonneg (sq_nonneg _)]
+    nlinarith [Real.sin_sq_add_cos_sq θ, sq_nonneg (Real.cos θ)]
+
+/-- **General bilinear second-moment identity** for a single isotropic sphere error step
+    with parameter `σ ∈ [0, 1]`, unit vector `‖Ψ‖ = 1`, and arbitrary vectors `u, v : E n`. -/
+theorem isotropicError_bilinear_secondMoment (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
+    (Ψ : E n) (hΨ : ‖Ψ‖ = 1) (u v : E n) :
+    ∫ θ, ∫ e₂, ⟪isotropicError Ψ e₂ θ, u⟫_ℝ * ⟪isotropicError Ψ e₂ θ, v⟫_ℝ
+          ∂(perpSphereMeasure Ψ) ∂(poissonAngleMeasure (d n) σ) =
+    σ ^ 2 * (⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) + (1 - σ ^ 2) / (d n : ℝ) * ⟪u, v⟫_ℝ := by
+  have hd2 : 2 ≤ d n := by simp only [d]; have := @Nat.one_le_two_pow n; omega
+  set μ := poissonAngleMeasure (d n) σ
+  have : IsProbabilityMeasure μ := poissonAngleMeasure_isProbMeasure (d n) σ hσ hd2
+  have hcos_int : Integrable (fun θ => cos θ ^ 2) μ := cos_sq_integrable_prob
+  have hsin_int : Integrable (fun θ => sin θ ^ 2) μ := sin_sq_integrable_prob
+  have hsin_eq : ∫ θ, sin θ ^ 2 ∂μ = 1 - ∫ θ, cos θ ^ 2 ∂μ := by
+    have hsum : ∫ θ, (cos θ ^ 2 + sin θ ^ 2) ∂μ = 1 := by
+      simp_rw [Real.cos_sq_add_sin_sq]; simp
+    rw [integral_add hcos_int hsin_int] at hsum
+    linarith
+  simp_rw [integral_e₂_bilinear Ψ hΨ u v]
+  have hfun : (fun θ => cos θ ^ 2 * (⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) +
+      sin θ ^ 2 * ((⟪u, v⟫_ℝ - ⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) / ((d n : ℝ) - 1))) =
+      fun θ => (⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) * cos θ ^ 2 +
+        ((⟪u, v⟫_ℝ - ⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) / ((d n : ℝ) - 1)) * sin θ ^ 2 := by
+    ext θ; ring
+  rw [hfun, integral_add (hcos_int.const_mul _) (hsin_int.const_mul _),
+      integral_const_mul, integral_const_mul, hsin_eq,
+      poissonAngleMeasure_cos_sq (d n) σ hσ hd2]
+  have hd_ne : (d n : ℝ) ≠ 0 := by positivity
+  have hd1_ne : (d n : ℝ) - 1 ≠ 0 := by
+    have : (1 : ℝ) < (d n : ℝ) := by exact_mod_cast (by omega : 1 < d n)
+    linarith
+  field_simp [hd_ne, hd1_ne]
+  ring
+
+/-- Single-step expected success probability under `poissonAngleMeasure (d n) σ` for all
+    `σ ∈ [0, 1]`, derived directly as a corollary of `isotropicError_bilinear_secondMoment`. -/
+theorem isotropicError_succProb_oneStep (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
+    (Ψ : E n) (hΨ : ‖Ψ‖ = 1) (w : Fin (2 ^ n)) :
+    ∫ θ, ∫ e₂, succProb n (isotropicError Ψ e₂ θ) w
+          ∂(perpSphereMeasure Ψ) ∂(poissonAngleMeasure (d n) σ) =
+    σ ^ 2 * succProb n Ψ w + (1 - σ ^ 2) / (2 ^ n : ℝ) := by
+  have hd2 : 2 ≤ d n := by simp only [d]; have := @Nat.one_le_two_pow n; omega
+  set μ := poissonAngleMeasure (d n) σ
+  have : IsProbabilityMeasure μ := poissonAngleMeasure_isProbMeasure (d n) σ hσ hd2
+  set e₀ := stdBasisVec n (succProbIdx0 n w)
+  set e₁ := stdBasisVec n (succProbIdx1 n w)
+  have hinner : ∀ θ : ℝ,
+      ∫ e₂, succProb n (isotropicError Ψ e₂ θ) w ∂(perpSphereMeasure Ψ) =
+      (∫ e₂, ⟪isotropicError Ψ e₂ θ, e₀⟫_ℝ * ⟪isotropicError Ψ e₂ θ, e₀⟫_ℝ
+        ∂(perpSphereMeasure Ψ)) +
+      (∫ e₂, ⟪isotropicError Ψ e₂ θ, e₁⟫_ℝ * ⟪isotropicError Ψ e₂ θ, e₁⟫_ℝ
+        ∂(perpSphereMeasure Ψ)) := by
+    intro θ
+    simp only [succProb, sq]
+    exact integral_add (isotropicError_inner_mul_integrable Ψ e₀ e₀ θ)
+      (isotropicError_inner_mul_integrable Ψ e₁ e₁ θ)
+  have hint_θ : ∀ u : E n,
+      Integrable (fun θ => ∫ e₂, ⟪isotropicError Ψ e₂ θ, u⟫_ℝ * ⟪isotropicError Ψ e₂ θ, u⟫_ℝ
+        ∂(perpSphereMeasure Ψ)) μ := by
+    intro u
+    simp_rw [integral_e₂_bilinear Ψ hΨ u u]
+    exact (cos_sq_integrable_prob.mul_const _).add (sin_sq_integrable_prob.mul_const _)
+  simp_rw [hinner]
+  rw [integral_add (hint_θ e₀) (hint_θ e₁),
+      isotropicError_bilinear_secondMoment σ hσ Ψ hΨ e₀ e₀,
+      isotropicError_bilinear_secondMoment σ hσ Ψ hΨ e₁ e₁]
+  have he₀ : ⟪e₀, e₀⟫_ℝ = 1 := by
+    rw [real_inner_self_eq_norm_sq, stdBasisVec_norm, one_pow]
+  have he₁ : ⟪e₁, e₁⟫_ℝ = 1 := by
+    rw [real_inner_self_eq_norm_sq, stdBasisVec_norm, one_pow]
+  have hd_eq : (d n : ℝ) = 2 * (2 ^ n : ℝ) := by simp only [d]; push_cast; ring
+  have hN_ne : (2 ^ n : ℝ) ≠ 0 := by positivity
+  simp only [succProb, sq, he₀, he₁, hd_eq]
+  field_simp [hN_ne]
+  ring
+
 /-! ## TDD spot-checks -/
 
 -- P_perp is idempotent
@@ -462,5 +636,21 @@ example (n : ℕ) (Φ : E n) (_ : ‖Φ‖ = 1) (v : E n) :
 -- For large d, decoherent floor → 1/N
 -- (2 - p_ideal)/(d-1) → 1/N as d = 2N → ∞ and p_ideal → 1
 example : (2 - (1:ℝ)) / (8 - 1) = 1/7 := by norm_num
+
+#check @perpSphere_inner_mul_inner
+#check @isotropicError_bilinear_secondMoment
+#check @isotropicError_succProb_oneStep
+
+/--
+info: 'IsotropicGrover.isotropicError_bilinear_secondMoment' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms isotropicError_bilinear_secondMoment
+
+/--
+info: 'IsotropicGrover.isotropicError_succProb_oneStep' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms isotropicError_succProb_oneStep
 
 end IsotropicGrover
