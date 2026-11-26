@@ -102,7 +102,13 @@ _TEXT_MACRO_RE = re.compile(r"\\(" + "|".join(TEXT_LIKE_MACROS) + r")\s*\{")
 _LEAN_ISOMETRY_RE = re.compile(r"\\simeq\s*_\s*\{\\ell\s*i\}")
 _TABLE_DELIM_CELL_RE = re.compile(r"^\s*:?-+:?\s*$")
 _BLOCK_INTERRUPT_RE = re.compile(r"^\s*(?:[-+*]\s|\d+[.)]\s|>|#)")
-_FENCE_OPEN_RE = re.compile(r"^( *)(`{3,}|~{3,})(.*)$")
+_FENCE_OPEN_RE = re.compile(r"^( {0,3})(?:(`{3,})([^`]*)|(~{3,})(.*))$")
+_FENCE_CLOSE_RE = re.compile(r"^( {0,3})(`{3,}|~{3,})[ \t]*$")
+_LIST_ITEM_RE = re.compile(r"^( {0,3})([-+*]|\d{1,9}[.)])(?:( +)(.*)|()())$")
+_ATX_HEADING_RE = re.compile(r"^ {0,3}#{1,6}(?:[ \t]+|$)")
+_THEMATIC_BREAK_RE = re.compile(
+    r"^ {0,3}(?:-[ \t]*-[ \t]*-[-\s]*|\*[ \t]*\*[ \t]*\*[\*\s]*|_[ \t]*_[ \t]*_[_\s]*)$"
+)
 _RAW_MATH_RENDERER_RE = re.compile(
     r"<math-renderer\b[^>]*>(.*?)</math-renderer>", flags=re.DOTALL
 )
@@ -261,6 +267,12 @@ def validate_tex_expression(tex: str, context: str) -> list[str]:
                 continue
 
             # Escaped non-letter (e.g. \\, \,, \;, \!, \{, \}, \|, \_)
+            if nxt in ("\n", "\r"):
+                errors.append(
+                    f"{context}: trailing single backslash before newline inside math"
+                )
+                i += 1
+                continue
             if nxt == "_":
                 errors.append(
                     f"{context}: escaped underscore '\\_' inside math "
@@ -269,7 +281,14 @@ def validate_tex_expression(tex: str, context: str) -> list[str]:
             i += 2
             continue
 
-        if ch == "{":
+        if ch == "$":
+            errors.append(f"{context}: unescaped '$' inside math expression")
+        elif ch == "%":
+            errors.append(
+                f"{context}: unescaped '%' inside math expression "
+                "(starts a TeX comment; escape as '\\%' or remove)"
+            )
+        elif ch == "{":
             brace_depth += 1
         elif ch == "}":
             brace_depth -= 1
@@ -305,12 +324,56 @@ def _is_gfm_table_delimiter_row(line: str) -> bool:
 
 
 def _scan_backtick_run(line: str, bt_start: int) -> tuple[int, int]:
-    """Return `(backtick_len, closing_index_or_neg1)` for a backtick run at `bt_start`."""
+    """Return `(backtick_len, closing_index_or_neg1)` for an exact-length backtick run."""
+    n = len(line)
     bt_end = bt_start
-    while bt_end < len(line) and line[bt_end] == "`":
+    while bt_end < n and line[bt_end] == "`":
         bt_end += 1
     bt_len = bt_end - bt_start
-    return bt_len, line.find("`" * bt_len, bt_end)
+
+    j = bt_end
+    while j < n:
+        if line[j] != "`":
+            j += 1
+            continue
+        run_end = j
+        while run_end < n and line[run_end] == "`":
+            run_end += 1
+        if run_end - j == bt_len:
+            return bt_len, j
+        j = run_end
+    return bt_len, -1
+
+
+def _match_fence_open(subline: str) -> tuple[int, str, str] | None:
+    """Match a CommonMark §4.5 opening fence on `subline` (0-3 spaces indent)."""
+    m = _FENCE_OPEN_RE.match(subline)
+    if not m:
+        return None
+    rel_indent = len(m.group(1))
+    if m.group(2) is not None:
+        return rel_indent, m.group(2), m.group(3).strip()
+    return rel_indent, m.group(4), m.group(5).strip()
+
+
+def _is_closing_fence(subline: str, fence_marker: str) -> bool:
+    """Return True if `subline` is a CommonMark §4.5 closing fence for `fence_marker`."""
+    m = _FENCE_CLOSE_RE.match(subline)
+    if not m:
+        return False
+    seq = m.group(2)
+    return seq[0] == fence_marker[0] and len(seq) >= len(fence_marker)
+
+
+def _starts_container_block(subline: str) -> bool:
+    """Return True if `subline` (with 0-3 leading spaces) starts a block construct."""
+    return bool(
+        _match_fence_open(subline)
+        or _LIST_ITEM_RE.match(subline)
+        or _ATX_HEADING_RE.match(subline)
+        or _THEMATIC_BREAK_RE.match(subline)
+        or re.match(r"^ {0,3}>", subline)
+    )
 
 
 def _scan_inline_line(
@@ -379,6 +442,21 @@ def _scan_inline_line(
                 )
             return
 
+        if ch == "\\" and i + 1 < n:
+            if line[i + 1].isalpha():
+                j = i + 1
+                while j < n and line[j].isalpha():
+                    j += 1
+                cmd = line[i:j]
+                snippet = _truncate(line.strip(), 100)
+                errors.append(
+                    f"{path}:{line_no}: raw LaTeX command `{cmd}` outside math/code span: {snippet}"
+                )
+                return
+            if line[i + 1] == "`":
+                i += 2
+                continue
+
         i += 1
 
 
@@ -391,6 +469,7 @@ def _collect_offline(path: Path) -> tuple[list[str], list[MathSpan]]:
     in_fence = False
     fence_marker = ""
     fence_indent = 0
+    fence_container_indent = 0
     fence_is_math = False
     fence_start_line = 0
     fence_lines: list[str] = []
@@ -399,15 +478,23 @@ def _collect_offline(path: Path) -> tuple[list[str], list[MathSpan]]:
     dd_start_line = 0
     dd_lines: list[str] = []
 
+    list_indents: list[int] = []
+    in_paragraph = False
+    in_indented_code = False
+    indented_code_base = 0
     in_table = False
 
     for idx, line in enumerate(lines):
         line_no = idx + 1
+        lead = len(line) - len(line.lstrip(" "))
+        is_blank = line.strip() == ""
 
         # 1. Inside fenced code block (```math or ```lean / ```bash / etc.)
         if in_fence:
-            stripped = line.lstrip(" ")
-            if stripped.startswith(fence_marker) and stripped.strip() == fence_marker:
+            if not is_blank and lead < fence_container_indent:
+                errors.append(
+                    f"{path}:{fence_start_line}: unclosed fenced code block `{fence_marker}`"
+                )
                 if fence_is_math:
                     spans.append(
                         MathSpan("display_fence", fence_start_line, "\n".join(fence_lines))
@@ -416,17 +503,29 @@ def _collect_offline(path: Path) -> tuple[list[str], list[MathSpan]]:
                 fence_marker = ""
                 fence_is_math = False
                 fence_lines = []
-                continue
+            else:
+                sub_fence = line[min(fence_container_indent, len(line)) :]
+                if not is_blank and _is_closing_fence(sub_fence, fence_marker):
+                    if fence_is_math:
+                        spans.append(
+                            MathSpan("display_fence", fence_start_line, "\n".join(fence_lines))
+                        )
+                    in_fence = False
+                    fence_marker = ""
+                    fence_is_math = False
+                    fence_lines = []
+                    in_paragraph = False
+                    continue
 
-            if fence_is_math:
-                dedented = line[min(fence_indent, len(line) - len(stripped)) :]
-                if re.search(r"\\\\\s*$", dedented):
-                    errors.append(
-                        f"{path}:{line_no}: bare trailing '\\\\' inside ```math block "
-                        "(GitHub turns EOL '\\\\' into '\\\\\\'; use '\\\\[4pt]')"
-                    )
-                fence_lines.append(dedented)
-            continue
+                if fence_is_math:
+                    dedented = line[min(fence_indent, lead) :]
+                    if re.search(r"\\\\\s*$", dedented):
+                        errors.append(
+                            f"{path}:{line_no}: bare trailing '\\\\' inside ```math block "
+                            "(GitHub turns EOL '\\\\' into '\\\\\\'; use '\\\\[4pt]')"
+                        )
+                    fence_lines.append(dedented)
+                continue
 
         # 2. Inside top-level $$ ... $$ display block
         if in_dd_block:
@@ -438,9 +537,10 @@ def _collect_offline(path: Path) -> tuple[list[str], list[MathSpan]]:
                 spans.append(MathSpan("display_dd", dd_start_line, "\n".join(dd_lines)))
                 in_dd_block = False
                 dd_lines = []
+                in_paragraph = False
                 continue
 
-            if line.strip() == "":
+            if is_blank:
                 errors.append(
                     f"{path}:{line_no}: blank line inside `$$...$$` display block "
                     "terminates the paragraph in CommonMark"
@@ -465,16 +565,24 @@ def _collect_offline(path: Path) -> tuple[list[str], list[MathSpan]]:
                     f"{path}:{line_no}: `$$` inside display block must be on its own column-0 line"
                 )
 
-            # Inside top-level $$...$$, cmark-gfm strips \<ascii-punct> EXCEPT exact EOL `\\`!
-            bad_esc = re.search(r"\\([^A-Za-z\s])", re.sub(r"\\\\$", "", line))
+            # Inside top-level $$...$$, cmark-gfm strips \<ascii-punct> and single EOL `\`
+            # (preserving only exact EOL `\\` without trailing spaces).
+            line_without_eol_bs = re.sub(r"(?<!\\)\\\\$", "", line)
+            bad_esc = re.search(r"\\([^A-Za-z\s]|$)", line_without_eol_bs)
             if bad_esc:
-                esc_seq = "\\" + bad_esc.group(1)
-                errors.append(
-                    f"{path}:{line_no}: `{esc_seq}` inside `$$...$$` is stripped by cmark-gfm "
-                    "(use named MathJax macros like \\thinspace, \\mspace{4mu}, \\mspace{5mu}, "
-                    "\\quad, \\negthinspace, \\lVert/\\rVert, \\lbrace/\\rbrace, "
-                    "```math with \\:/\\;, or EOL `\\\\` without trailing spaces)"
-                )
+                if bad_esc.group(1) == "":
+                    errors.append(
+                        f"{path}:{line_no}: trailing single `\\` at end of line inside `$$...$$` "
+                        "is stripped by cmark-gfm (use `\\\\` for line breaks)"
+                    )
+                else:
+                    esc_seq = "\\" + bad_esc.group(1)
+                    errors.append(
+                        f"{path}:{line_no}: `{esc_seq}` inside `$$...$$` is stripped by cmark-gfm "
+                        "(use named MathJax macros like \\thinspace, \\mspace{4mu}, \\mspace{5mu}, "
+                        "\\quad, \\negthinspace, \\lVert/\\rVert, \\lbrace/\\rbrace, "
+                        "```math with \\:/\\;, or EOL `\\\\` without trailing spaces)"
+                    )
             if re.search(r"\\\\[ \t]+$", line):
                 errors.append(
                     f"{path}:{line_no}: trailing spaces after EOL `\\\\` inside `$$...$$`"
@@ -483,14 +591,76 @@ def _collect_offline(path: Path) -> tuple[list[str], list[MathSpan]]:
             dd_lines.append(line)
             continue
 
-        # 3. Check for opening fenced code block (up to 3 spaces indentation, or inside list items)
-        m_fence = _FENCE_OPEN_RE.match(line)
-        if m_fence:
+        # 3. Inside CommonMark §4.4 indented code block (4+ spaces beyond container)
+        if in_indented_code:
+            if is_blank or lead >= indented_code_base:
+                continue
+            in_indented_code = False
+
+        if is_blank:
+            in_paragraph = False
             in_table = False
-            fence_indent = len(m_fence.group(1))
-            fence_marker = m_fence.group(2)
+            continue
+
+        # Pop exited list-item containers
+        if list_indents and lead < list_indents[-1]:
+            outer_base = max((ind for ind in list_indents if ind <= lead), default=0)
+            if not in_paragraph or _starts_container_block(line[outer_base:]):
+                while list_indents and lead < list_indents[-1]:
+                    list_indents.pop()
+
+        container_indent = list_indents[-1] if list_indents else 0
+        sub = line[min(container_indent, len(line)) :]
+
+        if not in_table and _THEMATIC_BREAK_RE.match(sub):
+            in_paragraph = False
+            in_table = False
+            continue
+
+        # Track CommonMark §5.2 list-item indentation
+        matched_list = False
+        saw_empty_or_code_list_item = False
+        while (m_list := _LIST_ITEM_RE.match(sub)) is not None:
+            matched_list = True
+            in_table = False
+            marker_lead = len(m_list.group(1))
+            marker_tok = m_list.group(2)
+            spaces_after = len(m_list.group(3) or "")
+            rest = m_list.group(4) or ""
+            padding = 1 if (rest == "" or spaces_after >= 5) else spaces_after
+            item_indent = container_indent + marker_lead + len(marker_tok) + padding
+            list_indents.append(item_indent)
+            container_indent = item_indent
+            if rest != "" and spaces_after >= 5:
+                in_indented_code = True
+                indented_code_base = container_indent + 4
+                in_paragraph = False
+                saw_empty_or_code_list_item = True
+                break
+            if rest == "":
+                in_paragraph = False
+                saw_empty_or_code_list_item = True
+                break
+            sub = line[min(container_indent, len(line)) :]
+        if saw_empty_or_code_list_item:
+            continue
+        if not matched_list and not in_paragraph and lead >= container_indent + 4:
+            in_indented_code = True
+            indented_code_base = container_indent + 4
+            in_table = False
+            continue
+
+        # 4. Check for opening fenced code block (CommonMark §4.5: 0-3 spaces relative to container)
+        fence_open = _match_fence_open(sub)
+        if fence_open is not None:
+            rel_indent, fence_marker, fence_info = fence_open
+            in_table = False
+            in_paragraph = False
+            fence_container_indent = container_indent
+            fence_indent = container_indent + rel_indent
             in_fence = True
-            fence_is_math = m_fence.group(3).strip() == "math"
+            info_words = fence_info.split()
+            fence_is_math = bool(info_words) and info_words[0] == "math"
             fence_start_line = line_no
             fence_lines = []
             if fence_is_math and fence_indent > 0:
@@ -501,9 +671,11 @@ def _collect_offline(path: Path) -> tuple[list[str], list[MathSpan]]:
                 )
             continue
 
-        # 4. Check for standalone column-0 `$$` opening line
+        # 5. Check for standalone column-0 `$$` opening line
         if line == "$$":
+            list_indents.clear()
             in_table = False
+            in_paragraph = False
             if idx > 0 and lines[idx - 1].strip() != "":
                 errors.append(
                     f"{path}:{line_no}: opening `$$` must be preceded by a blank line"
@@ -513,15 +685,12 @@ def _collect_offline(path: Path) -> tuple[list[str], list[MathSpan]]:
             dd_lines = []
             continue
 
-        # 5. Track GFM pipe tables (with or without leading/trailing `|`)
-        if in_table and (
-            line.strip() == "" or "|" not in line or _BLOCK_INTERRUPT_RE.match(line)
-        ):
+        # 6. Track GFM pipe tables (with or without leading/trailing `|`)
+        if in_table and ("|" not in line or _BLOCK_INTERRUPT_RE.match(line)):
             in_table = False
 
         is_table_header = (
             not in_table
-            and line.strip() != ""
             and "|" in line
             and idx + 1 < len(lines)
             and _is_gfm_table_delimiter_row(lines[idx + 1])
@@ -529,7 +698,7 @@ def _collect_offline(path: Path) -> tuple[list[str], list[MathSpan]]:
         if _is_gfm_table_delimiter_row(line) and idx > 0 and "|" in lines[idx - 1]:
             in_table = True
 
-        # 6. Ordinary Markdown line: scan inline code spans, `$`...`$`, and forbidden `$`
+        # 7. Ordinary Markdown line: scan inline code spans, `$`...`$`, and forbidden `$`
         _scan_inline_line(
             line,
             line_no,
@@ -538,6 +707,7 @@ def _collect_offline(path: Path) -> tuple[list[str], list[MathSpan]]:
             errors,
             is_table_row=in_table or is_table_header,
         )
+        in_paragraph = not bool(_ATX_HEADING_RE.match(sub))
 
     if in_fence:
         errors.append(f"{path}:{fence_start_line}: unclosed fenced code block `{fence_marker}`")

@@ -12,7 +12,7 @@ Rendering the current `english-proof.md` and `README.md` through GitHub's live G
 ## Solution Design
 
 1. **Use GitHub's Raw-Code Inline Math Delimiter (`` $`...`$ ``) Everywhere:**
-   - GitHub's official `` $`...`$ `` syntax parses as a CommonMark code span first and emits `<math-renderer class="js-inline-math">$...$</math-renderer>` with **zero** backslash unescaping, **zero** `_` emphasis interference, and full support inside `**bold**`, headings, GFM tables, and `($`\sigma \in [0, 1)`$)`.
+   - GitHub's official `` $`...`$ `` syntax parses as a CommonMark code span first and emits `<math-renderer class="js-inline-math">$...$</math-renderer>` with **zero** backslash unescaping, **zero** `_` emphasis interference, and full support inside `**bold**`, headings, GFM tables, and `` ($`\sigma \in [0, 1)`$) ``.
 
 2. **Place All Display Math at Column 0 (`$$` Blocks and ```` ```math ```` Fences):**
    - Empirically, GitHub's server-side `MathFilter` skips `<pre lang="math">` inside any `<li>` element that also contains inline `<math-renderer>` spans (leaving an unrendered code block), while indented `$$` blocks inside lists fail `cmark-gfm`'s block-math parser. All display equations are therefore placed at **column 0** (using bold numbered lead-ins or `####` subheadings instead of indenting display equations inside `<li>`).
@@ -27,7 +27,7 @@ Rendering the current `english-proof.md` and `README.md` through GitHub's live G
 
 3. **Separate Lean Code Identifiers from Mathematical Notation:**
    - Remove all `\texttt{...}` and Lean underscores (`Grover.p\_succ`, `norm\_ketToReal`, `P\_perp\_apply`, `MState.uniform`, etc.) from inside math spans.
-   - Cite Lean declarations in standard Markdown code spans (`` `...` ``) outside math delimiters, and use clean mathematical notation ($p_{\mathrm{succ}}(K, 2^n)$, $\operatorname{succProb}(n, \mathbf{v}, w)$, $\hat{\mathbf{e}}_i$, $U :: \mathit{rest}$, etc.) inside math mode.
+   - Cite Lean declarations in standard Markdown code spans (`` `...` ``) outside math delimiters, and use clean mathematical notation ($`p_{\mathrm{succ}}(K, 2^n)`$, $`\operatorname{succProb}(n, \mathbf{v}, w)`$, $`\hat{\mathbf{e}}_i`$, $`U :: \mathit{rest}`$, etc.) inside math mode.
 
 4. **Live `gh api /markdown` Verification Gate:**
    - Verify both `english-proof.md` and `README.md` against `gh api /markdown` (`mode=gfm`), asserting:
