@@ -3,7 +3,7 @@
 --     reduces to a single effective error with parameter σ^G.
 --
 -- SORRY BUDGET: 0
---   (The isotropicComposition axiom is cited from an external paper, not a sorry.)
+-- AXIOM BUDGET: 0
 
 import IsotropicGroverProof.IsotropicError
 

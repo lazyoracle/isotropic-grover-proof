@@ -37,7 +37,7 @@
 **Interfaces:**
 - Consumes: `poissonKernelDensity`, `poissonNormConst`, `poissonMarginal`, `halfcircle_cos_d2`, `halfcircle_norm_d2` in `IsotropicError.lean`
 - Produces:
-  - `lemma integral_poissonMarginal_eq (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d) {f : ℝ → ℝ} (hf : Continuous f) : ∫ θ, f θ ∂(poissonMarginal d σ) = (∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ * f θ) / poissonNormConst d σ`
+  - `lemma integral_poissonMarginal_eq (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d) (f : ℝ → ℝ) : ∫ θ, f θ ∂(poissonMarginal d σ) = (∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ * f θ) / poissonNormConst d σ`
   - `theorem poissonMarginal_mean_cos (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d) : ∫ θ, cos θ ∂(poissonMarginal d σ) = σ`
   - `theorem halfcircle_cos_sq_eq (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d) : ∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ * cos θ ^ 2 = ((d - 1 : ℝ) * σ ^ 2 + 1) / d * ∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ`
 
@@ -48,7 +48,7 @@ Add `#check @poissonMarginal_mean_cos` and `#check @halfcircle_cos_sq_eq` at the
 - [ ] **Step 2: Implement `integral_poissonMarginal_eq`, the 1D FTC identities (`F̃₀`, `G̃₀`, `G̃₁`, `H̃₃`), and two-step induction in `IsotropicError.lean` (GREEN)**
 
 Import `Mathlib.Analysis.SpecialFunctions.Pow.Deriv` (and `Mathlib.Analysis.SpecialFunctions.Trigonometric.Deriv` if needed).
-1. Factor out `integral_poissonMarginal_eq` for all `d ≥ 2` and `Continuous f`, and simplify `poissonMarginal_mean_cos_d2` to use it.
+1. Factor out `integral_poissonMarginal_eq` for all `d ≥ 2` and arbitrary `f : ℝ → ℝ`, and simplify `poissonMarginal_mean_cos_d2` to use it.
 2. Prove the 3-term FTC identity from $\tilde{F}_0(\theta) = (1 - \sigma^2)\sin^{d-1}\theta \cdot D(\sigma, \theta)^{1 - (d : \mathbb{R}) / 2}$ via `intervalIntegral.integral_eq_sub_of_hasDerivAt`:
    `σ * d * I₂(d) = (d - 1) * (1 + σ ^ 2) * I₁(d) - (d - 2) * σ * I₀(d)`.
 3. Prove the $d \mapsto d + 2$ step identities from $\tilde{G}_0(\theta) = (1 - \sigma^2)\sin^{d-1}\theta \cdot D(\sigma, \theta)^{-(d : \mathbb{R}) / 2}$ and $\tilde{G}_1(\theta) = (1 - \sigma^2)\cos\theta \sin^{d-1}\theta \cdot D(\sigma, \theta)^{-(d : \mathbb{R}) / 2}$, deducing `I₁(d) = σ * I₀(d) → I₁(d + 2) = σ * I₀(d + 2)`.

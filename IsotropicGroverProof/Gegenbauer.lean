@@ -97,7 +97,7 @@ theorem poissonIntegral_cos_sq (d : ℕ) (σ : ℝ)
 /-- Specialization of `poissonIntegral_cos_sq` to `d = 2`:
     `E[cos² θ] = ((2 - 1) σ² + 1) / 2`. -/
 theorem poissonIntegral_cos_sq_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
-    ∫ θ, Real.cos θ ^ 2 ∂(poissonMarginal 2 σ) =
+    ∫ θ, (cos θ) ^ 2 ∂(poissonMarginal 2 σ) =
     ((2 - 1 : ℝ) * σ ^ 2 + 1) / 2 := by
   exact_mod_cast poissonIntegral_cos_sq 2 σ hσ (by norm_num)
 

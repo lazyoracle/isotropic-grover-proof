@@ -89,16 +89,21 @@ private lemma poissonKernelDensity_continuous (d : ℕ) (σ : ℝ) (hσ : σ ∈
     · intro θ; left; exact (denom_pos σ θ hσ).ne'
   · intro θ; exact (Real.rpow_pos_of_pos (denom_pos σ θ hσ) _).ne'
 
-private lemma poissonKernelDensity_continuousOn (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
-    ContinuousOn (poissonKernelDensity d σ) (Set.Icc 0 Real.pi) :=
-  (poissonKernelDensity_continuous d σ hσ).continuousOn
+/-- Set integral over `[0, π]` equals the interval integral `0..π`. -/
+lemma Icc_to_interval (f : ℝ → ℝ) :
+    ∫ θ in Set.Icc (0 : ℝ) Real.pi, f θ = ∫ θ in (0 : ℝ)..Real.pi, f θ := by
+  rw [integral_Icc_eq_integral_Ioc, ← intervalIntegral.integral_of_le Real.pi_pos.le]
+
+/-- `poissonNormConst d σ` expressed as an `intervalIntegral` over `0..π`. -/
+lemma poissonNormConst_eq_intervalIntegral (d : ℕ) (σ : ℝ) :
+    poissonNormConst d σ = ∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ :=
+  Icc_to_interval _
 
 /-- The normalization constant of the Poisson kernel marginal is strictly positive
     for `σ ∈ (0, 1)` and `d ≥ 2`. -/
 lemma poissonNormConst_pos (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
     (hd : 2 ≤ d) : 0 < poissonNormConst d σ := by
-  unfold poissonNormConst
-  have hf_cont := poissonKernelDensity_continuousOn d σ hσ
+  rw [poissonNormConst_eq_intervalIntegral]
   have hf_nonneg : ∀ θ ∈ Set.Ioc 0 Real.pi, 0 ≤ poissonKernelDensity d σ θ :=
     fun θ hθ => poissonKernelDensity_nonneg d σ hσ θ (Set.Ioc_subset_Icc_self hθ) hd
   have hpi2_mem : Real.pi / 2 ∈ Set.Icc 0 Real.pi :=
@@ -110,20 +115,9 @@ lemma poissonNormConst_pos (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
     · apply Real.rpow_pos_of_pos
       simp only [mul_zero, sub_zero]
       nlinarith [hσ.1, hσ.2, mul_pos hσ.1 hσ.1]
-  rw [integral_Icc_eq_integral_Ioc, ← intervalIntegral.integral_of_le (le_of_lt Real.pi_pos)]
-  exact intervalIntegral.integral_pos Real.pi_pos hf_cont hf_nonneg
+  exact intervalIntegral.integral_pos Real.pi_pos
+    (poissonKernelDensity_continuous d σ hσ).continuousOn hf_nonneg
     ⟨Real.pi / 2, hpi2_mem, hf_pos_pi2⟩
-
-/-- Set integral over `[0, π]` equals the interval integral `0..π`. -/
-lemma Icc_to_interval (f : ℝ → ℝ) :
-    ∫ θ in Set.Icc (0 : ℝ) Real.pi, f θ = ∫ θ in (0 : ℝ)..Real.pi, f θ := by
-  rw [intervalIntegral.integral_of_le Real.pi_pos.le,
-    ← integral_Icc_eq_integral_Ioc' (f := f) Real.volume_singleton]
-
-/-- `poissonNormConst d σ` expressed as an `intervalIntegral` over `0..π`. -/
-lemma poissonNormConst_eq_intervalIntegral (d : ℕ) (σ : ℝ) :
-    poissonNormConst d σ = ∫ θ in (0 : ℝ)..Real.pi, poissonKernelDensity d σ θ :=
-  Icc_to_interval _
 
 /-- Generic reduction of expectations under `poissonMarginal d σ` to an `intervalIntegral`
     over `0..π` divided by `poissonNormConst d σ`. -/
@@ -160,7 +154,7 @@ theorem poissonMarginal_isProbMeasure (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo
       div_nonneg (poissonKernelDensity_nonneg d σ hσ θ hθ hd) hc.le)
   have hintbl : Integrable (fun θ => poissonKernelDensity d σ θ / poissonNormConst d σ)
       (volume.restrict (Icc 0 Real.pi)) :=
-    (poissonKernelDensity_continuousOn d σ hσ |>.div_const _).integrableOn_Icc.integrable
+    ((poissonKernelDensity_continuous d σ hσ).continuousOn.div_const _).integrableOn_Icc.integrable
   rw [← ofReal_integral_eq_lintegral_ofReal hintbl hnonneg, MeasureTheory.integral_div,
     show (∫ θ, poissonKernelDensity d σ θ ∂volume.restrict (Icc 0 Real.pi)) =
         poissonNormConst d σ from rfl,
@@ -399,12 +393,6 @@ private lemma antiderivG0_eq (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd
       show d - 1 = (d - 2) + 1 by omega, pow_succ]
   ring
 
-private lemma antiderivG0_zero (d : ℕ) (hd : 2 ≤ d) (σ : ℝ) : antiderivG0 d σ 0 = 0 := by
-  simp [antiderivG0, zero_pow (by omega : d - 1 ≠ 0)]
-
-private lemma antiderivG0_pi (d : ℕ) (hd : 2 ≤ d) (σ : ℝ) : antiderivG0 d σ Real.pi = 0 := by
-  simp [antiderivG0, zero_pow (by omega : d - 1 ≠ 0)]
-
 private lemma hasDerivAt_antiderivG0 (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d)
     (θ : ℝ) :
     HasDerivAt (antiderivG0 d σ)
@@ -426,7 +414,7 @@ private lemma halfcircle_step_norm (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 
   have hg2 := poissonKernelDensity_continuous (d + 2) σ hσ
   have h := intervalIntegral_eq_of_hasDerivAt_sub (hasDerivAt_antiderivG0 d σ hσ hd)
     (continuous_const.mul (hg.mul continuous_cos)) (continuous_const.mul hg2)
-    (by rw [antiderivG0_pi d hd σ, antiderivG0_zero d hd σ])
+    (by simp [antiderivG0_eq d σ hσ hd])
   simp only [intervalIntegral.integral_const_mul] at h
   exact h.symm
 
@@ -460,7 +448,7 @@ private lemma halfcircle_three_term (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0
     (continuous_const.mul (hg.mul continuous_cos))
     (continuous_const.mul (hg.mul (continuous_cos.pow 2)))
     (continuous_const.mul hg)
-    (by simp [antiderivF0, antiderivG0_pi d hd σ, antiderivG0_zero d hd σ])
+    (by simp [antiderivF0, antiderivG0_eq d σ hσ hd])
   simp only [intervalIntegral.integral_const_mul] at h
   linarith
 
@@ -488,7 +476,7 @@ private lemma halfcircle_step_cos (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1
   have h := intervalIntegral_eq_of_hasDerivAt_sub_sub (hasDerivAt_antiderivG1 d σ hσ hd)
     (continuous_const.mul (hg.mul (continuous_cos.pow 2))) hg
     (continuous_const.mul (hg2.mul continuous_cos))
-    (by simp [antiderivG1, antiderivG0_pi d hd σ, antiderivG0_zero d hd σ])
+    (by simp [antiderivG1, antiderivG0_eq d σ hσ hd])
   simp only [intervalIntegral.integral_const_mul] at h
   linarith
 

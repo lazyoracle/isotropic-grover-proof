@@ -12,7 +12,7 @@ Because `poissonMarginal d σ` is defined on $[0, \pi]$ via `poissonKernelDensit
 Define the unnormalized interval moments $I_k(d, \sigma) := \int_0^\pi \mathrm{poissonKernelDensity}\, d\, \sigma\, \theta \cdot (\cos\theta)^k \, d\theta$.
 
 1. **Generic `poissonMarginal` integral reduction (`IsotropicError.lean`):**
-   For all $d \ge 2$, $\sigma \in (0, 1)$, and continuous $h : \mathbb{R} \to \mathbb{R}$:
+   For all $d \ge 2$, $\sigma \in (0, 1)$, and arbitrary $h : \mathbb{R} \to \mathbb{R}$:
    $$\int \theta,\, h\,\theta \;\partial(\mathrm{poissonMarginal}\, d\, \sigma) = \frac{\int_{\theta \in (0:\mathbb{R})..\pi} \mathrm{poissonKernelDensity}\, d\, \sigma\, \theta \cdot h\,\theta}{\mathrm{poissonNormConst}\, d\, \sigma}.$$
 
 2. **Three-term moment identity for all $d \ge 2$:**
@@ -37,4 +37,4 @@ Define the unnormalized interval moments $I_k(d, \sigma) := \int_0^\pi \mathrm{p
 - Generalize `poissonMarginal_mean_cos` ($\mathbb{E}[\cos\theta] = \sigma$ for all $d \ge 2$) in `IsotropicError.lean` (keeping `poissonMarginal_mean_cos_d2` as a 1-line specialization).
 - Prove `poissonIntegral_cos_sq` ($\mathbb{E}[\cos^2\theta] = \frac{(d-1)\sigma^2 + 1}{d}$ for all $d \ge 2$) and `theorem poissonIntegral_cos_sq_d3` / `poissonIntegral_cos_sq_d2` in `Gegenbauer.lean` with **zero custom axioms**.
 - Delete `IsotropicGroverProof/GegenbaurerHelper.lean` completely (~329 lines of duplicated $d = 2$ boilerplate removed).
-- Update `#guard_msgs in #print axioms isotropicGrover_main` in `MainTheorem.lean` to `[propext, Classical.choice, Quot.sound]` and enable `axiom-audit: true` in `.github/workflows/lean_action_ci.yml` so CI rejects any non-foundational axiom across the entire `IsotropicGrover` namespace.
+- Update `#guard_msgs in #print axioms isotropicGrover_main` in `MainTheorem.lean` to `[propext, Classical.choice, Quot.sound]` and enable `axiom-audit: true` (with `axiom-audit-root: 'IsotropicGroverProof'`) in `.github/workflows/lean_action_ci.yml` so CI rejects any non-foundational axiom across the `IsotropicGroverProof` library root.
