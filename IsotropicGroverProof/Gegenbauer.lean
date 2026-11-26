@@ -17,20 +17,17 @@
 --     ∫ θ, cos²θ ∂(poissonMarginal d σ) = ((d − 1)σ² + 1) / d.
 --   For G composed gates, substituting σ → σ^G gives f₂ = ((d − 1)σ^{2G} + 1) / d.
 --
--- AXIOM STATUS & MATHLIB BOUNDARY:
---   - For d = 2: 100% formally verified without axioms in `GegenbaurerHelper.lean`
---     using Mathlib's complex Poisson integral formula on the unit disc
---     (`Mathlib.Analysis.Complex.Poisson`).
---   - For d ≥ 3: Axiomatized via `poissonIntegral_cos_sq_d3`. Mathlib currently lacks
---     the general Poisson representation formula and spherical harmonic decomposition
---     for Euclidean balls in ℝ^d (d ≥ 3). The axiom isolates this analytic boundary,
---     accompanied below by Lean-verified algebraic lemmas for the decomposition.
---   - Running `#print axioms isotropicGrover_main` confirms `poissonIntegral_cos_sq_d3`
---     is the sole non-foundational axiom in the entire project.
+-- AXIOM STATUS:
+--   - Zero custom or non-foundational axioms (`[propext, Classical.choice, Quot.sound]`).
+--   - `poissonIntegral_cos_sq` (`E[cos² θ] = ((d - 1)σ² + 1) / d` for all `d ≥ 2`) is
+--     formally proved via the generic marginal expectation reduction
+--     `integral_poissonMarginal_eq` and the all-dimension 1D FTC recurrence
+--     `halfcircle_cos_sq_eq` in `IsotropicError.lean`.
+--   - `poissonIntegral_cos_sq_d2` (`d = 2`) and `poissonIntegral_cos_sq_d3` (`d ≥ 3`)
+--     are proved as 1-line corollaries of `poissonIntegral_cos_sq`.
 
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
 import IsotropicGroverProof.Composition
-import IsotropicGroverProof.GegenbaurerHelper
 
 /-!
 # Second Moment `f₂` via Harmonic Extension and Poisson Integral
@@ -79,52 +76,37 @@ lemma poissonIntegral_val_sigma_zero (d : ℝ) :
 
 /-! ## Poisson integral formula for quadratic boundary data -/
 
-/-- The second moment of the Poisson kernel on high-dimensional spheres (d ≥ 3).
+/-- The second moment of the Poisson marginal for all dimensions `d ≥ 2`:
+    `E_ν[cos² θ] = ((d - 1) σ² + 1) / d` for `θ ~ poissonMarginal d σ`.
 
-    **Mathematical Derivation (Harmonic Extension):**
-    1. Boundary data: On the unit sphere S^{d-1} ⊂ ℝ^d, let h(ξ) = (ξ · Φ)² = cos²θ,
-       where ‖Φ‖ = 1.
-    2. Harmonic polynomial extension: In the interior ball B^d, consider
-       H(x) = (x · Φ)² − ‖x‖²/d + 1/d.
-       - The Laplacian is ΔH = Δ((x · Φ)²) − Δ(‖x‖²/d) + Δ(1/d) = 2‖Φ‖² − 2d/d + 0 = 0.
-       - On the boundary S^{d-1} (where ‖ξ‖ = 1), H(ξ) = (ξ · Φ)² − 1/d + 1/d = h(ξ).
-    3. Poisson representation theorem (Axler, Bourdon & Ramey, "Harmonic Function Theory",
-       2nd ed., Springer GTM 137, 2001, Ch. 5, Theorems 5.5 and 5.14):
-       Every harmonic function continuous on the closed ball B^d satisfies
-       H(x) = ∫_{S^{d-1}} P(x, ξ) h(ξ) dσ(ξ).
-    4. Interior evaluation: At the point x = σΦ (with σ ∈ (0, 1)):
-       H(σΦ) = (σΦ · Φ)² − ‖σΦ‖²/d + 1/d = σ² − σ²/d + 1/d = ((d − 1)σ² + 1) / d.
-    5. Marginalization: By rotational symmetry around Φ, the sphere integral reduces to the
-       1D polar marginal measure `poissonMarginal d σ`:
-       ∫ θ, (cos θ)² ∂(poissonMarginal d σ) = ((d − 1)σ² + 1) / d.
-
-    **Why Mathlib requires an axiom for d ≥ 3:**
-    Mathlib contains the Poisson representation formula on the unit disc in ℂ
-    (`Mathlib.Analysis.Complex.Poisson`), which is used to fully prove the d = 2 case
-    in `GegenbaurerHelper.lean` with 0 non-foundational axioms.
-    However, general d-dimensional spherical harmonics and the Poisson representation formula
-    for Euclidean balls in ℝ^d (d ≥ 3) are not yet formalized in Mathlib.
-    This axiom isolates that external mathematical fact. -/
-axiom poissonIntegral_cos_sq_d3 (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 3 ≤ d) :
-    ∫ θ, (cos θ) ^ 2 ∂(poissonMarginal d σ) =
-    ((d - 1 : ℝ) * σ ^ 2 + 1) / d
-
-/-- The Poisson integral formula applied to h(ξ) = (ξ·Φ)² = cos²θ.
-    The harmonic extension of h is H(x) = (x·Φ)² − |x|²/d, plus the constant 1/d.
-    Evaluated at the interior point x = σΦ (with |σΦ|² = σ²):
-      h̃(σΦ) = σ² − σ²/d + 1/d = ((d−1)σ² + 1)/d.
-    This gives E_ν[cos²θ] = ((d−1)σ² + 1)/d for θ ~ poissonMarginal d σ.
-    Source: Axler, Bourdon & Ramey, "Harmonic Function Theory" 2nd ed., Ch. 5. -/
+    Geometrically, this corresponds to evaluating the harmonic extension
+    `H(x) = (x · Φ)² - ‖x‖² / d + 1 / d` of `h(ξ) = (ξ · Φ)² = cos² θ` at the interior
+    point `x = σ Φ` on the Euclidean ball `B^d` (Axler, Bourdon & Ramey,
+    *Harmonic Function Theory*, 2nd ed., Ch. 5).
+    Formally, it follows directly for all `d ≥ 2` from the generic marginal reduction
+    `integral_poissonMarginal_eq` and the 1D FTC recurrence `halfcircle_cos_sq_eq`
+    proved in `IsotropicError.lean`. -/
 theorem poissonIntegral_cos_sq (d : ℕ) (σ : ℝ)
     (hσ : σ ∈ Set.Ioo 0 1) (hd : 2 ≤ d) :
     ∫ θ, (cos θ) ^ 2 ∂(poissonMarginal d σ) =
     ((d - 1 : ℝ) * σ ^ 2 + 1) / d := by
-  obtain (rfl : d = 2) | hd3 := hd.eq_or_lt.imp Eq.symm id
-  · -- d = 2: proved via Poisson formula and folding on unit circle
-    exact_mod_cast poissonIntegral_cos_sq_d2 σ hσ
-  · -- d ≥ 3: Poisson integral formula at h(ξ)=(ξ·Φ)²
-    -- Cited from Axler, Bourdon & Ramey, "Harmonic Function Theory" 2nd ed., Ch. 5
-    exact poissonIntegral_cos_sq_d3 d σ hσ hd3
+  rw [integral_poissonMarginal_eq d σ hσ hd, halfcircle_cos_sq_eq d σ hσ hd,
+      ← poissonNormConst_eq_intervalIntegral]
+  exact mul_div_cancel_right₀ _ (poissonNormConst_pos d σ hσ hd).ne'
+
+/-- Specialization of `poissonIntegral_cos_sq` to `d = 2`:
+    `E[cos² θ] = ((2 - 1) σ² + 1) / 2`. -/
+theorem poissonIntegral_cos_sq_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
+    ∫ θ, (cos θ) ^ 2 ∂(poissonMarginal 2 σ) =
+    ((2 - 1 : ℝ) * σ ^ 2 + 1) / 2 := by
+  exact_mod_cast poissonIntegral_cos_sq 2 σ hσ (by norm_num)
+
+/-- Specialization of `poissonIntegral_cos_sq` to `d ≥ 3` (retained for backwards
+    compatibility as a theorem with zero custom axioms). -/
+theorem poissonIntegral_cos_sq_d3 (d : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hd : 3 ≤ d) :
+    ∫ θ, (cos θ) ^ 2 ∂(poissonMarginal d σ) =
+    ((d - 1 : ℝ) * σ ^ 2 + 1) / d :=
+  poissonIntegral_cos_sq d σ hσ (by omega)
 
 /-! ## The f₂ formula: E[cos²θ_G] = ((d−1)σ^{2G} + 1) / d -/
 
@@ -134,23 +116,13 @@ theorem poissonIntegral_cos_sq (d : ℕ) (σ : ℝ)
 theorem f₂_formula (d_val G : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
     (hd : 2 ≤ d_val) (hG : 0 < G) :
     f₂ d_val G σ = ((d_val - 1 : ℝ) * σ ^ (2 * G) + 1) / d_val := by
-  simp only [f₂, composedMeasure]
-  have hσG : σ ^ G ∈ Set.Ioo 0 1 :=
-    ⟨pow_pos hσ.1 G, pow_lt_one₀ hσ.1.le hσ.2 hG.ne'⟩
-  rw [poissonIntegral_cos_sq d_val (σ ^ G) hσG hd]
-  have hpow : (σ ^ G) ^ 2 = σ ^ (2 * G) := by ring
-  rw [hpow]
+  rw [f₂, composedMeasure, poissonIntegral_cos_sq d_val (σ ^ G) (pow_mem_Ioo_zero_one hσ hG) hd,
+      show (σ ^ G) ^ 2 = σ ^ (2 * G) by ring]
 
-/-- The second moment f₂ for d = 2, proved directly using `poissonIntegral_cos_sq_d2`
-    without invoking the d ≥ 3 Poisson integral formula axiom. -/
+/-- Specialization of `f₂_formula` to `d = 2` (retained for backwards compatibility). -/
 theorem f₂_formula_d2 (G : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) (hG : 0 < G) :
     f₂ 2 G σ = ((2 - 1 : ℝ) * σ ^ (2 * G) + 1) / 2 := by
-  simp only [f₂, composedMeasure]
-  have hσG : σ ^ G ∈ Set.Ioo 0 1 :=
-    ⟨pow_pos hσ.1 G, pow_lt_one₀ hσ.1.le hσ.2 hG.ne'⟩
-  rw [poissonIntegral_cos_sq_d2 (σ ^ G) hσG]
-  have hpow : (σ ^ G) ^ 2 = σ ^ (2 * G) := by ring
-  rw [hpow]
+  exact_mod_cast f₂_formula 2 G σ hσ (by norm_num) hG
 
 /-! ## TDD spot-checks -/
 
@@ -187,5 +159,17 @@ example : (((64 : ℝ) - 1) * (1/2 : ℝ) ^ (2 * 1) + 1) / 64 = 67/256 := by nor
 
 -- Ring identity: (σ^G)² = σ^{2G} (the key algebraic step in the proof)
 example (σ : ℝ) (G : ℕ) : (σ ^ G) ^ 2 = σ ^ (2 * G) := by ring
+
+/--
+info: 'IsotropicGrover.poissonIntegral_cos_sq' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms poissonIntegral_cos_sq
+
+/--
+info: 'IsotropicGrover.poissonIntegral_cos_sq_d3' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms poissonIntegral_cos_sq_d3
 
 end IsotropicGrover

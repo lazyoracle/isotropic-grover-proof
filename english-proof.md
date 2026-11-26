@@ -276,7 +276,7 @@ Setting $k = G$:
 
 $$F = \mathrm{E}[\cos^2\!\theta_G] = \frac{(d-1)\sigma^{2G}+1}{d}.$$
 
-*(Note on formalization)*: In the Lean formalization, the evaluation of the second moment $\mathrm{E}[\cos^2\theta] = \frac{(d-1)\sigma^2+1}{d}$ is proved for $d=2$ via Mathlib's complex Poisson formula, while the general case for $d \ge 3$ is currently introduced as an axiom (`poissonIntegral_cos_sq_d3`, tracked in [#9](https://github.com/lazyoracle/isotropic-grover-proof/issues/9)).
+*(Note on formalization)*: In the Lean formalization (`IsotropicError.lean` and `Gegenbauer.lean`), the second moment $\mathrm{E}[\cos^2\theta] = \frac{(d-1)\sigma^2+1}{d}$ (`poissonIntegral_cos_sq`, with specializations `poissonIntegral_cos_sq_d2` and `poissonIntegral_cos_sq_d3`) is proved for all $d \ge 2$ with zero custom axioms via 1D Fundamental Theorem of Calculus recurrences over $[0, \pi]$, anchored by $d = 2$ (Mathlib's complex Poisson formula) and $d = 3$ (an elementary antiderivative) with two-step induction $d \mapsto d + 2$.
 
 ---
 

@@ -26,9 +26,9 @@ More details on the mathematical steps are available in [english-proof.md](engli
 The codebase machine-checks the mathematical derivation in Lean 4 across several key modules:
 
 ### 1. Main Geometric Invariant Theorem (`MainTheorem.lean`)
-- **`isotropicGrover_main`**: Holds for all $n \in \mathbb{N}$ (arbitrary number of qubits, with ambient real dimension $d = 2 \cdot 2^n$). For an arbitrary unit-vector state $\Phi \in \mathcal{S}^{d-1}$ and gate count $G > 0$, the nested integral of the noisy success probability over the perturbation angle and equatorial noise direction evaluates to:
+- **`isotropicGrover_main`**: Holds for all $n \in \mathbb{N}$ (arbitrary number of qubits, with ambient real dimension $d = 2 \cdot 2^n$) with **zero non-foundational axioms** (`[propext, Classical.choice, Quot.sound]`). For an arbitrary unit-vector state $\Phi \in \mathcal{S}^{d-1}$ and gate count $G > 0$, the nested integral of the noisy success probability over the perturbation angle and equatorial noise direction evaluates to:
   $$\int_0^\pi \int_{\mathcal{S}^{d-2}(V_\perp)} \mathrm{succProb}\, n \, (\mathrm{isotropicError}\, \Phi\, e_2\, \theta)\, w \, \partial(\mathrm{perpSphereMeasure}\, \Phi) \, \partial(\mathrm{composedMeasure}\, d\, G\, \sigma) = \sigma^{2G} \cdot \mathrm{succProb}\, n \, \Phi \, w + \frac{1 - \sigma^{2G}}{2^n}.$$
-- **`isotropicGrover_n0`**: For $n = 0$ ($d = 2$), the theorem is proved with **zero non-foundational axioms** (`[propext, Classical.choice, Quot.sound]`), using the fully machine-checked complex Poisson integral formula on the unit circle in `GegenbaurerHelper.lean`.
+- **`isotropicGrover_n0`**: Specialization of `isotropicGrover_main` to $n = 0$ ($d = 2$), retained for backwards compatibility.
 
 ### 2. Sequential Markov Chain Error Induction (`Sequential.lean`)
 To model microscopic quantum circuit error accumulation where each gate error rotates around the *perturbed* current state $\Psi_k$ rather than the initial state $\Phi$, `Sequential.lean` formalizes the Markov chain induction from §6 of `english-proof.md`:
@@ -56,15 +56,11 @@ Connects the general unit-vector theorem to Grover's algorithm:
 
 ## Axiom Footprint
 
-Running `#print axioms isotropicGrover_main` confirms that the proof rests exclusively on standard Lean foundational axioms plus a single analytic axiom:
+Running `#print axioms isotropicGrover_main` confirms that the formalization rests exclusively on Lean's standard foundational axioms, with **zero custom axioms** and **zero `sorry`s** (enforced in CI via `axiom-audit` on `IsotropicGroverProof`):
 - **Standard foundational axioms:** `propext`, `Classical.choice`, `Quot.sound`
-- **Analytic axiom:** `poissonIntegral_cos_sq_d3` (the second moment of the Poisson marginal on spheres for dimension $d \ge 3$):
-  $$\int_0^\pi \cos^2\theta \, \partial(\mathrm{poissonMarginal}\, d\, \sigma) = \frac{(d - 1)\sigma^2 + 1}{d}.$$
-
-*(Note: For $n = 0$, `isotropicGrover_n0`, `sequentialFidelity_eq`, and `sequential_mixture_formula` use 0 non-foundational axioms.)*
 
 ### Mathematical Derivation (Harmonic Extension)
-This identity is derived via harmonic polynomial extension on the Euclidean unit ball $B^d \subset \mathbb{R}^d$ (Axler, Bourdon & Ramey, *Harmonic Function Theory*, 2nd ed., Springer GTM 137, 2001, Ch. 5, Theorems 5.5 & 5.14):
+The second moment identity $\int_0^\pi \cos^2\theta \, \partial(\mathrm{poissonMarginal}\, d\, \sigma) = \frac{(d - 1)\sigma^2 + 1}{d}$ arises geometrically via harmonic polynomial extension on the Euclidean unit ball $B^d \subset \mathbb{R}^d$ (Axler, Bourdon & Ramey, *Harmonic Function Theory*, 2nd ed., Springer GTM 137, 2001, Ch. 5, Theorems 5.5 & 5.14):
 1. **Boundary data:** For a fixed unit vector $\Phi \in \mathbb{R}^d$ ($|\Phi| = 1$), the boundary data on the unit sphere $S^{d-1}$ is $h(\xi) = (\xi \cdot \Phi)^2 = \cos^2\theta$.
 2. **Harmonic extension:** In the interior ball $B^d$, consider $H(\mathbf{x}) = (\mathbf{x} \cdot \Phi)^2 - |\mathbf{x}|^2/d + 1/d$.
    - The Laplacian satisfies $\Delta H = \Delta((\mathbf{x}\cdot\Phi)^2) - \Delta(|\mathbf{x}|^2/d) + \Delta(1/d) = 2|\Phi|^2 - 2d/d + 0 = 0$, so $H$ is harmonic on $B^d$.
@@ -77,10 +73,9 @@ This identity is derived via harmonic polynomial extension on the Euclidean unit
 5. **Marginalization:** By rotational symmetry around the axis $\Phi$, the sphere integral against the Poisson kernel centered at $\sigma\Phi$ reduces to the 1D marginal measure `poissonMarginal d σ`:
    $$\int_0^\pi \cos^2\theta \, \partial(\mathrm{poissonMarginal}\, d\, \sigma) = H(\sigma\Phi) = \frac{(d - 1)\sigma^2 + 1}{d}.$$
 
-### Mathlib Scope Boundary & Lean Verification
-- **Dimension $d = 2$ (100% verified):** For $d = 2$, the unit sphere $S^1 \cong \mathbb{T} \subset \mathbb{C}$ allows harmonic functions to be treated as real parts of holomorphic functions. Mathlib provides `circleAverage_poissonKernel_of_diffContOnCl` (`Mathlib.Analysis.Complex.Poisson`), allowing the $d = 2$ theorem `poissonIntegral_cos_sq_d2` to be fully proved without any non-foundational axioms in `GegenbaurerHelper.lean`.
-- **Dimensions $d \ge 3$ (Mathlib boundary):** Mathlib currently lacks spherical harmonics ($L^2(S^{d-1}) = \bigoplus_k \mathcal{H}_k$), the Laplace-Beltrami operator, and the Poisson representation formula for Euclidean balls in $\mathbb{R}^d$ ($d \ge 3$). Axiomatizing `poissonIntegral_cos_sq_d3` precisely marks this analytic boundary.
-- **Formally verified algebraic properties:** In `IsotropicGroverProof/Gegenbauer.lean`, Lean-verified lemmas validate the algebraic backbone of this derivation:
+### Lean Verification of the Poisson Moments
+- **All dimensions $d \ge 2$ (100% verified, 0 custom axioms):** `IsotropicError.lean` proves both the first moment `poissonMarginal_mean_cos` ($\mathrm{E}[\cos\theta] = \sigma$) and the unnormalized second moment `halfcircle_cos_sq_eq` via 1D Fundamental Theorem of Calculus recurrences over $[0, \pi]$, anchored by $d = 2$ (Mathlib's complex Poisson formula in `Mathlib.Analysis.Complex.Poisson`) and $d = 3$ (an elementary antiderivative) with two-step induction $d \mapsto d + 2$. `Gegenbauer.lean` then proves `poissonIntegral_cos_sq` (along with specializations `poissonIntegral_cos_sq_d2` and `poissonIntegral_cos_sq_d3`) directly from `integral_poissonMarginal_eq` and `halfcircle_cos_sq_eq`.
+- **Formally verified algebraic properties:** In `IsotropicGroverProof/Gegenbauer.lean`, Lean-verified lemmas also validate the algebraic backbone of the harmonic-extension derivation:
   - `laplacian_trace_cancellation`: validates $2 - 2d/d = 0$ for $d \neq 0$.
   - `harmonicExtension_boundary`: validates $(\xi\cdot\Phi)^2 - 1/d + 1/d = (\xi\cdot\Phi)^2$.
   - `harmonicExtension_eval`: validates $\sigma^2 - \sigma^2/d + 1/d = ((d - 1)\sigma^2 + 1)/d$.
@@ -96,18 +91,17 @@ This identity is derived via harmonic polynomial extension on the Euclidean unit
 - `sessions/`: AI conversation logs and adversarial proof review notes.
 - `IsotropicGroverProof/`: Lean 4 formalization modules:
   ```
-  Basic.lean             — Barrel re-export importing all submodules in dependency order
-  Defs.lean              — M1: Ambient space ℝ^d, basis vectors, succProb, Parseval sum identity
-  IsotropicError.lean    — M2: Poisson kernel marginal density and isotropic error perturbed state
-  Composition.lean       — M3: Composed measure definition and sequential induction references
-  CrossTerm.lean         — M4: Equatorial sphere measure, odd symmetry, cross-term vanishing
-  SecondMoment.lean      — M5: Subspace projection P_perp, second moment E[e₂e₂ᵀ] = P_perp/(d-1), decoherent floor
-  GegenbaurerHelper.lean — Analytic proof of d=2 Poisson integral formula via Mathlib complex analysis
-  Gegenbauer.lean        — M6: Poisson integral second moment f₂, harmonic polynomial algebraic verification
-  MainTheorem.lean       — M7: isotropicGrover_main (for all n) and isotropicGrover_n0 (0 axioms)
-  LimitingCases.lean     — M8: Mixture prob connection and continuous parameter limits (σ→1, σ→0)
-  Sequential.lean        — Gate-level Markov error induction and sequential mixture theorem (0 axioms)
-  GroverCircuit.lean     — Grover state vectors, 2D search plane, and Grover specialization
+  Basic.lean          — Barrel re-export importing all submodules in dependency order
+  Defs.lean           — M1: Ambient space ℝ^d, basis vectors, succProb, Parseval sum identity
+  IsotropicError.lean — M2: Poisson kernel marginal density, all-dimension moment recurrences, and error state
+  Composition.lean    — M3: Composed measure definition and sequential induction references
+  CrossTerm.lean      — M4: Equatorial sphere measure, odd symmetry, cross-term vanishing
+  SecondMoment.lean   — M5: Subspace projection P_perp, second moment E[e₂e₂ᵀ] = P_perp/(d-1), decoherent floor
+  Gegenbauer.lean     — M6: Poisson integral second moment f₂ (0 custom axioms) and harmonic polynomial algebra
+  MainTheorem.lean    — M7: isotropicGrover_main (for all n, 0 custom axioms) and isotropicGrover_n0
+  LimitingCases.lean  — M8: Mixture prob connection and continuous parameter limits (σ→1, σ→0)
+  Sequential.lean     — Gate-level Markov error induction and sequential mixture theorem (0 axioms)
+  GroverCircuit.lean  — Grover state vectors, 2D search plane, and Grover specialization
   ```
 
 ---

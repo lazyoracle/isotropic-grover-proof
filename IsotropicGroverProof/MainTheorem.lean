@@ -4,9 +4,9 @@
 --     E[p_e] = σ^{2G} · p_ideal + (1 - σ^{2G}) / N
 --
 -- SORRY BUDGET: 0
---   All sorrys are in dependencies (CrossTerm M4, SecondMoment M5, Gegenbauer M6).
---   The algebra here (ring/field_simp) closes without sorrys once
---   the dependency theorems have their correct statements.
+--   Zero sorrys and zero custom axioms across the entire dependency chain
+--   (CrossTerm M4, SecondMoment M5, Gegenbauer M6).
+--   The algebra here (ring/field_simp) closes directly from those proved theorems.
 --
 -- KEY VERIFICATION: The `ring` call at the end is the integration test —
 -- if any intermediate theorem has the wrong real-arithmetic statement, this will fail.
@@ -86,24 +86,15 @@ theorem isotropicGrover_main (G : ℕ) (hG : 0 < G) (σ : ℝ) (hσ : σ ∈ Set
   rw [hd_eq]
   ring
 
-/-- For n = 0 (1 qubit, d = 2), the main theorem holds unconditionally and evaluates
-    the fully proved d = 2 Poisson integral formula (`poissonIntegral_cos_sq_d2`)
-    via `f₂_formula_d2` without relying on the d ≥ 3 Poisson integral axiom. -/
+/-- Specialization of `isotropicGrover_main` to `n = 0` (`d = 2`, retained for backwards
+    compatibility). -/
 theorem isotropicGrover_n0 (G : ℕ) (hG : 0 < G) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
     (Φ : E 0) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ 0)) :
     ∫ θ, ∫ e₂, succProb 0 (isotropicError Φ e₂ θ) w
           ∂(perpSphereMeasure Φ)
       ∂(composedMeasure (d 0) G σ) =
-    σ ^ (2 * G) * succProb 0 Φ w + (1 - σ ^ (2 * G)) / (2 ^ 0 : ℝ) := by
-  have hd2 : 2 ≤ d 0 := by simp [d]
-  rw [expanded_E_pe G hG σ hσ Φ hΦ w]
-  rw [decoherent_floor Φ hΦ w hd2]
-  have hd_eq : d 0 = 2 := by simp [d]
-  rw [hd_eq]
-  rw [f₂_formula_d2 G σ hσ hG]
-  have hN_ne : (2 : ℝ) ^ 0 ≠ 0 := by positivity
-  field_simp [hN_ne]
-  ring
+    σ ^ (2 * G) * succProb 0 Φ w + (1 - σ ^ (2 * G)) / (2 ^ 0 : ℝ) :=
+  isotropicGrover_main G hG σ hσ Φ hΦ w
 
 /-! ## TDD spot-checks — algebra verification -/
 
@@ -127,10 +118,7 @@ example (p σ2G : ℝ) (N : ℕ) (hN : 0 < N) : -- d = 2N
 #check @isotropicGrover_n0
 
 /--
-info: 'IsotropicGrover.isotropicGrover_main' depends on axioms: [propext,
- Classical.choice,
- poissonIntegral_cos_sq_d3,
- Quot.sound]
+info: 'IsotropicGrover.isotropicGrover_main' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms isotropicGrover_main
