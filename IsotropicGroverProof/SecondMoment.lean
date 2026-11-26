@@ -376,16 +376,10 @@ theorem isotropicError_bilinear_secondMoment (σ : ℝ) (hσ : σ ∈ Set.Icc 0 
     σ ^ 2 * (⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) + (1 - σ ^ 2) / (d n : ℝ) * ⟪u, v⟫_ℝ := by
   set μ := poissonAngleMeasure (d n) σ
   have : IsProbabilityMeasure μ := poissonAngleMeasure_d_isProbMeasure n σ hσ
-  have hcos_int : Integrable (fun θ => cos θ ^ 2) μ := cos_sq_integrable_prob
-  have hsin_int : Integrable (fun θ => sin θ ^ 2) μ := sin_sq_integrable_prob
-  have hsin_eq : ∫ θ, sin θ ^ 2 ∂μ = 1 - ∫ θ, cos θ ^ 2 ∂μ := by
-    have hsum : ∫ θ, (cos θ ^ 2 + sin θ ^ 2) ∂μ = 1 := by
-      simp_rw [Real.cos_sq_add_sin_sq]; simp
-    rw [integral_add hcos_int hsin_int] at hsum
-    linarith
   simp_rw [integral_e₂_bilinear Ψ hΨ u v]
-  rw [integral_add (hcos_int.mul_const _) (hsin_int.mul_const _),
-      integral_mul_const, integral_mul_const, hsin_eq,
+  rw [integral_add (cos_sq_integrable_prob.mul_const _) (sin_sq_integrable_prob.mul_const _),
+      integral_mul_const, integral_mul_const,
+      integral_sin_sq_eq_one_sub_integral_cos_sq,
       poissonAngleMeasure_cos_sq (d n) σ hσ (two_le_d n)]
   have hd_ne := cast_d_ne_zero n
   have hd1_ne := cast_d_sub_one_ne_zero n

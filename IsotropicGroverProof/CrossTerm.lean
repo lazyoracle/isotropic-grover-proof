@@ -502,18 +502,10 @@ theorem expanded_E_pe (G : ℕ) (hG : 0 < G) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 
   simp_rw [integral_e₂_succProb Φ _ w]
   -- Goal: ∫ θ, (cos²θ · p + sin²θ · q) ∂μ = f₂·p + (1-f₂)·q
   -- where f₂ = ∫ cos²θ ∂μ definitionally
-  set μ := composedMeasure (d n) G σ
-  have hcos_int : Integrable (fun θ => cos θ ^ 2) μ := cos_sq_integrable_prob
-  have hsin_int : Integrable (fun θ => sin θ ^ 2) μ := sin_sq_integrable_prob
-  have hf₂_def : f₂ (d n) G σ = ∫ θ, cos θ ^ 2 ∂μ := rfl
-  have hsin_f₂ : ∫ θ, sin θ ^ 2 ∂μ = 1 - f₂ (d n) G σ := by
-    have hsum : ∫ θ, (cos θ ^ 2 + sin θ ^ 2) ∂μ = 1 := by
-      simp_rw [Real.cos_sq_add_sin_sq]
-      simp
-    rw [integral_add hcos_int hsin_int] at hsum
-    linarith [hf₂_def]
-  rw [integral_add (hcos_int.mul_const _) (hsin_int.mul_const _),
-      integral_mul_const, integral_mul_const, hsin_f₂, ← hf₂_def]
+  rw [integral_add (cos_sq_integrable_prob.mul_const _) (sin_sq_integrable_prob.mul_const _),
+      integral_mul_const, integral_mul_const,
+      integral_sin_sq_eq_one_sub_integral_cos_sq]
+  rfl
 
 /-! ## Isometry invariance helpers for the Schur argument -/
 

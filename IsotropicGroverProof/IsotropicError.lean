@@ -694,6 +694,15 @@ lemma sin_sq_integrable_prob {μ : Measure ℝ} [IsProbabilityMeasure μ] :
     rw [Real.norm_eq_abs, abs_of_nonneg (sq_nonneg _)]
     nlinarith [Real.sin_sq_add_cos_sq θ, sq_nonneg (Real.cos θ)]
 
+/-- Under any probability measure on `ℝ`, `∫ θ, sin² θ ∂μ = 1 - ∫ θ, cos² θ ∂μ`. -/
+lemma integral_sin_sq_eq_one_sub_integral_cos_sq {μ : Measure ℝ} [IsProbabilityMeasure μ] :
+    ∫ θ, sin θ ^ 2 ∂μ = 1 - ∫ θ, cos θ ^ 2 ∂μ := by
+  have hsum : ∫ θ, (cos θ ^ 2 + sin θ ^ 2) ∂μ = 1 := by
+    simp_rw [Real.cos_sq_add_sin_sq]
+    simp
+  rw [integral_add cos_sq_integrable_prob sin_sq_integrable_prob] at hsum
+  linarith
+
 /-! ## The isotropic error state -/
 
 /-- The state after a single isotropic error with perturbation angle θ and noise direction e₂.
