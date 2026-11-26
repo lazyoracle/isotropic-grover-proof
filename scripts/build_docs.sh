@@ -33,13 +33,20 @@ try:
     ]
 except Exception:
     sys.exit(1)
-sys.exit(0 if git_pkgs and all(os.path.isdir(os.path.join(pkgs_dir, p)) for p in git_pkgs) else 1)
+sys.exit(0 if git_pkgs and all(os.path.isdir(os.path.join(pkgs_dir, p, ".git")) for p in git_pkgs) else 1)
 '
 }
 
 LEAN_REV="$(cut -d: -f2 < lean-toolchain | tr -d '[:space:]')"
 
 mkdir -p docbuild
+if [ -f docbuild/lean-toolchain ] && ! cmp -s lean-toolchain docbuild/lean-toolchain; then
+  rm -f docbuild/lake-manifest.json docbuild/.root-manifest.sha256
+fi
+if [ ! -f docbuild/lean-toolchain ] || ! cmp -s lean-toolchain docbuild/lean-toolchain; then
+  cp lean-toolchain docbuild/lean-toolchain
+fi
+
 EXPECTED_LAKEFILE="$(cat <<EOF
 name = "docbuild"
 reservoir = false
@@ -71,8 +78,13 @@ fi
     MATHLIB_NO_CACHE_ON_UPDATE=1 lake update isotropic-grover-proof
     printf '%s\n' "$root_hash" > .root-manifest.sha256
   fi
-  rm -f .lake/build/doc-data/*.docs_built
-  rm -rf .lake/build/doc/IsotropicGroverProof .lake/build/doc/IsotropicGroverProof.html
+  rm -f .lake/build/doc-data/*.docs_built* \
+        .lake/build/doc-data/references.json* \
+        .lake/build/doc-data/IsotropicGroverProof.doc* \
+        .lake/build/doc-data/IsotropicGroverProof.*.doc* \
+        .lake/build/doc-data/declaration-data-*.bmp \
+        .lake/build/doc-data/backrefs-*.json
+  rm -rf .lake/build/doc
   lake build IsotropicGroverProof:docs
 )
 
@@ -80,6 +92,9 @@ rm -rf _pages && mkdir -p _pages
 cp -r docbuild/.lake/build/doc _pages/docs
 
 for page in \
+  "_pages/docs/style.css" \
+  "_pages/docs/declaration-data.js" \
+  "_pages/docs/declarations/declaration-data.bmp" \
   "_pages/docs/IsotropicGroverProof.html" \
   "_pages/docs/IsotropicGroverProof/MainTheorem.html" \
   "_pages/docs/IsotropicGroverProof/QuantumChannel.html" \
