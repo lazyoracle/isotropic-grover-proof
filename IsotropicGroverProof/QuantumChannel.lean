@@ -450,9 +450,8 @@ theorem noisyTrajectory_pureDensityMatrix_re {n : ℕ} (σ : ℝ) (hσ : σ ∈ 
     simp [e0x, e0y, inner_stdBasisVec, h0_iff]
   have h11 : ⟪e1x, e1y⟫_ℝ = if x = y then 1 else 0 := by
     simp [e1x, e1y, inner_stdBasisVec, h1_iff]
-  have hd_eq : (d n : ℝ) = 2 * (2 ^ n : ℝ) := by simp only [d]; push_cast; ring
   have hN_ne : (2 ^ n : ℝ) ≠ 0 := by positivity
-  rw [h00, h11, hd_eq]
+  rw [h00, h11, cast_d n]
   dsimp only [e0x, e1x, e0y, e1y]
   by_cases hxy : x = y
   · subst hxy
@@ -895,6 +894,18 @@ info: 'IsotropicGrover.noisyTrajectory_eq_depolarizingChannel' depends on axioms
 -/
 #guard_msgs in
 #print axioms noisyTrajectory_eq_depolarizingChannel
+
+/--
+info: 'IsotropicGrover.depolarizingChannel_comm_ofUnitary' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms depolarizingChannel_comm_ofUnitary
+
+/--
+info: 'IsotropicGrover.depolarizingChannel_compose' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms depolarizingChannel_compose
 
 /--
 info: 'IsotropicGrover.noisyCircuitChannel_eq' depends on axioms: [propext, Classical.choice, Quot.sound]

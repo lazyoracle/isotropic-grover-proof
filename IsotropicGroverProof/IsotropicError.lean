@@ -1,24 +1,15 @@
 -- IsotropicGroverProof/IsotropicError.lean
--- M2: The isotropic error model — Poisson kernel marginal density g(θ;σ),
---     the error state Ψ = cos θ · Φ + sin θ · e₂, and 1D FTC recurrences for
---     all-dimension first and second moments of the Poisson marginal.
---
--- SORRY BUDGET: 0
--- AXIOM BUDGET: 0
---   PROVED (poissonMarginal_isProbMeasure): normalization via interval integral positivity
---   PROVED (poissonMarginal_mean_cos): first moment E[cos θ] = σ for all d ≥ 2 via 1D FTC
---     and two-step induction from d = 2 (complex Poisson) and d = 3 (elementary antiderivative)
---   PROVED (halfcircle_cos_sq_eq): unnormalized second moment recurrence for all d ≥ 2 via 1D FTC
+-- Single-gate isotropic pure-state error model: Poisson kernel marginal density g(θ; σ),
+-- closed-interval angle measure poissonAngleMeasure on σ ∈ [0, 1], 1D FTC moment recurrences
+-- proving E[cos θ] = σ and E[cos² θ] = ((d - 1)σ² + 1) / d for all d ≥ 2, and the perturbed
+-- unit state isotropicError Φ e₂ θ = cos θ • Φ + sin θ • e₂.
 
-import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Deriv
 import Mathlib.Analysis.SpecialFunctions.Pow.Continuity
 import Mathlib.Analysis.SpecialFunctions.Pow.Deriv
 import Mathlib.MeasureTheory.Measure.WithDensity
-import Mathlib.MeasureTheory.Integral.Bochner.Basic
 import Mathlib.MeasureTheory.Integral.Bochner.Set
 import Mathlib.MeasureTheory.Integral.Bochner.ContinuousLinearMap
-import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus
 import Mathlib.MeasureTheory.Measure.Lebesgue.Basic
 import Mathlib.MeasureTheory.Function.LocallyIntegrable
@@ -193,16 +184,12 @@ private lemma poissonKernelDensity_d2 (σ θ : ℝ) : poissonKernelDensity 2 σ 
 
 private lemma norm_sq_exp_sub_d2 (σ θ : ℝ) :
     ‖(Complex.exp (↑θ * Complex.I) - ↑σ : ℂ)‖^2 = 1 + σ^2 - 2*σ*(cos θ) := by
-  have h1 : (Complex.exp (↑θ * Complex.I) - ↑σ).re = cos θ - σ := by
-    simp [Complex.exp_mul_I, Complex.cos_ofReal_re]
-  have h2 : (Complex.exp (↑θ * Complex.I) - ↑σ).im = sin θ := by
-    simp [Complex.exp_mul_I, Complex.sin_ofReal_re]
-  rw [RCLike.norm_sq_eq_def]
-  rw [← show (Complex.exp (↑θ * Complex.I) - ↑σ).re =
-    RCLike.re (Complex.exp (↑θ * Complex.I) - ↑σ) from rfl]
-  rw [← show (Complex.exp (↑θ * Complex.I) - ↑σ).im =
-    RCLike.im (Complex.exp (↑θ * Complex.I) - ↑σ) from rfl]
-  rw [h1, h2]; nlinarith [Real.sin_sq_add_cos_sq θ]
+  rw [← Complex.normSq_eq_norm_sq, Complex.normSq_apply]
+  simp only [Complex.sub_re, Complex.sub_im, Complex.exp_mul_I, Complex.add_re, Complex.add_im,
+    Complex.cos_ofReal_re, Complex.cos_ofReal_im, Complex.mul_re, Complex.mul_im,
+    Complex.sin_ofReal_re, Complex.sin_ofReal_im, Complex.I_re, Complex.I_im,
+    Complex.ofReal_re, Complex.ofReal_im]
+  nlinarith [Real.sin_sq_add_cos_sq θ]
 
 private lemma pK_is_pKDens_d2 (σ θ : ℝ) :
     poissonKernel (0:ℂ) (σ:ℂ) (Complex.exp (↑θ * Complex.I)) = poissonKernelDensity 2 σ θ := by
@@ -313,36 +300,29 @@ private lemma fold_sym_d2 (f : ℝ → ℝ) (hf : ∀ θ, f (2 * Real.pi - θ) =
     simp only [show 2 * Real.pi - 2 * Real.pi = 0 from by ring,
                show 2 * Real.pi - Real.pi = Real.pi from by ring]
     congr 1; funext θ; exact hf θ
-  linarith [split, key,
-    show ∫ θ in (0:ℝ)..2 * Real.pi, f θ = ∫ x in (0:ℝ)..2 * Real.pi, f x from rfl,
-    show ∫ θ in (0:ℝ)..Real.pi, f θ = ∫ x in (0:ℝ)..Real.pi, f x from rfl,
-    show ∫ θ in Real.pi..2 * Real.pi, f θ = ∫ x in Real.pi..2 * Real.pi, f x from rfl]
+  rw [← split, key]
+  ring
 
 private lemma halfcircle_cos_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
     ∫ θ in (0:ℝ)..Real.pi, poissonKernelDensity 2 σ θ * cos θ = Real.pi * σ := by
   have hcont : Continuous (fun θ => poissonKernelDensity 2 σ θ * cos θ) :=
     (poissonKernelDensity_continuous 2 σ (Set.Ioo_subset_Ico_self hσ)).mul continuous_cos
   have sym : ∀ θ, poissonKernelDensity 2 σ (2 * Real.pi - θ) * cos (2 * Real.pi - θ) =
-             poissonKernelDensity 2 σ θ * cos θ := by
-    intro θ; simp_rw [poissonKernelDensity_d2, Real.cos_two_pi_sub]
+             poissonKernelDensity 2 σ θ * cos θ := fun θ => by
+    simp_rw [poissonKernelDensity_d2, Real.cos_two_pi_sub]
   have hfull := fullcircle_cos_d2 σ hσ
-  have hfold := fold_sym_d2 _ sym hcont
-  have h2pi : (2 * Real.pi) > 0 := by linarith [Real.pi_pos]
-  have hfull' : ∫ θ in (0:ℝ)..2 * Real.pi,
-      poissonKernelDensity 2 σ θ * cos θ = 2 * Real.pi * σ := by
-    field_simp [h2pi.ne'] at hfull ⊢; linarith
-  rw [hfold] at hfull'; linarith
+  rw [fold_sym_d2 _ sym hcont] at hfull
+  field_simp [Real.pi_ne_zero] at hfull
+  linarith
 
 private lemma halfcircle_norm_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
     ∫ θ in (0:ℝ)..Real.pi, poissonKernelDensity 2 σ θ = Real.pi := by
-  have sym : ∀ θ, poissonKernelDensity 2 σ (2 * Real.pi - θ) = poissonKernelDensity 2 σ θ := by
-    intro θ; simp_rw [poissonKernelDensity_d2, Real.cos_two_pi_sub]
+  have sym : ∀ θ, poissonKernelDensity 2 σ (2 * Real.pi - θ) = poissonKernelDensity 2 σ θ :=
+    fun θ => by simp_rw [poissonKernelDensity_d2, Real.cos_two_pi_sub]
   have hfull := fullcircle_norm_d2 σ hσ
-  have hfold := fold_sym_d2 _ sym (poissonKernelDensity_continuous 2 σ (Set.Ioo_subset_Ico_self hσ))
-  have h2pi : (2 * Real.pi) > 0 := by linarith [Real.pi_pos]
-  have hfull' : ∫ θ in (0:ℝ)..2 * Real.pi, poissonKernelDensity 2 σ θ = 2 * Real.pi := by
-    field_simp [h2pi.ne'] at hfull ⊢; linarith
-  rw [hfold] at hfull'; linarith
+  rw [fold_sym_d2 _ sym (poissonKernelDensity_continuous 2 σ (Set.Ioo_subset_Ico_self hσ))] at hfull
+  field_simp [Real.pi_ne_zero] at hfull
+  linarith
 
 /-! ### 1D FTC recurrences and d = 3 base case -/
 
@@ -696,6 +676,33 @@ theorem poissonAngleMeasure_cos_sq (d : ℕ) (σ : ℝ)
     ring
   · exact poissonMarginal_cos_sq_Ico d σ ⟨hσ.1, lt_of_le_of_ne hσ.2 h1⟩ hd
 
+/-- `cos² θ` is integrable under any probability measure on `ℝ`. -/
+lemma cos_sq_integrable_prob {μ : Measure ℝ} [IsProbabilityMeasure μ] :
+    Integrable (fun θ => cos θ ^ 2) μ := by
+  apply Integrable.mono' (integrable_const (1 : ℝ))
+  · exact (continuous_cos.pow 2).measurable.aestronglyMeasurable
+  · filter_upwards with θ
+    rw [Real.norm_eq_abs, abs_of_nonneg (sq_nonneg _)]
+    nlinarith [Real.sin_sq_add_cos_sq θ, sq_nonneg (Real.sin θ)]
+
+/-- `sin² θ` is integrable under any probability measure on `ℝ`. -/
+lemma sin_sq_integrable_prob {μ : Measure ℝ} [IsProbabilityMeasure μ] :
+    Integrable (fun θ => sin θ ^ 2) μ := by
+  apply Integrable.mono' (integrable_const (1 : ℝ))
+  · exact (continuous_sin.pow 2).measurable.aestronglyMeasurable
+  · filter_upwards with θ
+    rw [Real.norm_eq_abs, abs_of_nonneg (sq_nonneg _)]
+    nlinarith [Real.sin_sq_add_cos_sq θ, sq_nonneg (Real.cos θ)]
+
+/-- Under any probability measure on `ℝ`, `∫ θ, sin² θ ∂μ = 1 - ∫ θ, cos² θ ∂μ`. -/
+lemma integral_sin_sq_eq_one_sub_integral_cos_sq {μ : Measure ℝ} [IsProbabilityMeasure μ] :
+    ∫ θ, sin θ ^ 2 ∂μ = 1 - ∫ θ, cos θ ^ 2 ∂μ := by
+  have hsum : ∫ θ, (cos θ ^ 2 + sin θ ^ 2) ∂μ = 1 := by
+    simp_rw [Real.cos_sq_add_sin_sq]
+    simp
+  rw [integral_add cos_sq_integrable_prob sin_sq_integrable_prob] at hsum
+  linarith
+
 /-! ## The isotropic error state -/
 
 /-- The state after a single isotropic error with perturbation angle θ and noise direction e₂.
@@ -707,18 +714,8 @@ noncomputable def isotropicError (Φ e₂ : E n) (θ : ℝ) : E n :=
 /-- The error state has norm 1 when Φ and e₂ are unit vectors and e₂ ⊥ Φ. -/
 lemma isotropicError_norm (Φ e₂ : E n) (θ : ℝ)
     (hΦ : ‖Φ‖ = 1) (he₂ : ‖e₂‖ = 1) (hperp : inner (𝕜 := ℝ) Φ e₂ = 0) :
-    ‖isotropicError Φ e₂ θ‖ = 1 := by
-  have hsq : ‖isotropicError Φ e₂ θ‖ ^ 2 = 1 := by
-    rw [isotropicError, norm_add_sq_real]
-    have h1 : ‖cos θ • Φ‖ ^ 2 = cos θ ^ 2 := by
-      rw [norm_smul, mul_pow]; simp [Real.norm_eq_abs, sq_abs, hΦ]
-    have h2 : ‖sin θ • e₂‖ ^ 2 = sin θ ^ 2 := by
-      rw [norm_smul, mul_pow]; simp [Real.norm_eq_abs, sq_abs, he₂]
-    have h3 : inner (𝕜 := ℝ) (cos θ • Φ) (sin θ • e₂) = 0 := by
-      simp [inner_smul_left, inner_smul_right, hperp]
-    rw [h1, h2, h3]
-    linarith [Real.sin_sq_add_cos_sq θ]
-  nlinarith [norm_nonneg (isotropicError Φ e₂ θ), sq_nonneg (‖isotropicError Φ e₂ θ‖ - 1)]
+    ‖isotropicError Φ e₂ θ‖ = 1 :=
+  norm_smul_add_smul_of_ortho hΦ he₂ hperp (Real.cos_sq_add_sin_sq θ)
 
 /-! ## TDD spot-checks -/
 
@@ -741,6 +738,18 @@ info: 'IsotropicGrover.halfcircle_cos_sq_eq' depends on axioms: [propext, Classi
 -/
 #guard_msgs in
 #print axioms halfcircle_cos_sq_eq
+
+/--
+info: 'IsotropicGrover.poissonAngleMeasure_isProbMeasure' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms poissonAngleMeasure_isProbMeasure
+
+/--
+info: 'IsotropicGrover.poissonAngleMeasure_mean_cos' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms poissonAngleMeasure_mean_cos
 
 /--
 info: 'IsotropicGrover.poissonAngleMeasure_cos_sq' depends on axioms: [propext, Classical.choice, Quot.sound]

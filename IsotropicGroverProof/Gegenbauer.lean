@@ -1,7 +1,8 @@
 -- IsotropicGroverProof/Gegenbauer.lean
--- M6: f₂ = E[cos²θ_G] via the Poisson integral formula and harmonic extension.
+-- Second moment f₂ = E[cos² θ_G] = ((d - 1)σ^{2G} + 1) / d via harmonic-extension
+-- polynomial identities and the 1D FTC recurrence from IsotropicError.lean.
 --
--- Approach (from english-proof.md §6):
+-- Harmonic-extension geometry:
 --   Boundary data on S^{d-1}: h(ξ) = (ξ · Φ)² = cos²θ (where ‖Φ‖ = 1).
 --   Harmonic extension on B^d: H(x) = (x · Φ)² − ‖x‖²/d + 1/d.
 --     Since Δ((x · Φ)²) = 2‖Φ‖² = 2 and Δ(‖x‖²/d) = 2d/d = 2, we have ΔH = 0 on B^d.
@@ -12,21 +13,11 @@
 --     H(x) = ∫_{S^{d-1}} P(x, ξ) h(ξ) dσ(ξ).
 --   Evaluating at the interior point x = σΦ (with ‖x‖² = σ² and x · Φ = σ):
 --     H(σΦ) = σ² − σ²/d + 1/d = ((d − 1)σ² + 1) / d.
---   By rotational symmetry around Φ, the surface integral against the Poisson kernel
---   reduces to the 1D marginal measure:
---     ∫ θ, cos²θ ∂(poissonMarginal d σ) = ((d − 1)σ² + 1) / d.
---   For G composed gates, substituting σ → σ^G gives f₂ = ((d − 1)σ^{2G} + 1) / d.
---
--- AXIOM STATUS:
---   - Zero custom or non-foundational axioms (`[propext, Classical.choice, Quot.sound]`).
---   - `poissonIntegral_cos_sq` (`E[cos² θ] = ((d - 1)σ² + 1) / d` for all `d ≥ 2`) is
---     formally proved via the generic marginal expectation reduction
---     `integral_poissonMarginal_eq` and the all-dimension 1D FTC recurrence
---     `halfcircle_cos_sq_eq` in `IsotropicError.lean`.
---   - `poissonIntegral_cos_sq_d2` (`d = 2`) and `poissonIntegral_cos_sq_d3` (`d ≥ 3`)
---     are proved as 1-line corollaries of `poissonIntegral_cos_sq`.
+--   Formally, `poissonIntegral_cos_sq` is proved directly for all `d ≥ 2` from
+--   `integral_poissonMarginal_eq` and `halfcircle_cos_sq_eq` in `IsotropicError.lean`,
+--   with `poissonIntegral_cos_sq_d2`, `poissonIntegral_cos_sq_d3`, and `f₂_formula` as
+--   immediate corollaries.
 
-import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
 import IsotropicGroverProof.Composition
 
 /-!
@@ -45,8 +36,7 @@ open Real MeasureTheory
     Δ((x · Φ)²) − Δ(‖x‖²/d) = 2‖Φ‖² − 2d/d = 2 − 2 = 0 for any d ≠ 0. -/
 lemma laplacian_trace_cancellation (d : ℝ) (hd : d ≠ 0) :
     (2 : ℝ) - (2 * d) / d = 0 := by
-  field_simp [hd]
-  try ring
+  rw [mul_div_cancel_right₀ 2 hd, sub_self]
 
 /-- Boundary matching of the harmonic extension H(x) = (x · Φ)² − ‖x‖²/d + 1/d:
     on the unit sphere S^{d-1} where ‖ξ‖² = 1,
@@ -171,5 +161,11 @@ info: 'IsotropicGrover.poissonIntegral_cos_sq_d3' depends on axioms: [propext, C
 -/
 #guard_msgs in
 #print axioms poissonIntegral_cos_sq_d3
+
+/--
+info: 'IsotropicGrover.f₂_formula' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms f₂_formula
 
 end IsotropicGrover

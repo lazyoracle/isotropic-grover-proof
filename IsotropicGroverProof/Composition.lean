@@ -1,8 +1,6 @@
 -- IsotropicGroverProof/Composition.lean
--- M3: Effective single-error measure with parameter σ^G and second moment f₂ = E[cos² θ_G].
---
--- SORRY BUDGET: 0
--- AXIOM BUDGET: 0
+-- Effective single-error angle measure composedMeasure d G σ = poissonMarginal d (σ ^ G)
+-- and its second moment f₂ = E[cos² θ_G] for σ ∈ (0, 1) and G > 0.
 
 import IsotropicGroverProof.IsotropicError
 
@@ -10,8 +8,9 @@ import IsotropicGroverProof.IsotropicError
 # Composed Isotropic Error Measure
 
 Effective perturbation-angle measure `composedMeasure d G σ := poissonMarginal d (σ ^ G)` and
-its second moment `f₂ = E[cos² θ_G]`. Multi-gate error accumulation across sequential gates is
-derived via the Markov chain in `IsotropicGroverProof/Sequential.lean`.
+its second moment `f₂ = E[cos² θ_G]`. Multi-gate error accumulation across interleaved unitaries
+and channels is derived in `IsotropicGroverProof/Sequential.lean` and
+`IsotropicGroverProof/QuantumChannel.lean`.
 -/
 
 namespace IsotropicGrover
@@ -20,15 +19,16 @@ open MeasureTheory Real
 
 /-! ## Multi-gate error composition note
 
-    Historically, composition was cited from Lacalle & Pozo Coronado (2019)
-    as an effective parameter property σ^G. However, in physical quantum circuits,
-    each gate error rotates around the perturbed state Ψ_k rather than the initial state Φ.
-    The rigorous physical derivation across G gates is formalized via the sequential
-    Markov chain in `IsotropicGroverProof/Sequential.lean` (resolving Issues #6, #7, and #30),
-    yielding the exact same second moment f_k = ((d-1)σ^{2k} + 1)/d unconditionally.
+    In Lacalle & Pozo Coronado (2019), `G` gate errors of per-gate fidelity `σ` are represented
+    by an effective parameter `σ ^ G`. In physical quantum circuits, each gate error perturbs the
+    instantaneous state `U_{k+1} Ψ_k` rather than rotating around a fixed initial axis `Φ`.
+    `IsotropicGroverProof/Sequential.lean` and `IsotropicGroverProof/QuantumChannel.lean` prove
+    from the gate-by-gate Markov trajectory and `CPTPMap` depolarizing semigroup that interleaved
+    unitary gates and isotropic sphere perturbations accumulate to the exact same fidelity factor
+    `f_G = ((d - 1) σ^{2G} + 1) / d` across all `σ ∈ [0, 1]` and `G : ℕ`.
 
-    The definition `composedMeasure d G σ := poissonMarginal d (σ ^ G)` below serves as
-    the single-effective-error representation corresponding to this sequential induction. -/
+    The definition `composedMeasure d G σ := poissonMarginal d (σ ^ G)` below provides the
+    effective single-step angle measure used by `isotropicGrover_main` on `σ ∈ (0, 1)`, `0 < G`. -/
 
 /-! ## Composed error measure -/
 

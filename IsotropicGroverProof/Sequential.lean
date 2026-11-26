@@ -1,19 +1,12 @@
 -- IsotropicGroverProof/Sequential.lean
--- Sequential Markov error accumulation: formalizing the G-gate induction
--- from english-proof.md §6.
---
--- This resolves Issues #6 and #7:
---   - Replaces the heuristic single-effective-error shortcut with an explicit
---     Markov chain on the fidelity f_k = E[(Ψ_k · Φ)²].
---   - Solves the linear recurrence f_{k+1} = λ f_k + (1-λ)(1-f_k)/(d-1)
---     in closed form: f_k = ((d-1)σ^{2k} + 1) / d for all k ≥ 0.
---   - Connects the Markov chain induction to the mixture formula without
---     requiring spherical convolution theorems or rotational commutativity.
+-- Multi-gate sequential Markov chain error accumulation:
+-- 1. Closed-form solution f_k = ((d - 1)σ^{2k} + 1) / d of the scalar fidelity recurrence
+--    f_{k+1} = λ f_k + (1 - λ)(1 - f_k) / (d - 1) and sequential_mixture_formula.
+-- 2. Pure-state Markov trajectory noisyTrajectoryExpectation over arbitrary interleaved
+--    isometries List (E n ≃ₗᵢ[ℝ] E n) across σ ∈ [0, 1], establishing noisyTrajectory_bilinear,
+--    noisyTrajectory_fidelity_eq_sequentialFidelity, and noisyTrajectory_succProb.
 
-import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import Mathlib.MeasureTheory.Integral.DominatedConvergence
-import IsotropicGroverProof.Defs
-import IsotropicGroverProof.Composition
 import IsotropicGroverProof.Gegenbauer
 import IsotropicGroverProof.SecondMoment
 
@@ -83,14 +76,8 @@ theorem sequentialFidelity_eq (d : ℕ) (σ : ℝ) (k : ℕ) (hd : 2 ≤ d) :
     ring
   | succ k ih =>
     simp only [sequentialFidelity]
-    have hstep := stepTransition_sub_inv_d d σ (sequentialFidelity d σ k) hd
-    have hT : stepTransition d σ (sequentialFidelity d σ k) =
-        1 / (d : ℝ) + σ ^ 2 * (sequentialFidelity d σ k - 1 / (d : ℝ)) := by
-      linarith
-    rw [hT, ih]
-    have hpow : σ ^ (2 * (k + 1)) = σ ^ 2 * σ ^ (2 * k) := by
-      rw [show 2 * (k + 1) = 2 + 2 * k by omega, pow_add]
-    rw [hpow]
+    rw [eq_add_of_sub_eq (stepTransition_sub_inv_d d σ (sequentialFidelity d σ k) hd),
+        ih, mul_add, pow_add]
     field_simp
     ring
 
@@ -113,16 +100,12 @@ theorem sequential_mixture_formula (p : ℝ) (n G : ℕ) (σ : ℝ) :
     sequentialFidelity (d n) σ G * p +
       (1 - sequentialFidelity (d n) σ G) * (2 - p) / ((d n : ℝ) - 1) =
     σ ^ (2 * G) * p + (1 - σ ^ (2 * G)) / (2 ^ n : ℝ) := by
-  have hd2 := two_le_d n
-  rw [sequentialFidelity_eq (d n) σ G hd2]
-  have hd_ne : (d n : ℝ) ≠ 0 := by positivity
-  have hd1_ne : (d n : ℝ) - 1 ≠ 0 := by
-    have : (1 : ℝ) < (d n : ℝ) := by exact_mod_cast (by omega : 1 < d n)
-    linarith
+  rw [sequentialFidelity_eq (d n) σ G (two_le_d n)]
+  have hd_ne := cast_d_ne_zero n
+  have hd1_ne := cast_d_sub_one_ne_zero n
   have hN_ne : (2 : ℝ) ^ n ≠ 0 := by positivity
-  have hd_eq : (d n : ℝ) = 2 * 2 ^ n := by simp only [d]; push_cast; ring
   field_simp [hd_ne, hd1_ne, hN_ne]
-  rw [hd_eq]
+  rw [cast_d n]
   ring
 
 /-! ## Multi-gate sequential noisy trajectory over interleaved isometries -/
@@ -585,11 +568,9 @@ theorem noisyTrajectoryExpectation_sub (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
     noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => f Ψ - g Ψ) =
     noisyTrajectoryExpectation n σ gates Φ₀ f -
     noisyTrajectoryExpectation n σ gates Φ₀ g := by
-  have hsub : (fun Ψ : E n => f Ψ - g Ψ) = (fun Ψ => f Ψ + -g Ψ) := by
-    ext Ψ; exact sub_eq_add_neg _ _
-  have hg_neg : Continuous (fun Ψ : E n => -g Ψ) := Continuous.neg hg
-  rw [hsub, noisyTrajectoryExpectation_add σ hσ gates Φ₀ hΦ₀ hf hg_neg,
-      noisyTrajectoryExpectation_neg, sub_eq_add_neg]
+  simp_rw [sub_eq_add_neg]
+  rw [noisyTrajectoryExpectation_add σ hσ gates Φ₀ hΦ₀ hf (g := fun Ψ => -g Ψ) hg.neg,
+      noisyTrajectoryExpectation_neg]
 
 /-! ### Multi-gate bilinear second-moment, fidelity, and success-probability theorems -/
 
@@ -647,7 +628,7 @@ theorem noisyTrajectory_bilinear (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
                List.length_cons, idealGateTrajectory_cons]
     rw [W.symm.inner_map_map u v, ← hadj (U Φ₀) u, ← hadj (U Φ₀) v,
         show 2 * (rest.length + 1) = 2 * rest.length + 2 by omega, pow_add]
-    have hd_ne : (d n : ℝ) ≠ 0 := by positivity
+    have hd_ne := cast_d_ne_zero n
     field_simp [hd_ne]
     ring
 
@@ -665,7 +646,7 @@ theorem noisyTrajectory_fidelity_eq_sequentialFidelity (σ : ℝ) (hσ : σ ∈ 
   simp_rw [sq]
   rw [noisyTrajectory_bilinear σ hσ gates Φ₀ hΦ₀ ΦG ΦG, hΦG,
       sequentialFidelity_eq (d n) σ gates.length (two_le_d n)]
-  have hd_ne : (d n : ℝ) ≠ 0 := by positivity
+  have hd_ne := cast_d_ne_zero n
   field_simp [hd_ne]
   ring
 
@@ -692,9 +673,8 @@ theorem noisyTrajectory_succProb (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
       noisyTrajectory_bilinear σ hσ gates Φ₀ hΦ₀ e₁ e₁]
   have he₀ : ⟪e₀, e₀⟫_ℝ = 1 := by rw [real_inner_self_eq_norm_sq, stdBasisVec_norm, one_pow]
   have he₁ : ⟪e₁, e₁⟫_ℝ = 1 := by rw [real_inner_self_eq_norm_sq, stdBasisVec_norm, one_pow]
-  have hd_eq : (d n : ℝ) = 2 * (2 ^ n : ℝ) := by simp only [d]; push_cast; ring
   have hN_ne : (2 ^ n : ℝ) ≠ 0 := by positivity
-  rw [he₀, he₁, hd_eq]
+  rw [he₀, he₁, cast_d n]
   field_simp [hN_ne]
   ring
 
@@ -724,6 +704,24 @@ example (d : ℕ) (σ : ℝ) : sequentialFidelity d σ 1 = stepLambda d σ := by
 #check @noisyTrajectory_bilinear
 #check @noisyTrajectory_fidelity_eq_sequentialFidelity
 #check @noisyTrajectory_succProb
+
+/--
+info: 'IsotropicGrover.sequentialFidelity_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms sequentialFidelity_eq
+
+/--
+info: 'IsotropicGrover.sequentialFidelity_eq_f₂' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms sequentialFidelity_eq_f₂
+
+/--
+info: 'IsotropicGrover.sequential_mixture_formula' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms sequential_mixture_formula
 
 /--
 info: 'IsotropicGrover.noisyTrajectory_bilinear' depends on axioms: [propext, Classical.choice, Quot.sound]

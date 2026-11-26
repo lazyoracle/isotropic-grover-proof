@@ -1,115 +1,102 @@
 # isotropic-grover-proof
 
-This repository formalises the mathematical proof studying the impact of isotropic errors on Grover's Algorithm using Lean 4, Mathlib, and agentic AI tools.
+A zero-custom-axiom **Lean 4** formalization of the exact expected success probability of noisy $n$-qubit quantum circuits and Grover's database search algorithm under microscopic isotropic pure-state gate errors, bridging real spherical geometry (`Mathlib`) to `Physlib`'s `QuantumInfo` (`Ket`, `MState`, `CPTPMap`, `POVM`) and `google-deepmind/formal-quantum-computation` (`Circuit`, `Circuit.size`, `Grover`).
 
-## Goal
+## Overview & Main Result
 
-The primary goal of this derivation is a closed-form expression for $\mathrm{E}[p_e]$, the **expected success probability** of a quantum state (such as the output of Grover's algorithm on $n$ qubits) when subject to $G$ gates with isotropic error of per-gate fidelity parameter $\sigma \in (0,1)$:
+When an $n$-qubit quantum computation on Hilbert space $\mathbb{C}^{2^n}$ ($N = 2^n$, real unit-sphere dimension $d = 2N = 2^{n+1}$) executes $G \in \mathbb{N}$ gates — each followed by an independent isotropic pure-state sphere perturbation of fidelity parameter $\sigma \in [0, 1]$ — all intermediate finite-dimensional factors ($d$ and $d - 1$) cancel algebraically, yielding the exact convex mixture formula:
 
-$$\boxed{\mathrm{E}[p_e] = \sigma^{2G} \cdot p_\mathrm{ideal} + \frac{1-\sigma^{2G}}{N},}$$
+$$\boxed{\mathrm{E}[p_e] = \sigma^{2G}\,p_\mathrm{ideal} + \frac{1 - \sigma^{2G}}{N}, \qquad N = 2^n, \quad \sigma \in [0, 1], \quad G, n \in \mathbb{N},}$$
 
-where $N = 2^n$ is the database size and $p_\mathrm{ideal}$ is the ideal success probability.
+where $p_\mathrm{ideal} = |\langle w | \psi_\mathrm{ideal}\rangle|^2$ is the noiseless Born-rule probability of computational-basis outcome $w \in \mathrm{Fin}(2^n)$.
 
-### Downstream Applications and Gate Count
-- **Repetition Overhead $k(n)$:** Once $\mathrm{E}[p_e]$ is obtained, the repetition overhead required to achieve ideal success probability across independent trials,
-  $$k(n) = \frac{\log(1-p_\mathrm{ideal})}{\log(1-\mathrm{E}[p_e])},$$
-  can be computed and fit as an exponential in $n$ ($a \cdot b^n + c$). Both the definition of $k(n)$ and the exponential fitting are downstream application steps that build upon the mixture formula rather than being part of the core derivation or formalization.
-- **Gate Count $G(n)$:** In empirical studies, $G(n)$ is typically taken directly from simulation data (transpiled gate counts at optimal Grover iterations). Analytically, one may substitute theoretical approximations such as $G(n) \sim \frac{\pi}{4}\sqrt{N}$ (or gate-decomposed counts proportional to $\frac{\pi}{4}\sqrt{2^n}$), but the derivation itself takes gate count $G$ as an external parameter.
-- **Exactness:** The cancellation of intermediate dimension-dependent factors ($d, d-1$) is exact within the algebraic framework of the isotropic error model. However, this exactness is conditional on the underlying physical and mathematical assumptions (isotropic error commutation or sequential Markov evolution, Poisson marginal angle distribution, and uniform equatorial perturbation).
+- **General gate lists vs. syntactic `Circuit.size`:** In trajectory theorems (`Sequential.lean`), $G = \texttt{gates.length}$ counts interleaved isometric gate stages; in syntactic circuit theorems (`QuantumChannel.lean`, `GroverCircuit.lean`), $G = c.\mathrm{size}$ is computed directly from the primitive-gate AST `c : Circuit n` (`X, Y, Z, H, S, T, CNOT, SWAP, TOFF`).
+- **Grover's search algorithm ($K \in \mathbb{N}$ iterations):** Specializing to `formal-quantum-computation`'s Grover phase oracle and diffuser yields $p_\mathrm{ideal} = \mathrm{Grover.p\_succ}(K, 2^n) = \sin^2\bigl((2K + 1)\arcsin(2^{-n/2})\bigr)$, proved for macro-operator sequences ($G = 2K$ and $G = 2K + 1$), arbitrary unitary gate lists, syntactic `Circuit n` implementations ($G = c.\mathrm{size}$), and concrete 1- and 2-qubit primitive-gate circuits.
+- **Downstream applications (outside the Lean formalization):** Once $\mathrm{E}[p_e]$ is established, the multi-run repetition overhead $k(n) = \frac{\log(1 - p_\mathrm{ideal})}{\log(1 - \mathrm{E}[p_e])}$ required for $k$ independent runs to succeed with cumulative probability $p_\mathrm{ideal}$ can be evaluated at transpiled empirical gate counts $G(n)$ (or asymptotic scalings $G(n) \propto \frac{\pi}{4}\sqrt{2^n}$) and fit to $a \cdot b^n + c$.
 
-More details on the mathematical steps are available in [english-proof.md](english-proof.md).
+A self-contained mathematical exposition with explicit 1-to-1 Lean theorem cross-references and extensibility recipes is provided in **[english-proof.md](english-proof.md)**.
 
 ---
 
-## Formal Verification Scope & Proved Theorems
+## Proved Theorem Layers
 
-The codebase machine-checks the mathematical derivation in Lean 4 across several key modules:
+### 1. Geometric Sphere & Poisson Moment Engine (`Defs.lean`, `IsotropicError.lean`, `Composition.lean`, `CrossTerm.lean`, `SecondMoment.lean`, `Gegenbauer.lean`, `MainTheorem.lean`)
+- **Closed-interval angle measure & exact 1D FTC moments (`IsotropicError.lean`, `Gegenbauer.lean`):** Defines `poissonAngleMeasure d σ` across $\sigma \in [0, 1]$ (coinciding with `poissonMarginal d σ` on $[0, 1)$ — including the uniform Haar polar marginal at $\sigma = 0$ — and `Measure.dirac 0` at $\sigma = 1$). Proves `poissonAngleMeasure_mean_cos` ($\mathrm{E}[\cos\theta] = \sigma$) and `poissonAngleMeasure_cos_sq` ($\mathrm{E}[\cos^2\theta] = \frac{(d - 1)\sigma^2 + 1}{d}$, along with `poissonIntegral_cos_sq` on $(0, 1)$) for all $d \ge 2$ via 1D Fundamental Theorem of Calculus recurrences and two-step induction $d \mapsto d + 2$ from $d = 2$ and $d = 3$, plus harmonic polynomial identities (`laplacian_trace_cancellation`, `harmonicExtension_boundary`, `harmonicExtension_eval`).
+- **Equatorial reflection symmetries & bilinear operator (`CrossTerm.lean`, `SecondMoment.lean`):** Constructs the Haar-induced equatorial probability measure `perpSphereMeasure` on $V_\perp(\Psi) \cap S^{d-1}$, proves antipodal cross-term vanishing (`integral_perp_inner_eq_zero`), orthogonal/Householder second-moment symmetry `perpSphere_inner_mul_inner` ($\mathrm{E}[\mathbf{e}_2\mathbf{e}_2^\top] = \frac{P_\perp}{d - 1}$), and exact single-step $(d - 1)$ cancellation in `isotropicError_bilinear_secondMoment` and `isotropicError_succProb_oneStep` across $\sigma \in [0, 1]$.
+- **Single-effective-error mixture theorem (`MainTheorem.lean`):** `isotropicGrover_main` (and `n = 0` specialization `isotropicGrover_n0`) proves the $\sigma^{2G}$ mixture formula under `composedMeasure (d n) G σ` for all $n \in \mathbb{N}$, $G > 0$, and $\sigma \in (0, 1)$.
 
-### 1. Main Geometric Invariant Theorem (`MainTheorem.lean`)
-- **`isotropicGrover_main`**: Holds for all $n \in \mathbb{N}$ (arbitrary number of qubits, with ambient real dimension $d = 2 \cdot 2^n$) with **zero non-foundational axioms** (`[propext, Classical.choice, Quot.sound]`). For an arbitrary unit-vector state $\Phi \in \mathcal{S}^{d-1}$ and gate count $G > 0$, the nested integral of the noisy success probability over the perturbation angle and equatorial noise direction evaluates to:
-  $$\int_0^\pi \int_{\mathcal{S}^{d-2}(V_\perp)} \mathrm{succProb}\, n \, (\mathrm{isotropicError}\, \Phi\, e_2\, \theta)\, w \, \partial(\mathrm{perpSphereMeasure}\, \Phi) \, \partial(\mathrm{composedMeasure}\, d\, G\, \sigma) = \sigma^{2G} \cdot \mathrm{succProb}\, n \, \Phi \, w + \frac{1 - \sigma^{2G}}{2^n}.$$
-- **`isotropicGrover_n0`**: Specialization of `isotropicGrover_main` to $n = 0$ ($d = 2$), retained for backwards compatibility.
+### 2. Multi-Gate Pure-State Markov Trajectories (`Sequential.lean`)
+- **Scalar fidelity recurrence:** Solves $f_0 = 1$, $f_{k+1} = \lambda f_k + (1 - \lambda)\frac{1 - f_k}{d - 1}$ ($\lambda =$ `stepLambda d σ`) via geometric contraction `stepTransition_sub_inv_d` to obtain $f_k = \frac{(d - 1)\sigma^{2k} + 1}{d}$ (`sequentialFidelity_eq`, `sequentialFidelity_eq_f₂`, `sequential_mixture_formula`).
+- **Interleaved isometric Markov chain:** Defines the $G$-fold pure-state expectation `noisyTrajectoryExpectation` over arbitrary gate lists `gates : List (E n ≃ₗᵢ[ℝ] E n)` where each error rotates around the instantaneous perturbed state $U_k\Psi_{k-1}$. Using Householder measure transport on $S^{d-1}$ and adjoint pullback, proves `noisyTrajectory_bilinear`, `noisyTrajectory_fidelity_eq_sequentialFidelity`, and `noisyTrajectory_succProb` across all $\sigma \in [0, 1]$ and all `gates` (including `gates = []`) with **no** spherical-angle convolution assumption.
 
-### 2. Sequential Markov Chain Error Induction (`Sequential.lean`)
-To model microscopic quantum circuit error accumulation where each gate error rotates around the *perturbed* current state $\Psi_k$ rather than the initial state $\Phi$, `Sequential.lean` formalizes the Markov chain induction from §6 of `english-proof.md`:
-- **State fidelity recurrence:**
-  $$f_0 = 1, \qquad f_{k+1} = \lambda f_k + (1-\lambda)\frac{1-f_k}{d-1}, \quad \text{where } \lambda = \frac{(d-1)\sigma^2+1}{d}.$$
-- **Contraction & closed form:** Proves geometric contraction $T(f) - 1/d = \sigma^2(f - 1/d)$ toward the decoherent floor $1/d$, and proves the exact closed form by induction on $k$ with zero non-foundational axioms:
-  $$f_k = \frac{(d-1)\sigma^{2k}+1}{d}.$$
-- **`sequential_mixture_formula`**: Proves that sequential gate error accumulation yields the exact same mixture formula:
-  $$f_G \cdot p + (1 - f_G) \cdot \frac{2 - p}{d - 1} = \sigma^{2G} \cdot p + \frac{1 - \sigma^{2G}}{2^n}.$$
+### 3. `QuantumInfo` Depolarizing `CPTPMap` & Syntactic `Circuit.size` Bridge (`QuantumChannel.lean`)
+- **Hilbert-space & Born-rule isomorphism:** Bridges `Ket (Fin (2 ^ n))` and unitaries `𝐔[Fin (2 ^ n)]` isometrically to `E n` (`vecToReal`, `realToVec`, `ketToReal`, `realToKet`, `unitaryToRealIso`) and proves 5-way Born-rule equivalence `succProb_ketToReal_eq_born` between `succProb`, squared ket amplitudes, `MState.pure` diagonals, `MState.exp_val (compProjObs w).1`, and `computationalPOVM`.
+- **Emergence of the complex depolarizing channel:** Constructs `depolarizingChannel n σ hσ : CPTPMap (Fin (2 ^ n)) (Fin (2 ^ n))` (`ρ ↦ σ² ρ + (1 - σ²) MState.uniform`) for $\sigma \in [0, 1]$ and proves in `isotropicOneStep_eq_depolarizingChannel` and `noisyTrajectory_eq_depolarizingChannel` that averaging the rank-1 density matrix `pureDensityMatrix` over microscopic real-sphere isotropic errors produces `depolarizingChannel` entrywise.
+- **Channel commutation, semigroup, and `Circuit.size`:** Proves unitary commutation `depolarizingChannel_comm_ofUnitary`, multiplicative composition `depolarizingChannel_compose`, syntactic circuit collapse `noisyCircuitChannel_eq` ($\mathrm{noisyCircuitChannel}(\sigma, c) = \Lambda_{\sigma^{c.\mathrm{size}}} \circ \mathcal{U}_{c.\mathrm{eval}}$), trajectory-to-channel equivalence (`noisyCircuit_trajectory_eq_channel`, `noisyCircuit_trajectory_succProb_eq_measure`), and Born-rule mixture theorems `noisyCircuit_bornProb` and `noisyCircuit_bornProb_pure`.
 
-### 3. Grover Circuit Components & Search Plane (`GroverCircuit.lean`)
-Connects the general unit-vector theorem to Grover's algorithm:
-- Formalizes the uniform superposition state vector $|s\rangle \in E\, n$, target basis state $|w\rangle$, and orthogonal non-target state $|w^\perp\rangle$.
-- Formalizes the 2D Grover search plane $\Phi(\alpha) = \cos\alpha |s_\perp\rangle + \sin\alpha |w\rangle$.
-- **`isotropicGrover_groverState2D`**: Proves that states in the Grover plane yield expected success probability $\sigma^{2G} \sin^2\alpha + (1 - \sigma^{2G})/2^n$.
-- **`isotropicGrover_uniformSuperposition`**: Proves that before Grover iterations, the uniform superposition state has expected success probability identically equal to $1/2^n$ under isotropic noise for any gate count $G$ and fidelity $\sigma$.
+### 4. End-to-End Grover's Algorithm & Concrete Primitive-Gate Circuits (`GroverCircuit.lean`)
+- **Static 2D search-plane specializations ($\sigma \in (0, 1),\, G > 0$):** Formalizes `targetBasisState`, `targetPerpState`, `uniformSuperposition`, `groverState2D`, and `groverState2D_prob`, wrapping `isotropicGrover_main` to prove `isotropicGrover_uniformSuperposition` and `isotropicGrover_targetBasisState` for all $n \in \mathbb{N}$, and `isotropicGrover_groverState2D` and `isotropicGrover_groverState2D_prob` for `1 < 2 ^ n` ($n \ge 1$; full $\sigma \in [0, 1],\, G \in \mathbb{N}$ coverage holds via `noisyTrajectory_succProb` and `noisyGrover_iterGates_succProb` at $K = 0$).
+- **Dynamic $K$-iteration Grover bridge:** Connects `Grover.oracleUnitary`, `Grover.diffuserUnitary`, and `hadamardUnitary` (`groverIterGates`, `groverFullGates`, `unitaryListProd`) to `Grover.groverMatrix`, `Grover.groverState`, and `Grover.p_succ` (`idealUnitaryTrajectory_groverIterGates`, `idealUnitaryTrajectory_groverFullGates`, `groverState_bornProb`).
+- **Noisy Grover theorems across $\sigma \in [0, 1]$:** Proves both `computationalPOVM` Born-probability and pure-state trajectory theorems for $K$ macro-iterations (`G = 2 * K`: `noisyGrover_iterGates_bornProb`, `noisyGrover_iterGates_succProb`), noisy state preparation + $K$ iterations (`G = 2 * K + 1`: `noisyGrover_fullGates_bornProb`, `noisyGrover_fullGates_succProb`), arbitrary unitary decompositions (`noisyGrover_unitaryList_bornProb`, `noisyGrover_unitaryList_succProb`), and syntactic `Circuit n` implementations (`G = c.size`: `noisyGrover_circuit_bornProb`, `noisyGrover_circuit_trajectory_succProb`, `noisyGrover_circuit_groverMatrix_bornProb`, `noisyGrover_circuit_groverMatrix_trajectory_succProb`).
+- **Concrete primitive-gate circuit witnesses:**
+  - *1-qubit Hadamard (`K = 0`, `c.size = 1`):* `Circuit.H (0 : Wire 1)` (`noisyGrover_circuit_hadamard1_bornProb`, evaluating to $\sigma^2 \cdot \mathrm{Grover.p\_succ}(0, 2) + (1 - \sigma^2)/2 = 1/2$).
+  - *14-gate 2-qubit Grover search (`K = 1`, `c.size = 14`, target `3` = $|11\rangle$):* `grover2QubitCircuit` built from primitive `H`, `Z`, and `CNOT` gates (`grover2QubitCircuit_eval_val`, `p_succ_one_four`), yielding exact noisy Born probability $\sigma^{28} + (1 - \sigma^{28}) / 4$ (`noisyGrover_circuit_grover2_bornProb`).
 
-### 4. Limiting Cases & Asymptotics (`LimitingCases.lean`)
-- Connects `mixtureProb` directly to the LHS and RHS of `isotropicGrover_main`.
-- Proves continuity of the expected success probability in $\sigma$, and verifies the limiting behavior:
-  - $\sigma \to 1$ converges to $p_\mathrm{ideal}$ (`tendsto_expectedSuccProb_as_sigma_one`).
-  - $\sigma \to 0$ converges to random guessing $1/2^n$ (`tendsto_expectedSuccProb_as_sigma_zero`).
+### 5. Limiting Regimes, Monotonicity & Closed-Interval Continuity (`LimitingCases.lean`)
+- Connects `mixtureProb` to both `isotropicGrover_main` (`isotropicGrover_lhs_eq_mixtureProb`) and `noisyTrajectory_succProb` (`noisyTrajectory_succProb_eq_mixtureProb`).
+- Proves monotonicity in effective fidelity for $p_\mathrm{ideal} \ge 1/N$ (`mixtureProb_mono`), continuity across $\sigma \in [0, 1]$ (`continuousOn_noisyTrajectory_succProb`), exact endpoint evaluations (`noisyTrajectory_succProb_at_sigma_one`, `noisyTrajectory_succProb_at_sigma_zero` for `gates ≠ []` ($G \ge 1$), and `noisyTrajectory_succProb_nil`), and filter limits as $\sigma \to 1$ and $\sigma \to 0$ (`tendsto_noisyTrajectory_succProb_sigma_one`, `tendsto_noisyTrajectory_succProb_sigma_zero` for `gates ≠ []` ($G \ge 1$), and `tendsto_expectedSuccProb_as_sigma_one` / `tendsto_expectedSuccProb_as_sigma_zero` on $\sigma \in (0, 1)$ with $G > 0$).
 
 ---
 
-## Axiom Footprint
+## Dependencies
 
-Running `#print axioms isotropicGrover_main` confirms that the formalization rests exclusively on Lean's standard foundational axioms, with **zero custom axioms** and **zero `sorry`s** (enforced in CI via `axiom-audit` on `IsotropicGroverProof`):
-- **Standard foundational axioms:** `propext`, `Classical.choice`, `Quot.sound`
+Pinned in [`lean-toolchain`](lean-toolchain) and [`lakefile.toml`](lakefile.toml):
+- **Lean 4:** `leanprover/lean4:v4.35.0`
+- **Mathlib:** [`leanprover-community/mathlib4`](https://github.com/leanprover-community/mathlib4) (`v4.35.0`)
+- **Physlib (`QuantumInfo`):** [`leanprover-community/physlib`](https://github.com/leanprover-community/physlib) (`v4.35.0`)
+- **Formal Quantum Computation (`QuantumComputation`):** [`google-deepmind/formal-quantum-computation`](https://github.com/google-deepmind/formal-quantum-computation) (`rev 489edc7039aa4cdded53724b39ea90e33d2c88b4`)
 
-### Mathematical Derivation (Harmonic Extension)
-The second moment identity $\int_0^\pi \cos^2\theta \, \partial(\mathrm{poissonMarginal}\, d\, \sigma) = \frac{(d - 1)\sigma^2 + 1}{d}$ arises geometrically via harmonic polynomial extension on the Euclidean unit ball $B^d \subset \mathbb{R}^d$ (Axler, Bourdon & Ramey, *Harmonic Function Theory*, 2nd ed., Springer GTM 137, 2001, Ch. 5, Theorems 5.5 & 5.14):
-1. **Boundary data:** For a fixed unit vector $\Phi \in \mathbb{R}^d$ ($|\Phi| = 1$), the boundary data on the unit sphere $S^{d-1}$ is $h(\xi) = (\xi \cdot \Phi)^2 = \cos^2\theta$.
-2. **Harmonic extension:** In the interior ball $B^d$, consider $H(\mathbf{x}) = (\mathbf{x} \cdot \Phi)^2 - |\mathbf{x}|^2/d + 1/d$.
-   - The Laplacian satisfies $\Delta H = \Delta((\mathbf{x}\cdot\Phi)^2) - \Delta(|\mathbf{x}|^2/d) + \Delta(1/d) = 2|\Phi|^2 - 2d/d + 0 = 0$, so $H$ is harmonic on $B^d$.
-   - On the boundary $S^{d-1}$ where $|\xi| = 1$, $H(\xi) = (\xi\cdot\Phi)^2 - 1/d + 1/d = (\xi\cdot\Phi)^2 = h(\xi)$.
-3. **Poisson representation formula:** Any harmonic function continuous on $\overline{B}^d$ satisfies:
-   $$H(\mathbf{x}) = \int_{S^{d-1}} P(\mathbf{x}, \xi) h(\xi) \, d\sigma_{S^{d-1}}(\xi)$$
-   where $P(\mathbf{x}, \xi) = \frac{1 - |\mathbf{x}|^2}{|\mathbf{x} - \xi|^d}$ is the Poisson kernel for the Euclidean ball.
-4. **Interior radial evaluation:** At $\mathbf{x} = \sigma \Phi$ with per-gate fidelity $\sigma \in (0, 1)$:
-   $$H(\sigma \Phi) = (\sigma\Phi\cdot\Phi)^2 - \frac{|\sigma\Phi|^2}{d} + \frac{1}{d} = \sigma^2 - \frac{\sigma^2}{d} + \frac{1}{d} = \frac{(d - 1)\sigma^2 + 1}{d}.$$
-5. **Marginalization:** By rotational symmetry around the axis $\Phi$, the sphere integral against the Poisson kernel centered at $\sigma\Phi$ reduces to the 1D marginal measure `poissonMarginal d σ`:
-   $$\int_0^\pi \cos^2\theta \, \partial(\mathrm{poissonMarginal}\, d\, \sigma) = H(\sigma\Phi) = \frac{(d - 1)\sigma^2 + 1}{d}.$$
+---
 
-### Lean Verification of the Poisson Moments
-- **All dimensions $d \ge 2$ (100% verified, 0 custom axioms):** `IsotropicError.lean` proves both the first moment `poissonMarginal_mean_cos` ($\mathrm{E}[\cos\theta] = \sigma$) and the unnormalized second moment `halfcircle_cos_sq_eq` via 1D Fundamental Theorem of Calculus recurrences over $[0, \pi]$, anchored by $d = 2$ (Mathlib's complex Poisson formula in `Mathlib.Analysis.Complex.Poisson`) and $d = 3$ (an elementary antiderivative) with two-step induction $d \mapsto d + 2$. `Gegenbauer.lean` then proves `poissonIntegral_cos_sq` (along with specializations `poissonIntegral_cos_sq_d2` and `poissonIntegral_cos_sq_d3`) directly from `integral_poissonMarginal_eq` and `halfcircle_cos_sq_eq`.
-- **Formally verified algebraic properties:** In `IsotropicGroverProof/Gegenbauer.lean`, Lean-verified lemmas also validate the algebraic backbone of the harmonic-extension derivation:
-  - `laplacian_trace_cancellation`: validates $2 - 2d/d = 0$ for $d \neq 0$.
-  - `harmonicExtension_boundary`: validates $(\xi\cdot\Phi)^2 - 1/d + 1/d = (\xi\cdot\Phi)^2$.
-  - `harmonicExtension_eval`: validates $\sigma^2 - \sigma^2/d + 1/d = ((d - 1)\sigma^2 + 1)/d$.
-  - `poissonIntegral_val_sigma_one` and `poissonIntegral_val_sigma_zero`: validate the noiseless limit $\sigma = 1 \implies 1$ and complete decoherence floor $\sigma = 0 \implies 1/d$.
-  - TDD numeric sanity checks for $d = 3, 4, 8, 16, 32, 64$.
+## Axiom Footprint & CI Verification
+
+Every theorem in this repository is proved with **zero `sorry`s** and **zero custom axioms**, depending solely on Lean's three standard foundational axioms:
+- `propext`, `Classical.choice`, `Quot.sound`
+
+This guarantee is enforced in two ways:
+1. **Compile-time `#guard_msgs in #print axioms` checks** across all modules (`Defs.lean`, `IsotropicError.lean`, `Composition.lean`, `CrossTerm.lean`, `SecondMoment.lean`, `Gegenbauer.lean`, `Sequential.lean`, `MainTheorem.lean`, `LimitingCases.lean`, `QuantumChannel.lean`, `GroverCircuit.lean`).
+2. **GitHub Actions CI (`.github/workflows/lean_action_ci.yml`):** Runs `leanprover/lean-action@v1` with `build-args: '--wfail'`, `axiom-audit: true`, and `axiom-audit-root: 'IsotropicGroverProof'`, auditing every declaration transitively imported by `IsotropicGroverProof.lean` → `IsotropicGroverProof/Basic.lean`.
 
 ---
 
 ## Repository Structure
 
-- `english-proof.md`: Complete mathematical derivation in English prose.
-- `notes/`: Design specifications, architectural decisions, and task implementation plans.
-- `sessions/`: AI conversation logs and adversarial proof review notes.
-- `IsotropicGroverProof/`: Lean 4 formalization modules:
+- `english-proof.md` — Complete end-to-end mathematical derivation, Lean formalization map, and extensibility guide (§1–§9).
+- `IsotropicGroverProof.lean` — Root library entry point importing `IsotropicGroverProof.Basic`.
+- `IsotropicGroverProof/` — Barrel module `Basic.lean` plus 11 verified submodules:
+  ```text
+  Basic.lean          — Barrel module importing all 11 submodules in dependency order
+  Defs.lean           — Ambient space E n = ℝ^{2·2^n}, basis vectors, dimension lemmas, succProb, Parseval
+  IsotropicError.lean — Poisson marginal density, closed-interval poissonAngleMeasure, 1D FTC moments, isotropicError
+  Composition.lean    — Effective σ^G angle measure composedMeasure and second moment f₂
+  CrossTerm.lean      — Equatorial sphere measure perpSphereMeasure, reflection symmetries, expanded_E_pe
+  SecondMoment.lean   — Projector P_perp, E[e₂e₂ᵀ] = P_perp/(d-1), decoherent_floor, isotropicError_bilinear_secondMoment
+  Gegenbauer.lean     — Harmonic-extension polynomial identities, poissonIntegral_cos_sq, f₂_formula
+  Sequential.lean     — Fidelity recurrence sequentialFidelity_eq and multi-gate Markov trajectory noisyTrajectory_succProb
+  MainTheorem.lean    — Effective-measure mixture theorem isotropicGrover_main and isotropicGrover_n0
+  LimitingCases.lean  — mixtureProb, monotonicity, [0, 1] continuity, and noiseless/decoherent limits
+  QuantumChannel.lean — QuantumInfo CPTPMap depolarizingChannel, POVM bridge, and syntactic Circuit.size theorems
+  GroverCircuit.lean  — Grover search plane, Grover.p_succ bridge, and 1- & 2-qubit primitive-gate circuits
   ```
-  Basic.lean          — Barrel re-export importing all submodules in dependency order
-  Defs.lean           — M1: Ambient space ℝ^d, basis vectors, succProb, Parseval sum identity
-  IsotropicError.lean — M2: Poisson kernel marginal density, all-dimension moment recurrences, and error state
-  Composition.lean    — M3: Composed measure definition and sequential induction references
-  CrossTerm.lean      — M4: Equatorial sphere measure, odd symmetry, cross-term vanishing
-  SecondMoment.lean   — M5: Subspace projection P_perp, second moment E[e₂e₂ᵀ] = P_perp/(d-1), decoherent floor
-  Gegenbauer.lean     — M6: Poisson integral second moment f₂ (0 custom axioms) and harmonic polynomial algebra
-  MainTheorem.lean    — M7: isotropicGrover_main (for all n, 0 custom axioms) and isotropicGrover_n0
-  LimitingCases.lean  — M8: Mixture prob connection and continuous parameter limits (σ→1, σ→0)
-  Sequential.lean     — Gate-level Markov error induction and sequential mixture theorem (0 axioms)
-  GroverCircuit.lean  — Grover state vectors, 2D search plane, and Grover specialization
-  ```
+- `notes/` — Design specifications and implementation plans for completed issues.
+- `sessions/` — Proof engineering and review logs.
 
 ---
 
 ## Building and Checking
 
-To compile the formalization and verify all proofs:
+Install [`elan`](https://leanprover-community.github.io/get_started.html), fetch the precompiled Mathlib cache, and build with warnings treated as errors:
 
 ```bash
-lake build
+lake exe cache get && lake build --wfail
 ```

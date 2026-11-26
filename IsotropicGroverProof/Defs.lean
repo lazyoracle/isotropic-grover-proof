@@ -1,11 +1,9 @@
 -- IsotropicGroverProof/Defs.lean
--- M1: Core types — ambient Euclidean space, unit sphere, standard basis vectors,
---     and the success-probability formula for Grover's algorithm.
---
--- SORRY BUDGET: 0 (this file should compile without any sorry)
+-- Core state-space definitions: ambient real Euclidean space E n = ℝ^{2·2^n},
+-- unit sphere, standard basis vectors, shared dimension lemmas, and computational-basis
+-- measurement probability succProb with Parseval normalization.
 
 import Mathlib.Analysis.InnerProductSpace.PiL2
-import Mathlib.Analysis.InnerProductSpace.Basic
 
 /-!
 # Core Definitions for the Isotropic Grover Proof
@@ -23,6 +21,22 @@ abbrev d (n : ℕ) : ℕ := 2 * 2 ^ n
 
 lemma two_le_d (n : ℕ) : 2 ≤ d n := by
   simp only [d]; have := @Nat.one_le_two_pow n; omega
+
+lemma one_lt_d (n : ℕ) : 1 < d n := by
+  have := two_le_d n; omega
+
+lemma cast_d (n : ℕ) : (d n : ℝ) = 2 * (2 ^ n : ℝ) := by
+  simp only [d]; push_cast; ring
+
+lemma cast_d_ne_zero (n : ℕ) : (d n : ℝ) ≠ 0 := by
+  positivity
+
+lemma cast_d_sub_one_pos (n : ℕ) : 0 < (d n : ℝ) - 1 := by
+  have : (1 : ℝ) < (d n : ℝ) := Nat.one_lt_cast.mpr (one_lt_d n)
+  linarith
+
+lemma cast_d_sub_one_ne_zero (n : ℕ) : (d n : ℝ) - 1 ≠ 0 :=
+  (cast_d_sub_one_pos n).ne'
 
 /-- The ambient Euclidean space ℝ^d. -/
 abbrev E (n : ℕ) := EuclideanSpace ℝ (Fin (d n))
@@ -45,14 +59,25 @@ lemma stdBasisVec_norm (n : ℕ) (i : Fin (d n)) : ‖stdBasisVec n i‖ = 1 := 
   simp [stdBasisVec, PiLp.norm_single]
 
 lemma inner_stdBasisVec (n : ℕ) (i j : Fin (d n)) :
-    inner (𝕜 := ℝ) (stdBasisVec n i) (stdBasisVec n j) = if i = j then 1 else 0 := by
-  have h := (orthonormal_iff_ite (𝕜 := ℝ)).mp
-              (EuclideanSpace.orthonormal_single (𝕜 := ℝ) (ι := Fin (d n)))
-  exact h i j
+    inner (𝕜 := ℝ) (stdBasisVec n i) (stdBasisVec n j) = if i = j then 1 else 0 :=
+  (orthonormal_iff_ite (𝕜 := ℝ)).mp
+    (EuclideanSpace.orthonormal_single (𝕜 := ℝ) (ι := Fin (d n))) i j
 
 lemma inner_stdBasisVec_eq_apply {n : ℕ} (v : E n) (i : Fin (d n)) :
     inner (𝕜 := ℝ) v (stdBasisVec n i) = v i := by
   simp [stdBasisVec, ← EuclideanSpace.basisFun_apply]
+
+/-- Norm of a linear combination `a • u + b • v` of orthonormal vectors `u, v : E n`
+    when `a ^ 2 + b ^ 2 = 1`. -/
+lemma norm_smul_add_smul_of_ortho {n : ℕ} {u v : E n} (hu : ‖u‖ = 1) (hv : ‖v‖ = 1)
+    (huv : inner (𝕜 := ℝ) u v = 0) {a b : ℝ} (hab : a ^ 2 + b ^ 2 = 1) :
+    ‖a • u + b • v‖ = 1 := by
+  have hsq : ‖a • u + b • v‖ ^ 2 = 1 := by
+    rw [norm_add_sq_real, norm_smul, norm_smul, inner_smul_left, inner_smul_right,
+        hu, hv, huv, Real.norm_eq_abs, Real.norm_eq_abs, mul_one, mul_one,
+        sq_abs, sq_abs]
+    linarith
+  nlinarith [norm_nonneg (a • u + b • v)]
 
 /-! ## Index bounds for the success probability -/
 
@@ -75,24 +100,15 @@ noncomputable def succProbIdx1 (n : ℕ) (w : Fin (2 ^ n)) : Fin (d n) :=
 
 lemma succProbIdx0_inj {n : ℕ} {x y : Fin (2 ^ n)}
     (h : succProbIdx0 n x = succProbIdx0 n y) : x = y := by
-  ext
-  have hval : (succProbIdx0 n x).val = (succProbIdx0 n y).val := by rw [h]
-  dsimp [succProbIdx0] at hval
-  omega
+  ext; have := congrArg Fin.val h; dsimp [succProbIdx0] at this; omega
 
 lemma succProbIdx1_inj {n : ℕ} {x y : Fin (2 ^ n)}
     (h : succProbIdx1 n x = succProbIdx1 n y) : x = y := by
-  ext
-  have hval : (succProbIdx1 n x).val = (succProbIdx1 n y).val := by rw [h]
-  dsimp [succProbIdx1] at hval
-  omega
+  ext; have := congrArg Fin.val h; dsimp [succProbIdx1] at this; omega
 
 lemma succProbIdx0_ne_succProbIdx1 {n : ℕ} (x y : Fin (2 ^ n)) :
     succProbIdx0 n x ≠ succProbIdx1 n y := by
-  intro h
-  have hval : (succProbIdx0 n x).val = (succProbIdx1 n y).val := by rw [h]
-  dsimp [succProbIdx0, succProbIdx1] at hval
-  omega
+  intro h; have := congrArg Fin.val h; dsimp [succProbIdx0, succProbIdx1] at this; omega
 
 /-- The success probability of measuring outcome w given real state vector v.
     In the real representation, p = |a_w|² = α_{2w}² + α_{2w+1}², where
@@ -133,5 +149,11 @@ example : d 0 = 2 := by norm_num [d]
 example : d 1 = 4 := by norm_num [d]
 example : d 2 = 8 := by norm_num [d]
 example : d 3 = 16 := by norm_num [d]
+
+/--
+info: 'IsotropicGrover.sum_succProb_eq_norm_sq' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms sum_succProb_eq_norm_sq
 
 end IsotropicGrover

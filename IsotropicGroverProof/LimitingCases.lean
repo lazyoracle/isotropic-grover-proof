@@ -1,9 +1,8 @@
 -- IsotropicGroverProof/LimitingCases.lean
--- M8: Limiting case corollaries — pure continuity/arithmetic, no sorrys.
---     1. σ^{2G} → 1 (perfect gates):  E[p_e] → p_ideal
---     2. σ^{2G} → 0 (full decoherence): E[p_e] → 1/N
+-- Limiting regimes, monotonicity, and closed-interval [0, 1] continuity of the mixture
+-- formula: noiseless limit (σ → 1), complete decoherence limit (σ → 0), zero-gate base case
+-- (gates = []), and exact endpoint evaluations for noisyTrajectory_succProb.
 
-import Mathlib.Topology.Algebra.Order.LiminfLimsup
 import Mathlib.Topology.Order.OrderClosed
 import IsotropicGroverProof.MainTheorem
 import IsotropicGroverProof.Sequential
@@ -43,9 +42,8 @@ lemma mixtureProb_at_one (p : ℝ) (N : ℕ) : mixtureProb p N 1 = p := by
 /-- As f → 1, the expected success probability tends to p_ideal. -/
 theorem tendsto_ideal_as_fidelity_one (p : ℝ) (N : ℕ) :
     Tendsto (mixtureProb p N) (𝓝 1) (𝓝 p) := by
-  have h : ContinuousAt (mixtureProb p N) 1 := (mixtureProb_continuous p N).continuousAt
-  simp only [ContinuousAt, mixtureProb_at_one] at h
-  exact h
+  simpa only [ContinuousAt, mixtureProb_at_one] using
+    (mixtureProb_continuous p N).continuousAt (x := 1)
 
 /-! ## Limiting case 2: full decoherence -/
 
@@ -57,9 +55,8 @@ lemma mixtureProb_at_zero (p : ℝ) (N : ℕ) : mixtureProb p N 0 = 1 / N := by
     The decoherent limit: the algorithm is no better than random guessing. -/
 theorem tendsto_random_as_fidelity_zero (p : ℝ) (N : ℕ) :
     Tendsto (mixtureProb p N) (𝓝 0) (𝓝 (1 / N)) := by
-  have h : ContinuousAt (mixtureProb p N) 0 := (mixtureProb_continuous p N).continuousAt
-  simp only [ContinuousAt, mixtureProb_at_zero] at h
-  exact h
+  simpa only [ContinuousAt, mixtureProb_at_zero] using
+    (mixtureProb_continuous p N).continuousAt (x := 0)
 
 /-! ## Monotonicity: more noise → worse performance -/
 
@@ -68,13 +65,9 @@ theorem tendsto_random_as_fidelity_zero (p : ℝ) (N : ℕ) :
 lemma mixtureProb_mono (p : ℝ) (N : ℕ) (hN : 0 < N)
     (hp : 1 / (N : ℝ) ≤ p) : Monotone (mixtureProb p N) := by
   intro f₁ f₂ hf
-  simp only [mixtureProb]
-  have hN' : (N : ℝ) > 0 := Nat.cast_pos.mpr hN
-  have hN'' : (N : ℝ) ≠ 0 := hN'.ne'
-  suffices h : 0 ≤ f₂ * p + (1 - f₂) / ↑N - (f₁ * p + (1 - f₁) / ↑N) by linarith
-  have key : f₂ * p + (1 - f₂) / ↑N - (f₁ * p + (1 - f₁) / ↑N) =
-             (f₂ - f₁) * (p - 1 / ↑N) := by field_simp; ring
-  rw [key]
+  have hN' : (N : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hN.ne'
+  suffices 0 ≤ (f₂ - f₁) * (p - 1 / (N : ℝ)) by
+    simp only [mixtureProb]; field_simp [hN'] at this ⊢; linarith
   exact mul_nonneg (sub_nonneg.mpr hf) (sub_nonneg.mpr hp)
 
 /-! ## Connection to isotropicGrover_main -/
@@ -108,17 +101,14 @@ lemma continuous_mixtureProb_pow (p : ℝ) (N : ℕ) (G : ℕ) :
 /-- As the per-gate parameter `σ → 1`, the mixture tends to `p` (ideal success probability). -/
 theorem tendsto_mixtureProb_pow_as_sigma_one (p : ℝ) (N : ℕ) (G : ℕ) :
     Tendsto (fun σ : ℝ => mixtureProb p N (σ ^ (2 * G))) (𝓝 1) (𝓝 p) := by
-  have hc := (continuous_mixtureProb_pow p N G).continuousAt (x := 1)
-  simp only [ContinuousAt, one_pow, mixtureProb_at_one] at hc
-  exact hc
+  simpa only [ContinuousAt, one_pow, mixtureProb_at_one] using
+    (continuous_mixtureProb_pow p N G).continuousAt (x := 1)
 
 /-- As the per-gate parameter `σ → 0` with `G > 0`, the mixture tends to `1/N` (random guess). -/
 theorem tendsto_mixtureProb_pow_as_sigma_zero (p : ℝ) (N : ℕ) {G : ℕ} (hG : 0 < G) :
     Tendsto (fun σ : ℝ => mixtureProb p N (σ ^ (2 * G))) (𝓝 0) (𝓝 (1 / (N : ℝ))) := by
-  have hc := (continuous_mixtureProb_pow p N G).continuousAt (x := 0)
-  have h2G : 2 * G ≠ 0 := by omega
-  simp only [ContinuousAt, zero_pow h2G, mixtureProb_at_zero] at hc
-  exact hc
+  simpa only [ContinuousAt, zero_pow (by omega : 2 * G ≠ 0), mixtureProb_at_zero] using
+    (continuous_mixtureProb_pow p N G).continuousAt (x := 0)
 
 /-! ## Direct limiting case corollaries for isotropicGrover_main -/
 
@@ -286,9 +276,69 @@ example : mixtureProb (1/2 : ℝ) 4 1 = 1/2 := by simp [mixtureProb]
 #check @tendsto_noisyTrajectory_succProb_sigma_zero
 
 /--
+info: 'IsotropicGrover.tendsto_ideal_as_fidelity_one' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms tendsto_ideal_as_fidelity_one
+
+/--
+info: 'IsotropicGrover.tendsto_random_as_fidelity_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms tendsto_random_as_fidelity_zero
+
+/--
+info: 'IsotropicGrover.mixtureProb_mono' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms mixtureProb_mono
+
+/--
+info: 'IsotropicGrover.tendsto_expectedSuccProb_as_sigma_one' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms tendsto_expectedSuccProb_as_sigma_one
+
+/--
+info: 'IsotropicGrover.tendsto_expectedSuccProb_as_sigma_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms tendsto_expectedSuccProb_as_sigma_zero
+
+/--
+info: 'IsotropicGrover.noisyTrajectory_succProb_at_sigma_one' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyTrajectory_succProb_at_sigma_one
+
+/--
+info: 'IsotropicGrover.noisyTrajectory_succProb_at_sigma_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyTrajectory_succProb_at_sigma_zero
+
+/--
+info: 'IsotropicGrover.noisyTrajectory_succProb_nil' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyTrajectory_succProb_nil
+
+/--
 info: 'IsotropicGrover.continuousOn_noisyTrajectory_succProb' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms continuousOn_noisyTrajectory_succProb
+
+/--
+info: 'IsotropicGrover.tendsto_noisyTrajectory_succProb_sigma_one' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms tendsto_noisyTrajectory_succProb_sigma_one
+
+/--
+info: 'IsotropicGrover.tendsto_noisyTrajectory_succProb_sigma_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms tendsto_noisyTrajectory_succProb_sigma_zero
 
 end IsotropicGrover
