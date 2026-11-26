@@ -21,6 +21,9 @@ namespace IsotropicGrover
 /-- The real dimension of the state space: d = 2 * 2^n = 2^{n+1}. -/
 abbrev d (n : ℕ) : ℕ := 2 * 2 ^ n
 
+lemma two_le_d (n : ℕ) : 2 ≤ d n := by
+  simp only [d]; have := @Nat.one_le_two_pow n; omega
+
 /-- The ambient Euclidean space ℝ^d. -/
 abbrev E (n : ℕ) := EuclideanSpace ℝ (Fin (d n))
 

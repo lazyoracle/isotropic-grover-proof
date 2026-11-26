@@ -481,13 +481,12 @@ private lemma perpSphere_inner_mul_integrable (Ψ u v : E n) :
 theorem perpSphere_inner_mul_inner (Ψ : E n) (hΨ : ‖Ψ‖ = 1) (u v : E n) :
     ∫ e₂, ⟪e₂, u⟫_ℝ * ⟪e₂, v⟫_ℝ ∂(perpSphereMeasure Ψ) =
     (⟪u, v⟫_ℝ - ⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) / ((d n : ℝ) - 1) := by
-  have hd2 : 2 ≤ d n := by simp only [d]; have := @Nat.one_le_two_pow n; omega
   have lhs_eq : ∫ e₂, ⟪e₂, u⟫_ℝ * ⟪e₂, v⟫_ℝ ∂(perpSphereMeasure Ψ) =
       ⟪∫ e₂, ⟪(e₂ : E n), u⟫_ℝ • (e₂ : E n) ∂(perpSphereMeasure Ψ), v⟫_ℝ := by
     rw [real_inner_comm, ← integral_inner (perpSphere_smul_integrable Ψ u) v]
     congr 1; ext e₂
     rw [real_inner_smul_right, real_inner_comm v]
-  rw [lhs_eq, secondMoment_coeff Ψ hΨ hd2 u, real_inner_smul_left,
+  rw [lhs_eq, secondMoment_coeff Ψ hΨ (two_le_d n) u, real_inner_smul_left,
       P_perp_apply Ψ u hΨ, inner_sub_left, real_inner_smul_left]
   ring
 
@@ -504,8 +503,8 @@ private lemma isotropicError_inner_mul_integrable (Ψ u v : E n) (θ : ℝ) :
     Integrable (fun e₂ : E n =>
       ⟪isotropicError Ψ e₂ θ, u⟫_ℝ * ⟪isotropicError Ψ e₂ θ, v⟫_ℝ) (perpSphereMeasure Ψ) := by
   simp_rw [isotropicError_bilinear_expand]
-  exact ((integrable_const _).add
-    (((inner_integrable Ψ v).const_mul _).add ((inner_integrable Ψ u).const_mul _))).add
+  exact ((integrable_const _).fun_add
+    (((inner_integrable Ψ v).const_mul _).fun_add ((inner_integrable Ψ u).const_mul _))).fun_add
     ((perpSphere_inner_mul_integrable Ψ u v).const_mul _)
 
 private lemma integral_e₂_bilinear (Ψ : E n) (hΨ : ‖Ψ‖ = 1) (u v : E n) (θ : ℝ) :
@@ -515,21 +514,12 @@ private lemma integral_e₂_bilinear (Ψ : E n) (hΨ : ‖Ψ‖ = 1) (u v : E n)
     sin θ ^ 2 * ((⟪u, v⟫_ℝ - ⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) / ((d n : ℝ) - 1)) := by
   have hf1 : Integrable (fun _ : E n => cos θ ^ 2 * (⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ))
       (perpSphereMeasure Ψ) := integrable_const _
-  have hf2a : Integrable (fun e₂ : E n => (cos θ * sin θ * ⟪Ψ, u⟫_ℝ) * ⟪e₂, v⟫_ℝ)
-      (perpSphereMeasure Ψ) := (inner_integrable Ψ v).const_mul _
-  have hf2b : Integrable (fun e₂ : E n => (cos θ * sin θ * ⟪Ψ, v⟫_ℝ) * ⟪e₂, u⟫_ℝ)
-      (perpSphereMeasure Ψ) := (inner_integrable Ψ u).const_mul _
-  have hf2 : Integrable (fun e₂ : E n =>
-      (cos θ * sin θ * ⟪Ψ, u⟫_ℝ) * ⟪e₂, v⟫_ℝ +
-      (cos θ * sin θ * ⟪Ψ, v⟫_ℝ) * ⟪e₂, u⟫_ℝ) (perpSphereMeasure Ψ) := hf2a.add hf2b
-  have hf12 : Integrable (fun e₂ : E n =>
-      cos θ ^ 2 * (⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) +
-      ((cos θ * sin θ * ⟪Ψ, u⟫_ℝ) * ⟪e₂, v⟫_ℝ +
-       (cos θ * sin θ * ⟪Ψ, v⟫_ℝ) * ⟪e₂, u⟫_ℝ)) (perpSphereMeasure Ψ) := hf1.add hf2
-  have hf3 : Integrable (fun e₂ : E n => sin θ ^ 2 * (⟪e₂, u⟫_ℝ * ⟪e₂, v⟫_ℝ))
-      (perpSphereMeasure Ψ) := (perpSphere_inner_mul_integrable Ψ u v).const_mul _
+  have hf2a := (inner_integrable Ψ v).const_mul (cos θ * sin θ * ⟪Ψ, u⟫_ℝ)
+  have hf2b := (inner_integrable Ψ u).const_mul (cos θ * sin θ * ⟪Ψ, v⟫_ℝ)
+  have hf3 := (perpSphere_inner_mul_integrable Ψ u v).const_mul (sin θ ^ 2)
   simp_rw [isotropicError_bilinear_expand]
-  rw [integral_add hf12 hf3, integral_add hf1 hf2, integral_add hf2a hf2b,
+  rw [integral_add (hf1.fun_add (hf2a.fun_add hf2b)) hf3,
+      integral_add hf1 (hf2a.fun_add hf2b), integral_add hf2a hf2b,
       integral_const, integral_const_mul, integral_const_mul, integral_const_mul,
       integral_perp_inner_eq_zero Ψ v, integral_perp_inner_eq_zero Ψ u,
       perpSphere_inner_mul_inner Ψ hΨ u v]
@@ -558,9 +548,9 @@ theorem isotropicError_bilinear_secondMoment (σ : ℝ) (hσ : σ ∈ Set.Icc 0 
     ∫ θ, ∫ e₂, ⟪isotropicError Ψ e₂ θ, u⟫_ℝ * ⟪isotropicError Ψ e₂ θ, v⟫_ℝ
           ∂(perpSphereMeasure Ψ) ∂(poissonAngleMeasure (d n) σ) =
     σ ^ 2 * (⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) + (1 - σ ^ 2) / (d n : ℝ) * ⟪u, v⟫_ℝ := by
-  have hd2 : 2 ≤ d n := by simp only [d]; have := @Nat.one_le_two_pow n; omega
+  have hd2 := two_le_d n
   set μ := poissonAngleMeasure (d n) σ
-  have : IsProbabilityMeasure μ := poissonAngleMeasure_isProbMeasure (d n) σ hσ hd2
+  have : IsProbabilityMeasure μ := poissonAngleMeasure_d_isProbMeasure n σ hσ
   have hcos_int : Integrable (fun θ => cos θ ^ 2) μ := cos_sq_integrable_prob
   have hsin_int : Integrable (fun θ => sin θ ^ 2) μ := sin_sq_integrable_prob
   have hsin_eq : ∫ θ, sin θ ^ 2 ∂μ = 1 - ∫ θ, cos θ ^ 2 ∂μ := by
@@ -569,13 +559,8 @@ theorem isotropicError_bilinear_secondMoment (σ : ℝ) (hσ : σ ∈ Set.Icc 0 
     rw [integral_add hcos_int hsin_int] at hsum
     linarith
   simp_rw [integral_e₂_bilinear Ψ hΨ u v]
-  have hfun : (fun θ => cos θ ^ 2 * (⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) +
-      sin θ ^ 2 * ((⟪u, v⟫_ℝ - ⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) / ((d n : ℝ) - 1))) =
-      fun θ => (⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) * cos θ ^ 2 +
-        ((⟪u, v⟫_ℝ - ⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) / ((d n : ℝ) - 1)) * sin θ ^ 2 := by
-    ext θ; ring
-  rw [hfun, integral_add (hcos_int.const_mul _) (hsin_int.const_mul _),
-      integral_const_mul, integral_const_mul, hsin_eq,
+  rw [integral_add (hcos_int.mul_const _) (hsin_int.mul_const _),
+      integral_mul_const, integral_mul_const, hsin_eq,
       poissonAngleMeasure_cos_sq (d n) σ hσ hd2]
   have hd_ne : (d n : ℝ) ≠ 0 := by positivity
   have hd1_ne : (d n : ℝ) - 1 ≠ 0 := by
@@ -591,9 +576,8 @@ theorem isotropicError_succProb_oneStep (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
     ∫ θ, ∫ e₂, succProb n (isotropicError Ψ e₂ θ) w
           ∂(perpSphereMeasure Ψ) ∂(poissonAngleMeasure (d n) σ) =
     σ ^ 2 * succProb n Ψ w + (1 - σ ^ 2) / (2 ^ n : ℝ) := by
-  have hd2 : 2 ≤ d n := by simp only [d]; have := @Nat.one_le_two_pow n; omega
   set μ := poissonAngleMeasure (d n) σ
-  have : IsProbabilityMeasure μ := poissonAngleMeasure_isProbMeasure (d n) σ hσ hd2
+  have : IsProbabilityMeasure μ := poissonAngleMeasure_d_isProbMeasure n σ hσ
   set e₀ := stdBasisVec n (succProbIdx0 n w)
   set e₁ := stdBasisVec n (succProbIdx1 n w)
   have hinner : ∀ θ : ℝ,

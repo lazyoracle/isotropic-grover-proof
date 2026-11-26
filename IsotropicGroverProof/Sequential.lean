@@ -113,13 +113,11 @@ theorem sequential_mixture_formula (p : ℝ) (n G : ℕ) (σ : ℝ) :
     sequentialFidelity (d n) σ G * p +
       (1 - sequentialFidelity (d n) σ G) * (2 - p) / ((d n : ℝ) - 1) =
     σ ^ (2 * G) * p + (1 - σ ^ (2 * G)) / (2 ^ n : ℝ) := by
-  have hd2 : 2 ≤ d n := by simp only [d]; have := @Nat.one_le_two_pow n; omega
+  have hd2 := two_le_d n
   rw [sequentialFidelity_eq (d n) σ G hd2]
   have hd_ne : (d n : ℝ) ≠ 0 := by positivity
   have hd1_ne : (d n : ℝ) - 1 ≠ 0 := by
-    have : 1 < (d n : ℝ) := by
-      have : 1 < d n := by simp only [d]; have := @Nat.one_le_two_pow n; omega
-      exact_mod_cast this
+    have : (1 : ℝ) < (d n : ℝ) := by exact_mod_cast (by omega : 1 < d n)
     linarith
   have hN_ne : (2 : ℝ) ^ n ≠ 0 := by positivity
   have hd_eq : (d n : ℝ) = 2 * 2 ^ n := by simp only [d]; push_cast; ring
@@ -331,12 +329,12 @@ private lemma rotTo_unit_sum {Ψ₀ Ψ : E n} (hΨ₀ : ‖Ψ₀‖ = 1) (hΨ : 
     ring
   rw [rotTo, hnum, div_self hw_sq, one_smul, add_sub_cancel_left]
 
-private lemma ae_isotropicError_mem_sphere {Ψ : E n} (hΨ : ‖Ψ‖ = 1) (θ : ℝ) :
+lemma ae_isotropicError_mem_sphere {Ψ : E n} (hΨ : ‖Ψ‖ = 1) (θ : ℝ) :
     ∀ᵐ e₂ ∂(perpSphereMeasure Ψ), ‖isotropicError Ψ e₂ θ‖ = 1 := by
   filter_upwards [perpSphereMeasure_norm_ae Ψ] with e₂ ⟨he₂_perp, he₂_norm⟩
   exact isotropicError_norm Ψ e₂ θ hΨ he₂_norm ((mem_V_perp_iff Ψ e₂).mp he₂_perp)
 
-private lemma integrable_perpSphere_of_continuousOn {Ψ : E n} (hΨ : ‖Ψ‖ = 1) (θ : ℝ)
+lemma integrable_perpSphere_of_continuousOn {Ψ : E n} (hΨ : ‖Ψ‖ = 1) (θ : ℝ)
     {g : E n → ℝ} (hg : ContinuousOn g (Metric.sphere (0 : E n) 1)) :
     Integrable (fun e₂ => g (isotropicError Ψ e₂ θ)) (perpSphereMeasure Ψ) := by
   obtain ⟨C, _, hC⟩ := extendFromSphere_bounded hg
@@ -388,14 +386,12 @@ private lemma norm_inner_integral_le_of_continuousOn {Ψ : E n} (hΨ : ‖Ψ‖ 
         norm_integral_le_of_norm_le_const (ae_of_all _ fun e₂ => hC _)
     _ = C := by simp [Measure.real]
 
-private lemma integrable_outer_integral_of_continuousOn (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
+lemma integrable_outer_integral_of_continuousOn (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
     {Ψ : E n} (hΨ : ‖Ψ‖ = 1) {g : E n → ℝ}
     (hg : ContinuousOn g (Metric.sphere (0 : E n) 1)) :
     Integrable (fun θ => ∫ e₂, g (isotropicError Ψ e₂ θ) ∂(perpSphereMeasure Ψ))
       (poissonAngleMeasure (d n) σ) := by
-  have hd2 : 2 ≤ d n := by simp only [d]; have := @Nat.one_le_two_pow n; omega
-  have : IsProbabilityMeasure (poissonAngleMeasure (d n) σ) :=
-    poissonAngleMeasure_isProbMeasure (d n) σ hσ hd2
+  have := poissonAngleMeasure_d_isProbMeasure n σ hσ
   obtain ⟨C, _, hC⟩ := extendFromSphere_bounded hg
   exact Integrable.mono' (integrable_const C)
     (continuous_inner_integral_of_continuousOn hΨ hg).aestronglyMeasurable
@@ -420,9 +416,7 @@ private lemma continuousOn_oneStep_unitSphere (σ : ℝ) (hσ : σ ∈ Set.Icc 0
       (fun Ψ => ∫ θ, ∫ e₂, g (isotropicError Ψ e₂ θ)
         ∂(perpSphereMeasure Ψ) ∂(poissonAngleMeasure (d n) σ))
       (Metric.sphere (0 : E n) 1) := by
-  have hd2 : 2 ≤ d n := by simp only [d]; have := @Nat.one_le_two_pow n; omega
-  have : IsProbabilityMeasure (poissonAngleMeasure (d n) σ) :=
-    poissonAngleMeasure_isProbMeasure (d n) σ hσ hd2
+  have := poissonAngleMeasure_d_isProbMeasure n σ hσ
   obtain ⟨C, _, hC⟩ := extendFromSphere_bounded hg
   have hg_ext_cont : Continuous (extendFromSphere g) := extendFromSphere_continuous hg
   intro Ψ₀ hΨ₀_mem
@@ -514,9 +508,7 @@ theorem noisyTrajectoryExpectation_continuousOn_unitSphere (σ : ℝ) (hσ : σ 
 theorem noisyTrajectoryExpectation_const (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
     (gates : List (E n ≃ₗᵢ[ℝ] E n)) (Φ₀ : E n) (c : ℝ) :
     noisyTrajectoryExpectation n σ gates Φ₀ (fun _ => c) = c := by
-  have hd2 : 2 ≤ d n := by simp only [d]; have := @Nat.one_le_two_pow n; omega
-  have : IsProbabilityMeasure (poissonAngleMeasure (d n) σ) :=
-    poissonAngleMeasure_isProbMeasure (d n) σ hσ hd2
+  have := poissonAngleMeasure_d_isProbMeasure n σ hσ
   induction gates generalizing Φ₀ with
   | nil => rfl
   | cons U rest ih =>
@@ -615,9 +607,7 @@ theorem noisyTrajectory_bilinear (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
     σ ^ (2 * gates.length) *
       (⟪idealGateTrajectory gates Φ₀, u⟫_ℝ * ⟪idealGateTrajectory gates Φ₀, v⟫_ℝ) +
     (1 - σ ^ (2 * gates.length)) / (d n : ℝ) * ⟪u, v⟫_ℝ := by
-  have hd2 : 2 ≤ d n := by simp only [d]; have := @Nat.one_le_two_pow n; omega
-  have : IsProbabilityMeasure (poissonAngleMeasure (d n) σ) :=
-    poissonAngleMeasure_isProbMeasure (d n) σ hσ hd2
+  have := poissonAngleMeasure_d_isProbMeasure n σ hσ
   induction gates generalizing Φ₀ with
   | nil =>
     simp
@@ -675,13 +665,12 @@ theorem noisyTrajectory_fidelity_eq_sequentialFidelity (σ : ℝ) (hσ : σ ∈ 
     noisyTrajectoryExpectation n σ gates Φ₀
       (fun Ψ => ⟪Ψ, idealGateTrajectory gates Φ₀⟫_ℝ ^ 2) =
     sequentialFidelity (d n) σ gates.length := by
-  have hd2 : 2 ≤ d n := by simp only [d]; have := @Nat.one_le_two_pow n; omega
   set ΦG := idealGateTrajectory gates Φ₀
   have hΦG : ⟪ΦG, ΦG⟫_ℝ = 1 := by
     rw [real_inner_self_eq_norm_sq, norm_idealGateTrajectory, hΦ₀, one_pow]
   simp_rw [sq]
   rw [noisyTrajectory_bilinear σ hσ gates Φ₀ hΦ₀ ΦG ΦG, hΦG,
-      sequentialFidelity_eq (d n) σ gates.length hd2]
+      sequentialFidelity_eq (d n) σ gates.length (two_le_d n)]
   have hd_ne : (d n : ℝ) ≠ 0 := by positivity
   field_simp [hd_ne]
   ring

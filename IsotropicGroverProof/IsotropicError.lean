@@ -668,6 +668,11 @@ theorem poissonAngleMeasure_isProbMeasure (d : ℕ) (σ : ℝ)
   · infer_instance
   · exact poissonMarginal_isProbMeasure_Ico d σ ⟨hσ.1, lt_of_le_of_ne hσ.2 h1⟩ hd
 
+/-- `poissonAngleMeasure (d n) σ` is a probability measure for all `σ ∈ [0, 1]`. -/
+lemma poissonAngleMeasure_d_isProbMeasure (n : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1) :
+    IsProbabilityMeasure (poissonAngleMeasure (d n) σ) :=
+  poissonAngleMeasure_isProbMeasure (d n) σ hσ (two_le_d n)
+
 /-- First moment `E[cos θ] = σ` under `poissonAngleMeasure d σ` for all `σ ∈ [0, 1]` and `d ≥ 2`. -/
 theorem poissonAngleMeasure_mean_cos (d : ℕ) (σ : ℝ)
     (hσ : σ ∈ Set.Icc 0 1) (hd : 2 ≤ d) :

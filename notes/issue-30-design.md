@@ -20,13 +20,15 @@ With non-standard kernel axioms eliminated in #29, four structural "axioms by de
   $$\int \theta,\, \int e_2,\, \langle \mathrm{isotropicError}\,\Psi\,e_2\,\theta, u \rangle_{\mathbb{R}} \langle \mathrm{isotropicError}\,\Psi\,e_2\,\theta, v \rangle_{\mathbb{R}} \, \partial(\mathrm{perpSphereMeasure}\,\Psi) \, \partial(\mathrm{poissonAngleMeasure}\,(d\,n)\,\sigma) = \sigma^2 \langle \Psi, u \rangle_{\mathbb{R}} \langle \Psi, v \rangle_{\mathbb{R}} + \frac{1 - \sigma^2}{d\,n} \langle u, v \rangle_{\mathbb{R}}.$$
 
 ### 2. Measure-Theoretic Pure-State Markov Chain Over Interleaved Gates (`Sequential.lean`, `LimitingCases.lean`)
-- Define the single-step isotropic noise kernel `isotropicNoiseKernel (n : ℕ) (σ : ℝ) (Ψ : E n) : Measure (E n)` via `(poissonAngleMeasure (d n) σ).bind (fun θ => (perpSphereMeasure Ψ).map (isotropicError Ψ · θ))`.
-- For any list of orthogonal/unitary gates `gates : List (E n ≃ₗᵢ[ℝ] E n)`, define the sequential noisy state measure `sequentialNoisyMeasure n σ gates Φ₀ : Measure (E n)` via `List.foldl` + `Measure.bind` (`Ψ ↦ isotropicNoiseKernel n σ (U Ψ)`), alongside the ideal noiseless state `idealGateOutput gates Φ₀ := gates.foldl (fun v U => U v) Φ₀`.
+- For any list of orthogonal/unitary gates `gates : List (E n ≃ₗᵢ[ℝ] E n)`, define the ideal noiseless output `idealGateTrajectory gates Φ₀ := gates.foldl (fun v U => U v) Φ₀` (alongside its composite linear isometry `idealGateIso gates`), and define the recursive iterated-integral Markov expectation `noisyTrajectoryExpectation (n : ℕ) (σ : ℝ) : List (E n ≃ₗᵢ[ℝ] E n) → E n → (E n → ℝ) → ℝ` (plus `noisyTrajectoryExpectationℂ` on `E n → ℂ` in `QuantumChannel.lean`):
+  - `[] => fun Φ₀ f => f Φ₀`
+  - `U :: rest => fun Φ₀ f => ∫ θ, ∫ e₂, noisyTrajectoryExpectation n σ rest (isotropicError (U Φ₀) e₂ θ) f ∂(perpSphereMeasure (U Φ₀)) ∂(poissonAngleMeasure (d n) σ)`
+  *(Formulating the Markov chain directly via iterated integrals over `(poissonAngleMeasure, perpSphereMeasure)` at each gate step avoids non-measurable `Classical.choice` basis selection in `Ψ ↦ perpSphereMeasure Ψ` while faithfully tracking `Ψ_{k+1} = cos θ_{k+1} (U_{k+1} Ψ_k) + sin θ_{k+1} e_{2,k+1}`.)*
 - Prove by induction on `gates` (for all `G = gates.length : ℕ`, including `G = 0`, and all `σ ∈ Set.Icc 0 1`):
-  1. `sequentialNoisyMeasure` is a probability measure supported a.e. on the unit sphere `‖Ψ‖ = 1`.
-  2. Bilinear expectation after `gates`: $\int \langle \Psi, u \rangle_{\mathbb{R}} \langle \Psi, v \rangle_{\mathbb{R}} \, \partial\mu = \sigma^{2G} \langle \Phi_G, u \rangle_{\mathbb{R}} \langle \Phi_G, v \rangle_{\mathbb{R}} + \frac{1 - \sigma^{2G}}{d\,n}\langle u, v \rangle_{\mathbb{R}}$.
-  3. Squared overlap with $\Phi_G$ equals `sequentialFidelity (d n) σ gates.length`.
-  4. Expected `succProb n Ψ w` equals $\sigma^{2G} \cdot \mathrm{succProb}\,n\,\Phi_G\,w + \frac{1 - \sigma^{2G}}{2^n}$.
+  1. Unit-sphere support and regularity (`noisyTrajectory_congr_unitSphere`, `noisyTrajectoryExpectation_continuousOn_unitSphere`, and linearity): when `‖Φ₀‖ = 1`, `noisyTrajectoryExpectation` evaluates observables a.e. on the unit sphere `‖Ψ‖ = 1` and preserves `ContinuousOn` on `Metric.sphere 0 1`.
+  2. Bilinear expectation after `gates` (`noisyTrajectory_bilinear`): `noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => ⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) = σ ^ (2 * G) * (⟪Φ_G, u⟫_ℝ * ⟪Φ_G, v⟫_ℝ) + (1 - σ ^ (2 * G)) / (d n) * ⟪u, v⟫_ℝ`, where `Φ_G = idealGateTrajectory gates Φ₀`.
+  3. Squared overlap with $\Phi_G$ (`noisyTrajectory_fidelity_eq_sequentialFidelity`) equals `sequentialFidelity (d n) σ gates.length`.
+  4. Expected `succProb n Ψ w` (`noisyTrajectory_succProb`) equals $\sigma^{2G} \cdot \mathrm{succProb}\,n\,\Phi_G\,w + \frac{1 - \sigma^{2G}}{2^n}$.
 - Connect `LimitingCases.lean` to the `[0, 1]` closed-interval formulation so $\sigma = 0, 1$ and $G = 0$ hold both by evaluation and by continuity.
 
 ### 3. `QuantumInfo` `CPTPMap` Depolarizing Bridge & `QuantumComputation` `Circuit.size` (`IsotropicGroverProof/QuantumChannel.lean`)
