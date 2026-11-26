@@ -37,11 +37,13 @@
 - Consumes: `ketToReal`, `norm_ketToReal`, `succProb_ketToReal_eq_born`, `applyUnitaryKet`, `idealUnitaryTrajectory` (`QuantumChannel.lean`), `Grover.oracleUnitary`, `Grover.diffuserUnitary`, `Grover.groverState`, `Grover.groverState_target_sum`, `Grover.p_succ`, `hadamardUnitary` (`QuantumComputation`).
 - Produces:
   - Simplified proofs in `GroverCircuit.lean` (`targetBasisState_eq_ketToReal`, `uniformSuperposition_eq_ketToReal`, deduplicated 2D search-plane norm proofs)
+  - `noncomputable def unitaryListProd {n : ℕ} : List 𝐔[Fin (2 ^ n)] → 𝐔[Fin (2 ^ n)]`
   - `noncomputable def groverIterGates {n : ℕ} (target : Fin (2 ^ n)) : ℕ → List 𝐔[Fin (2 ^ n)]`
-  - `noncomputable def groverFullGates (n : ℕ) (target : Fin (2 ^ n)) (K : ℕ) : List 𝐔[Fin (2 ^ n)]`
-  - `lemma length_groverIterGates`, `lemma length_groverFullGates`
+  - `noncomputable def groverFullGates {n : ℕ} (target : Fin (2 ^ n)) (K : ℕ) : List 𝐔[Fin (2 ^ n)]`
+  - `lemma length_groverIterGates`, `lemma length_groverFullGates`, `theorem unitaryListProd_groverFullGates_val`
+  - `theorem applyUnitaryKet_basis_zero_of_groverMatrix`, `theorem idealUnitaryTrajectory_of_groverMatrix`, `theorem circuit_evolve_basis_zero_of_groverMatrix`
   - `theorem idealUnitaryTrajectory_groverIterGates {n : ℕ} (target : Fin (2 ^ n)) (K : ℕ) : (idealUnitaryTrajectory (groverIterGates target K) (uniform_superposition : Ket (Fin (2 ^ n)))).vec = Grover.groverState target K`
-  - `theorem idealUnitaryTrajectory_groverFullGates (n : ℕ) (target : Fin (2 ^ n)) (K : ℕ) : (idealUnitaryTrajectory (groverFullGates n target K) (Ket.basis (0 : Fin (2 ^ n)))).vec = Grover.groverState target K`
+  - `theorem idealUnitaryTrajectory_groverFullGates {n : ℕ} (target : Fin (2 ^ n)) (K : ℕ) : (idealUnitaryTrajectory (groverFullGates target K) (Ket.basis (0 : Fin (2 ^ n)))).vec = Grover.groverState target K`
   - `theorem groverState_bornProb {n : ℕ} (target : Fin (2 ^ n)) (K : ℕ) {ψ : Ket (Fin (2 ^ n))} (hψ : ψ.vec = Grover.groverState target K) : ‖ψ target‖ ^ 2 = Grover.p_succ K (2 ^ n)`
 
 - [ ] **Step 1: Import `QuantumChannel` in `GroverCircuit.lean` and write failing `#check` assertions (RED)**
@@ -73,12 +75,15 @@ git commit -m "feat: bridge QuantumComputation Grover state evolution to Quantum
 **Interfaces:**
 - Consumes: `groverIterGates`, `groverFullGates`, `idealUnitaryTrajectory_groverIterGates`, `idealUnitaryTrajectory_groverFullGates`, `groverState_bornProb` from Task 1; `noisyTrajectory_eq_depolarizingChannel`, `noisyCircuit_bornProb_pure`, `noisyCircuit_trajectory_succProb_eq_measure` from `QuantumChannel.lean`.
 - Produces:
-  - `theorem noisyGrover_unitaryList_succProb {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1) (us : List 𝐔[Fin (2 ^ n)]) (ψ₀ : Ket (Fin (2 ^ n))) (target : Fin (2 ^ n)) (K : ℕ) (hideal : ‖(idealUnitaryTrajectory us ψ₀) target‖ ^ 2 = Grover.p_succ K (2 ^ n)) : noisyTrajectoryExpectation n σ (us.map unitaryToRealIso) (ketToReal ψ₀) (fun Ψ => succProb n Ψ target) = σ ^ (2 * us.length) * Grover.p_succ K (2 ^ n) + (1 - σ ^ (2 * us.length)) / (2 ^ n : ℝ)`
-  - `theorem noisyGrover_iterGates_succProb {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1) (target : Fin (2 ^ n)) (K : ℕ) : noisyTrajectoryExpectation n σ ((groverIterGates target K).map unitaryToRealIso) (ketToReal (uniform_superposition : Ket (Fin (2 ^ n)))) (fun Ψ => succProb n Ψ target) = σ ^ (4 * K) * Grover.p_succ K (2 ^ n) + (1 - σ ^ (4 * K)) / (2 ^ n : ℝ)`
-  - `theorem noisyGrover_fullGates_succProb (n : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1) (target : Fin (2 ^ n)) (K : ℕ) : noisyTrajectoryExpectation n σ ((groverFullGates n target K).map unitaryToRealIso) (ketToReal (Ket.basis (0 : Fin (2 ^ n)))) (fun Ψ => succProb n Ψ target) = σ ^ (2 * (2 * K + 1)) * Grover.p_succ K (2 ^ n) + (1 - σ ^ (2 * (2 * K + 1))) / (2 ^ n : ℝ)`
+  - `noncomputable def noisyUnitaryListChannel {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1) : List 𝐔[Fin (2 ^ n)] → CPTPMap (Fin (2 ^ n)) (Fin (2 ^ n))`
+  - `theorem noisyGrover_unitaryList_bornProb` & `theorem noisyGrover_unitaryList_succProb {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1) (us : List 𝐔[Fin (2 ^ n)]) (ψ₀ : Ket (Fin (2 ^ n))) (target : Fin (2 ^ n)) (K : ℕ) (hideal : ‖(idealUnitaryTrajectory us ψ₀) target‖ ^ 2 = Grover.p_succ K (2 ^ n)) : noisyTrajectoryExpectation n σ (us.map unitaryToRealIso) (ketToReal ψ₀) (fun Ψ => succProb n Ψ target) = σ ^ (2 * us.length) * Grover.p_succ K (2 ^ n) + (1 - σ ^ (2 * us.length)) / (2 ^ n : ℝ)`
+  - `theorem noisyGrover_unitaryList_groverMatrix_bornProb` & `theorem noisyGrover_unitaryList_groverMatrix_succProb`
+  - `theorem noisyGrover_iterGates_bornProb` & `theorem noisyGrover_iterGates_succProb {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1) (target : Fin (2 ^ n)) (K : ℕ) : noisyTrajectoryExpectation n σ ((groverIterGates target K).map unitaryToRealIso) (ketToReal (uniform_superposition : Ket (Fin (2 ^ n)))) (fun Ψ => succProb n Ψ target) = σ ^ (4 * K) * Grover.p_succ K (2 ^ n) + (1 - σ ^ (4 * K)) / (2 ^ n : ℝ)`
+  - `theorem noisyGrover_fullGates_bornProb` & `theorem noisyGrover_fullGates_succProb {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1) (target : Fin (2 ^ n)) (K : ℕ) : noisyTrajectoryExpectation n σ ((groverFullGates target K).map unitaryToRealIso) (ketToReal (Ket.basis (0 : Fin (2 ^ n)))) (fun Ψ => succProb n Ψ target) = σ ^ (2 * (2 * K + 1)) * Grover.p_succ K (2 ^ n) + (1 - σ ^ (2 * (2 * K + 1))) / (2 ^ n : ℝ)`
   - `theorem noisyGrover_circuit_bornProb {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1) (c : Circuit n) (ψ₀ : Ket (Fin (2 ^ n))) (target : Fin (2 ^ n)) (K : ℕ) (hideal : ‖(c.evolve ψ₀.vec) target‖ ^ 2 = Grover.p_succ K (2 ^ n)) : ((computationalPOVM n).measure (noisyCircuitChannel σ hσ c (MState.pure ψ₀)) target : ℝ) = σ ^ (2 * c.size) * Grover.p_succ K (2 ^ n) + (1 - σ ^ (2 * c.size)) / (2 ^ n : ℝ)`
   - `theorem noisyGrover_circuit_trajectory_succProb {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1) (c : Circuit n) (ψ₀ : Ket (Fin (2 ^ n))) (target : Fin (2 ^ n)) (K : ℕ) (hideal : ‖(c.evolve ψ₀.vec) target‖ ^ 2 = Grover.p_succ K (2 ^ n)) : noisyTrajectoryExpectation n σ ((circuitUnitaries c).map unitaryToRealIso) (ketToReal ψ₀) (fun Ψ => succProb n Ψ target) = σ ^ (2 * c.size) * Grover.p_succ K (2 ^ n) + (1 - σ ^ (2 * c.size)) / (2 ^ n : ℝ)`
-  - Concrete 1-qubit `Circuit 1` witness (`Circuit.H (0 : Wire 1)`) demonstrating non-vacuous instantiation of `noisyGrover_circuit_bornProb` at `K = 0`, `c.size = 1`.
+  - `theorem noisyGrover_circuit_groverMatrix_bornProb` & `theorem noisyGrover_circuit_groverMatrix_trajectory_succProb`
+  - Concrete computable `Circuit 1` (`Circuit.H (0 : Wire 1)`, `K = 0`, `c.size = 1`) and `Circuit 2` (`grover2QubitCircuit`, `K = 1`, `c.size = 14`, `Grover.p_succ 1 4 = 1`) witnesses demonstrating non-vacuous instantiation on primitive-gate syntax.
 
 - [ ] **Step 1: Add failing `#check` assertions for the noisy Grover theorems and remove `quantumInfo_quantumComputation_smoke` (RED)**
 
