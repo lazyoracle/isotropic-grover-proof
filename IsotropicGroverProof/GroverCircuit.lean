@@ -11,6 +11,9 @@
 --    or ideal success probability p_ideal ∈ [0, 1].
 -- 5. Canonical Grover unitary sequences (`groverIterGates`, `groverFullGates`) and their
 --    noiseless evolution to `Grover.groverState` and Born-rule probability `Grover.p_succ`.
+-- 6. End-to-end noisy Grover success-probability theorems across arbitrary unitary gate lists
+--    (`List 𝐔[Fin (2 ^ n)]`), canonical Grover sequences, and syntactic `Circuit n` (`c.size`),
+--    with concrete 1-qubit (`K = 0`) and 2-qubit (`K = 1`) primitive-gate circuit witnesses.
 
 import QuantumInfo.States.Pure.Braket
 import QuantumInfo.States.Mixed.MState
@@ -26,15 +29,18 @@ import IsotropicGroverProof.QuantumChannel
 # Grover Circuit State Specializations and `QuantumComputation.Algorithms.Grover` Bridge
 
 Specializes `isotropicGrover_main` to the target basis state, uniform superposition,
-and 2D Grover search plane, and bridges `QuantumInfo` ket trajectories across
+and 2D Grover search plane, bridges `QuantumInfo` ket trajectories across
 `Grover.oracleUnitary`, `Grover.diffuserUnitary`, and `hadamardUnitary` to
-`Grover.groverState` and `Grover.p_succ`.
+`Grover.groverState` and `Grover.p_succ`, and proves end-to-end noisy Grover
+success-probability theorems across arbitrary unitary gate lists (`List 𝐔[Fin (2 ^ n)]`),
+canonical Grover sequences (`groverIterGates`, `groverFullGates`), and syntactic
+`Circuit n` (`c.size`) for all `σ ∈ [0, 1]` and `K : ℕ`.
 -/
 
 namespace IsotropicGrover
 
 open Real MeasureTheory
-open scoped Matrix
+open scoped Matrix Circuit.Notation
 
 /-! ## Shared real/complex vector and orthonormal linear-combination helpers -/
 
@@ -391,32 +397,328 @@ theorem groverState_bornProb {n : ℕ} (target : Fin (2 ^ n)) (K : ℕ) {ψ : Ke
       Complex.norm_real, Real.norm_eq_abs, sq_abs,
       Grover.p_succ_eq_sin_sq, Nat.cast_pow, Nat.cast_ofNat, ← Grover.halfAngle]
 
-/-! ## Dependency smoke check & verification checks -/
+/-! ## End-to-end noisy Grover theorems -/
 
-/-- Smoke check that `Physlib`'s `QuantumInfo` (`Ket`, `MState.pure`, `MState.uniform`,
-`CPTPMap.id`, `POVM.measureDiscard_apply`) and `formal-quantum-computation`'s
-`QuantumComputation` (`Grover.diffuserUnitary`, `Grover.oracleUnitary`,
-`Grover.grover_success_matrix_entry`, `Grover.p_succ_eq_sin_sq`, `Circuit.size`) are
-available and carry zero `sorryAx` or custom axioms. -/
-lemma quantumInfo_quantumComputation_smoke (n K : ℕ) (target : Fin (2 ^ n))
-    (ψ : Ket (Fin 2)) (Λ : POVM (Fin 2) (Fin 2)) :
-    (MState.pure ψ).M.trace = 1 ∧
-    ((CPTPMap.id (dIn := Fin 2)) (MState.uniform (d := Fin 2))).M.trace = 1 ∧
-    Λ.measureDiscard (MState.uniform (d := Fin 2)) =
-      MState.ofClassical (Λ.measure (MState.uniform (d := Fin 2))) ∧
-    Grover.diffuserUnitary (n := n) ≠ Grover.oracleUnitary target ∧
-    ((Grover.groverMatrix target K)ᴴ * compProj target *
-      Grover.groverMatrix target K) 0 0 = (Grover.p_succ K (2 ^ n) : ℂ) ∧
-    Grover.p_succ K (2 ^ n) =
-      Real.sin ((2 * (K : ℝ) + 1) * Real.arcsin (1 / √((2 ^ n : ℕ) : ℝ))) ^ 2 ∧
-    (Circuit.identity : Circuit n).size = 0 :=
-  ⟨(MState.pure ψ).tr,
-   ((CPTPMap.id (dIn := Fin 2)) (MState.uniform (d := Fin 2))).tr,
-   Λ.measureDiscard_apply (MState.uniform (d := Fin 2)),
-   Grover.diffuserUnitary_ne_oracleUnitary target,
-   Grover.grover_success_matrix_entry target K,
-   Grover.p_succ_eq_sin_sq K (2 ^ n),
-   rfl⟩
+/-- **Noisy Grover theorem for arbitrary unitary gate lists:** For any gate sequence
+    `us : List 𝐔[Fin (2 ^ n)]` and initial ket `ψ₀` whose noiseless evolution achieves
+    `‖(idealUnitaryTrajectory us ψ₀) target‖ ^ 2 = Grover.p_succ K (2 ^ n)`, the expected
+    measurement probability along the interleaved isotropic sphere trajectory equals
+    `σ ^ (2 * us.length) * Grover.p_succ K (2 ^ n) + (1 - σ ^ (2 * us.length)) / 2 ^ n`
+    for all `σ ∈ [0, 1]`. -/
+theorem noisyGrover_unitaryList_succProb {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
+    (us : List 𝐔[Fin (2 ^ n)]) (ψ₀ : Ket (Fin (2 ^ n))) (target : Fin (2 ^ n)) (K : ℕ)
+    (hideal : ‖(idealUnitaryTrajectory us ψ₀) target‖ ^ 2 = Grover.p_succ K (2 ^ n)) :
+    noisyTrajectoryExpectation n σ (us.map unitaryToRealIso) (ketToReal ψ₀)
+      (fun Ψ => succProb n Ψ target) =
+    σ ^ (2 * us.length) * Grover.p_succ K (2 ^ n) +
+      (1 - σ ^ (2 * us.length)) / (2 ^ n : ℝ) := by
+  rw [noisyTrajectory_succProb σ hσ (us.map unitaryToRealIso) (ketToReal ψ₀) (norm_ketToReal ψ₀),
+      List.length_map, ← ketToReal_idealUnitaryTrajectory,
+      (succProb_ketToReal_eq_born (idealUnitaryTrajectory us ψ₀) target).1, hideal]
+
+/-- **Noisy Grover theorem for `K` macro iterations (`G = 2 * K`):** Running
+    `groverIterGates target K` from `uniform_superposition` under per-stage isotropic sphere noise
+    with parameter `σ ∈ [0, 1]` yields expected success probability
+    `σ ^ (4 * K) * Grover.p_succ K (2 ^ n) + (1 - σ ^ (4 * K)) / 2 ^ n`. -/
+theorem noisyGrover_iterGates_succProb {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
+    (target : Fin (2 ^ n)) (K : ℕ) :
+    noisyTrajectoryExpectation n σ ((groverIterGates target K).map unitaryToRealIso)
+      (ketToReal (uniform_superposition : Ket (Fin (2 ^ n))))
+      (fun Ψ => succProb n Ψ target) =
+    σ ^ (4 * K) * Grover.p_succ K (2 ^ n) + (1 - σ ^ (4 * K)) / (2 ^ n : ℝ) := by
+  rw [noisyGrover_unitaryList_succProb σ hσ (groverIterGates target K)
+        (uniform_superposition : Ket (Fin (2 ^ n))) target K
+        (groverState_bornProb target K (idealUnitaryTrajectory_groverIterGates target K)),
+      length_groverIterGates, show 2 * (2 * K) = 4 * K by omega]
+
+/-- **Noisy Grover theorem with noisy Hadamard preparation (`G = 2 * K + 1`):** Running
+    `groverFullGates n target K` from `Ket.basis 0` under per-stage isotropic sphere noise with
+    parameter `σ ∈ [0, 1]` yields expected success probability
+    `σ ^ (2 * (2 * K + 1)) * Grover.p_succ K (2 ^ n) + (1 - σ ^ (2 * (2 * K + 1))) / 2 ^ n`. -/
+theorem noisyGrover_fullGates_succProb (n : ℕ) (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
+    (target : Fin (2 ^ n)) (K : ℕ) :
+    noisyTrajectoryExpectation n σ ((groverFullGates n target K).map unitaryToRealIso)
+      (ketToReal (Ket.basis (0 : Fin (2 ^ n))))
+      (fun Ψ => succProb n Ψ target) =
+    σ ^ (2 * (2 * K + 1)) * Grover.p_succ K (2 ^ n) +
+      (1 - σ ^ (2 * (2 * K + 1))) / (2 ^ n : ℝ) := by
+  rw [noisyGrover_unitaryList_succProb σ hσ (groverFullGates n target K)
+        (Ket.basis (0 : Fin (2 ^ n))) target K
+        (groverState_bornProb target K (idealUnitaryTrajectory_groverFullGates n target K)),
+      length_groverFullGates]
+
+/-- **Noisy Grover Born-rule theorem for syntactic `Circuit n`:** For any primitive-gate circuit
+    `c : Circuit n` and initial ket `ψ₀` whose noiseless evolution achieves
+    `‖(c.evolve ψ₀.vec) target‖ ^ 2 = Grover.p_succ K (2 ^ n)`, measuring `target` with
+    `computationalPOVM n` after executing `noisyCircuitChannel σ hσ c` yields
+    `σ ^ (2 * c.size) * Grover.p_succ K (2 ^ n) + (1 - σ ^ (2 * c.size)) / 2 ^ n`,
+    where `c.size` counts primitive gates directly from circuit syntax. -/
+theorem noisyGrover_circuit_bornProb {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
+    (c : Circuit n) (ψ₀ : Ket (Fin (2 ^ n))) (target : Fin (2 ^ n)) (K : ℕ)
+    (hideal : ‖(c.evolve ψ₀.vec) target‖ ^ 2 = Grover.p_succ K (2 ^ n)) :
+    ((computationalPOVM n).measure (noisyCircuitChannel σ hσ c (MState.pure ψ₀)) target : ℝ) =
+    σ ^ (2 * c.size) * Grover.p_succ K (2 ^ n) + (1 - σ ^ (2 * c.size)) / (2 ^ n : ℝ) := by
+  rw [noisyCircuit_bornProb_pure σ hσ c ψ₀ target, hideal]
+
+/-- **Noisy Grover trajectory theorem for syntactic `Circuit n`:** Expected `succProb` along the
+    microscopic pure-state isotropic sphere trajectory of `circuitUnitaries c` equals
+    `σ ^ (2 * c.size) * Grover.p_succ K (2 ^ n) + (1 - σ ^ (2 * c.size)) / 2 ^ n`. -/
+theorem noisyGrover_circuit_trajectory_succProb {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
+    (c : Circuit n) (ψ₀ : Ket (Fin (2 ^ n))) (target : Fin (2 ^ n)) (K : ℕ)
+    (hideal : ‖(c.evolve ψ₀.vec) target‖ ^ 2 = Grover.p_succ K (2 ^ n)) :
+    noisyTrajectoryExpectation n σ ((circuitUnitaries c).map unitaryToRealIso) (ketToReal ψ₀)
+      (fun Ψ => succProb n Ψ target) =
+    σ ^ (2 * c.size) * Grover.p_succ K (2 ^ n) + (1 - σ ^ (2 * c.size)) / (2 ^ n : ℝ) := by
+  rw [noisyCircuit_trajectory_succProb_eq_measure σ hσ c ψ₀ target,
+      noisyGrover_circuit_bornProb σ hσ c ψ₀ target K hideal]
+
+/-! ## Concrete syntactic `Circuit` witnesses -/
+
+private lemma qubitH_eq_hadamardUnitary : Qubit.H = (hadamardUnitary : 𝐔[Fin (2 ^ 1)]) := by
+  have hb00 : basisBits 1 (0 : Fin (2 ^ 1)) 0 = 0 := by decide
+  have hb10 : basisBits 1 (1 : Fin (2 ^ 1)) 0 = 1 := by decide
+  have hu0 : ((-1 : ℤˣ) ^ (0 : ZMod 2) : ℤˣ) = 1 := by decide
+  have hu1 : ((-1 : ℤˣ) ^ (1 : ZMod 2) : ℤˣ) = -1 := by decide
+  apply Subtype.ext
+  ext i j
+  fin_cases i <;> fin_cases j <;>
+    simp [Qubit.H, hadamardUnitary, hadamardMatrix, walshMatrix, walshChar,
+      dotProduct, Real.sqrt_inv, hb00, hb10, hu0, hu1]
+
+private lemma circuit_H_eval {n : ℕ} (q : Wire n) :
+    (Circuit.H q).eval = hadamardAt n q := by
+  simp [Circuit.H, PrimitiveGate.eval, qubitH_eq_hadamardUnitary, hadamardAt]
+
+/-- Evolving `Ket.basis 0` through the 1-qubit primitive Hadamard circuit `Circuit.H (0 : Wire 1)`
+    yields `Grover.groverState target 0`. -/
+lemma circuit_hadamard1_evolve_basis_zero (target : Fin (2 ^ 1)) :
+    (Circuit.H (0 : Wire 1)).evolve (Ket.basis (0 : Fin (2 ^ 1))).vec =
+    Grover.groverState target 0 := by
+  rw [Circuit.evolve, circuit_H_eval]
+  simpa [hadamardAt, groverFullGates, idealUnitaryTrajectory, applyUnitaryKet] using
+    idealUnitaryTrajectory_groverFullGates 1 target 0
+
+/-- The 1-qubit Hadamard circuit `Circuit.H (0 : Wire 1)` achieves ideal Born probability
+    `Grover.p_succ 0 2` on every target `target : Fin (2 ^ 1)`. -/
+lemma circuit_hadamard1_bornProb (target : Fin (2 ^ 1)) :
+    ‖((Circuit.H (0 : Wire 1)).evolve (Ket.basis (0 : Fin (2 ^ 1))).vec) target‖ ^ 2 =
+    Grover.p_succ 0 (2 ^ 1) :=
+  groverState_bornProb target 0 (ψ := applyUnitaryKet (Circuit.H (0 : Wire 1)).eval (Ket.basis 0))
+    (circuit_hadamard1_evolve_basis_zero target)
+
+/-- At `K = 0` on `n = 1` qubit (`d = 2`), `Grover.p_succ 0 2 = 1 / 2`. -/
+lemma p_succ_zero_two : Grover.p_succ 0 2 = 1 / 2 := by
+  have h := groverState_bornProb (0 : Fin (2 ^ 1)) 0
+    (idealUnitaryTrajectory_groverFullGates 1 (0 : Fin (2 ^ 1)) 0)
+  rw [Ket.apply, idealUnitaryTrajectory_groverFullGates] at h
+  simpa [Grover.groverState, Complex.norm_real, Real.norm_eq_abs, sq_abs,
+    one_div_pow] using h.symm
+
+/-- **Concrete `Circuit 1` witness (`K = 0`, `c.size = 1`):** Instantiates
+    `noisyGrover_circuit_bornProb` on `Circuit.H (0 : Wire 1)` (`(Circuit.H 0).size = 1`),
+    yielding both `σ ^ 2 * Grover.p_succ 0 2 + (1 - σ ^ 2) / 2` and the simplified value `1 / 2`. -/
+theorem noisyGrover_circuit_hadamard1_bornProb (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
+    (target : Fin (2 ^ 1)) :
+    ((computationalPOVM 1).measure
+      (noisyCircuitChannel σ hσ (Circuit.H (0 : Wire 1))
+        (MState.pure (Ket.basis (0 : Fin (2 ^ 1))))) target : ℝ) =
+      σ ^ 2 * Grover.p_succ 0 2 + (1 - σ ^ 2) / 2 ∧
+    ((computationalPOVM 1).measure
+      (noisyCircuitChannel σ hσ (Circuit.H (0 : Wire 1))
+        (MState.pure (Ket.basis (0 : Fin (2 ^ 1))))) target : ℝ) = 1 / 2 := by
+  have hmain := noisyGrover_circuit_bornProb σ hσ (Circuit.H (0 : Wire 1))
+    (Ket.basis (0 : Fin (2 ^ 1))) target 0 (circuit_hadamard1_bornProb target)
+  have hsize : (Circuit.H (0 : Wire 1)).size = 1 := rfl
+  have hp0 : Grover.p_succ 0 (2 ^ 1) = Grover.p_succ 0 2 := rfl
+  rw [hsize, hp0, show 2 * 1 = 2 by rfl, pow_one (2 : ℝ)] at hmain
+  refine ⟨hmain, ?_⟩
+  rw [hmain, p_succ_zero_two]
+  ring
+
+/-- Concrete 2-qubit (`n = 2`), 1-iteration (`K = 1`) syntactic Grover circuit for marked state
+    `3 : Fin (2 ^ 2)` (`|11⟩`), built exclusively from primitive `H`, `Z`, and `CNOT` gates
+    (`size = 14`). -/
+noncomputable def grover2QubitCircuit : Circuit 2 :=
+  let cz : Circuit 2 := Circuit.H 1 ;;ᶜ Circuit.CNOT 0 1 (by decide) ;;ᶜ Circuit.H 1
+  let prep : Circuit 2 := Circuit.H 0 ;;ᶜ Circuit.H 1
+  let diffuser : Circuit 2 := prep ;;ᶜ Circuit.Z 0 ;;ᶜ Circuit.Z 1 ;;ᶜ cz ;;ᶜ prep
+  prep ;;ᶜ cz ;;ᶜ diffuser
+
+@[simp]
+lemma size_grover2QubitCircuit : grover2QubitCircuit.size = 14 := rfl
+
+private lemma sqrt_four_eq_two : √(4 : ℝ) = 2 := by
+  rw [show (4 : ℝ) = 2 ^ 2 by norm_num, Real.sqrt_sq (by positivity)]
+
+private lemma basisBits2_table :
+    basisBits 2 (0 : Fin (2 ^ 2)) 0 = 0 ∧ basisBits 2 (0 : Fin (2 ^ 2)) 1 = 0 ∧
+    basisBits 2 (1 : Fin (2 ^ 2)) 0 = 1 ∧ basisBits 2 (1 : Fin (2 ^ 2)) 1 = 0 ∧
+    basisBits 2 (2 : Fin (2 ^ 2)) 0 = 0 ∧ basisBits 2 (2 : Fin (2 ^ 2)) 1 = 1 ∧
+    basisBits 2 (3 : Fin (2 ^ 2)) 0 = 1 ∧ basisBits 2 (3 : Fin (2 ^ 2)) 1 = 1 := by
+  decide
+
+private lemma uzpow_neg_one (b : ZMod 2) :
+    ((-1 : ℤˣ) ^ b : ℤˣ) = if b = 0 then 1 else -1 := by
+  fin_cases b <;> decide
+
+private lemma sum_fin_two_pow_two (f : Fin (2 ^ 2) → ℂ) :
+    ∑ x, f x = f 0 + f 1 + f 2 + f 3 :=
+  Fin.sum_univ_four f
+
+private lemma prep2_eval :
+    (Circuit.H (0 : Wire 2) ;;ᶜ Circuit.H 1).eval = (hadamardUnitary : 𝐔[Fin (2 ^ 2)]) := by
+  obtain ⟨hb00, hb01, hb10, hb11, hb20, hb21, hb30, hb31⟩ := basisBits2_table
+  have h11 : (1 : ZMod 2) + 1 = 0 := rfl
+  apply Subtype.ext
+  rw [Circuit.eval_seq, circuit_H_eval, circuit_H_eval]
+  change (hadamardAt 2 1).1 * (hadamardAt 2 0).1 = hadamardMatrix 2
+  ext i j
+  simp only [Matrix.mul_apply, sum_fin_two_pow_two]
+  fin_cases i <;> fin_cases j <;>
+    simp [hadamardAt_apply, Fin.forall_fin_two, hb00, hb01, hb10, hb11, hb20, hb21, hb30, hb31,
+      h11, uzpow_neg_one, hadamardMatrix, walshMatrix, walshChar, dotProduct]
+
+private lemma cz2_eval :
+    (Circuit.H (1 : Wire 2) ;;ᶜ Circuit.CNOT 0 1 (by decide) ;;ᶜ Circuit.H 1).eval =
+    Grover.oracleUnitary (3 : Fin (2 ^ 2)) := by
+  obtain ⟨hb00, hb01, hb10, hb11, hb20, hb21, hb30, hb31⟩ := basisBits2_table
+  apply Subtype.ext
+  have hcnot : (Circuit.CNOT (0 : Wire 2) 1 (by decide)).eval.1 =
+      (Equiv.swap (1 : Fin 4) 3).permMatrix ℂ := by
+    change ((QRegister.pair (0 : Wire 2) 1 (by decide)).embedUnitary
+      PrimitiveGate.CNOT.eval).1 = _
+    rw [QRegister.pair_zero_one_eq_whole, QRegister.whole_embedUnitary]
+    rfl
+  have hs0 : (Equiv.swap (1 : Fin (2 ^ 2)) 3) 0 = 0 := by decide
+  have hs1 : (Equiv.swap (1 : Fin (2 ^ 2)) 3) 1 = 3 := by decide
+  have hs2 : (Equiv.swap (1 : Fin (2 ^ 2)) 3) 2 = 2 := by decide
+  have hs3 : (Equiv.swap (1 : Fin (2 ^ 2)) 3) 3 = 1 := by decide
+  have ha1 : (2 : ℂ)⁻¹ + 2⁻¹ = 1 := by norm_num
+  have ha2 : -(2 : ℂ)⁻¹ + -2⁻¹ = -1 := by norm_num
+  rw [Circuit.eval_seq, Circuit.eval_seq, circuit_H_eval]
+  change ((hadamardAt 2 1).1 * (Circuit.CNOT (0 : Wire 2) 1 (by decide)).eval.1) *
+    (hadamardAt 2 1).1 = Grover.oracleMatrix 3
+  rw [hcnot]
+  ext i j
+  simp only [Matrix.mul_apply, sum_fin_two_pow_two]
+  fin_cases i <;> fin_cases j <;>
+    simp [hadamardAt_apply, Fin.forall_fin_two, hb00, hb01, hb10, hb11, hb20, hb21, hb30, hb31,
+      Equiv.Perm.permMatrix, PEquiv.toMatrix_apply, hs0, hs1, hs2, hs3,
+      Grover.oracleMatrix, ha1, ha2]
+
+private lemma diffuser2_eval :
+    let cz : Circuit 2 := Circuit.H 1 ;;ᶜ Circuit.CNOT 0 1 (by decide) ;;ᶜ Circuit.H 1
+    let prep : Circuit 2 := Circuit.H 0 ;;ᶜ Circuit.H 1
+    (prep ;;ᶜ Circuit.Z 0 ;;ᶜ Circuit.Z 1 ;;ᶜ cz ;;ᶜ prep).eval =
+    (Grover.diffuserUnitary : 𝐔[Fin (2 ^ 2)]) := by
+  obtain ⟨hb00, hb01, hb10, hb11, hb20, hb21, hb30, hb31⟩ := basisBits2_table
+  dsimp only
+  apply Subtype.ext
+  have hz : ∀ q : Wire 2, (Circuit.Z q).eval.1 =
+      Matrix.diagonal (fun i : Fin (2 ^ 2) =>
+        if basisBits 2 i q = 0 then (1 : ℂ) else -1) := by
+    intro q
+    have hZ : Qubit.Z.1 = Matrix.diagonal ![(1 : ℂ), -1] := by
+      ext a b; fin_cases a <;> fin_cases b <;> rfl
+    rw [Circuit.eval_single, QRegister.embedUnitary_val, PrimitiveGate.eval, hZ,
+        QRegister.embedMatrix_diagonal]
+    congr 1; ext i
+    have hext : ∀ b : ZMod 2,
+        ((basisBits 1).symm (fun _ => b) : Fin 2) = if b = 0 then 0 else 1 := by decide
+    simp only [QRegister.extractIndex, QRegister.singleton_apply, hext]
+    split_ifs <;> rfl
+  have hrefl : ((Circuit.Z (0 : Wire 2) ;;ᶜ Circuit.Z 1 ;;ᶜ
+      (Circuit.H 1 ;;ᶜ Circuit.CNOT 0 1 (by decide) ;;ᶜ Circuit.H 1)).eval).1 =
+      (2 : ℂ) • Matrix.single (0 : Fin (2 ^ 2)) (0 : Fin (2 ^ 2)) 1 - 1 := by
+    rw [Circuit.eval_seq, Circuit.eval_seq, cz2_eval]
+    change (Grover.oracleMatrix (3 : Fin (2 ^ 2)) * (Circuit.Z (1 : Wire 2)).eval.1) *
+      (Circuit.Z (0 : Wire 2)).eval.1 = _
+    rw [hz 0, hz 1, Grover.oracleMatrix, Matrix.diagonal_mul_diagonal,
+        Matrix.diagonal_mul_diagonal]
+    ext i j
+    by_cases hij : i = j
+    · subst hij
+      fin_cases i <;>
+        simp [hb00, hb01, hb10, hb11, hb20, hb21, hb30, hb31]
+      all_goals norm_num
+    · rw [Matrix.diagonal_apply_ne _ hij, Matrix.sub_apply, Matrix.smul_apply,
+          Matrix.single_apply, Matrix.one_apply, ite_eq_right hij]
+      simp only [sub_zero, smul_eq_mul, zero_eq_mul, two_ne_zero, false_or, ite_eq_right_iff,
+        one_ne_zero, imp_false, not_and]
+      rintro rfl rfl
+      exact hij rfl
+  have hassoc : ((Circuit.H (0 : Wire 2) ;;ᶜ Circuit.H 1) ;;ᶜ Circuit.Z 0 ;;ᶜ Circuit.Z 1 ;;ᶜ
+      (Circuit.H 1 ;;ᶜ Circuit.CNOT 0 1 (by decide) ;;ᶜ Circuit.H 1) ;;ᶜ
+      (Circuit.H 0 ;;ᶜ Circuit.H 1)).eval.1 =
+      (Circuit.H (0 : Wire 2) ;;ᶜ Circuit.H 1).eval.1 *
+        ((Circuit.Z (0 : Wire 2) ;;ᶜ Circuit.Z 1 ;;ᶜ
+          (Circuit.H 1 ;;ᶜ Circuit.CNOT 0 1 (by decide) ;;ᶜ Circuit.H 1)).eval.1 *
+        (Circuit.H 0 ;;ᶜ Circuit.H 1).eval.1) := by
+    simp [Circuit.eval_seq, Matrix.mul_assoc]
+  rw [hassoc, prep2_eval, hrefl]
+  change hadamardMatrix 2 *
+    (((2 : ℂ) • Matrix.single (0 : Fin (2 ^ 2)) (0 : Fin (2 ^ 2)) 1 - 1) *
+      hadamardMatrix 2) = Grover.diffuserMatrix
+  rw [Matrix.sub_mul, Matrix.one_mul, Matrix.mul_sub, hadamardMatrix_mul_self,
+      Matrix.smul_mul, Matrix.mul_smul]
+  ext i j
+  have hsingle : (hadamardMatrix 2 *
+      (Matrix.single (0 : Fin (2 ^ 2)) (0 : Fin (2 ^ 2)) (1 : ℂ) * hadamardMatrix 2)) i j =
+      hadamardMatrix 2 i 0 * hadamardMatrix 2 0 j := by
+    simp only [Matrix.mul_apply, Matrix.single_apply, sum_fin_two_pow_two]
+    norm_num
+  rw [Grover.diffuserMatrix, Matrix.sub_apply, Matrix.smul_apply, hsingle,
+      hadamardMatrix_apply_zero, hadamardMatrix_zero_apply]
+  simp only [Matrix.sub_apply, Matrix.of_apply, smul_eq_mul]
+  norm_num [sqrt_four_eq_two]
+
+/-- Evolving `Ket.basis 0` through `grover2QubitCircuit` produces `Grover.groverState 3 1`. -/
+theorem grover2QubitCircuit_evolve_basis_zero :
+    grover2QubitCircuit.evolve (Ket.basis (0 : Fin (2 ^ 2))).vec =
+    Grover.groverState (3 : Fin (2 ^ 2)) 1 := by
+  have heval : grover2QubitCircuit.eval =
+      Grover.diffuserUnitary * (Grover.oracleUnitary (3 : Fin (2 ^ 2)) * hadamardUnitary) := by
+    dsimp only [grover2QubitCircuit]
+    rw [Circuit.eval_seq, Circuit.eval_seq, prep2_eval, cz2_eval, diffuser2_eval, mul_assoc]
+  have hfull := idealUnitaryTrajectory_groverFullGates 2 (3 : Fin (2 ^ 2)) 1
+  simpa [Circuit.evolve, heval, groverFullGates, groverIterGates, idealUnitaryTrajectory,
+    applyUnitaryKet, Matrix.mulVec_mulVec] using hfull
+
+/-- At `K = 1` on `n = 2` qubits (`d = 4`), Grover's algorithm succeeds with certainty:
+    `Grover.p_succ 1 4 = 1`. -/
+lemma p_succ_one_four : Grover.p_succ 1 4 = 1 := by
+  have h := groverState_bornProb (3 : Fin (2 ^ 2)) 1
+    (idealUnitaryTrajectory_groverFullGates 2 (3 : Fin (2 ^ 2)) 1)
+  rw [Ket.apply, idealUnitaryTrajectory_groverFullGates] at h
+  have hval : Grover.groverState (3 : Fin (2 ^ 2)) 1 (3 : Fin (2 ^ 2)) = 1 := by
+    rw [Grover.groverState, Grover.diffuserMatrix_mulVec, Grover.sum_oracleMatrix_mulVec,
+        Grover.oracleMatrix_mulVec, ite_eq_left rfl]
+    simp only [Grover.groverState, Finset.sum_const, Finset.card_univ, Fintype.card_fin]
+    norm_num [sqrt_four_eq_two]
+  rw [hval] at h
+  simpa using h.symm
+
+/-- **Concrete `Circuit 2` witness (`K = 1`, `c.size = 14`, `Grover.p_succ 1 4 = 1`):**
+    Instantiating `noisyGrover_circuit_bornProb` on the 14-gate primitive Grover circuit
+    `grover2QubitCircuit` yields exact noisy Born probability `σ ^ 28 + (1 - σ ^ 28) / 4`. -/
+theorem noisyGrover_circuit_grover2_bornProb (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1) :
+    ((computationalPOVM 2).measure
+      (noisyCircuitChannel σ hσ grover2QubitCircuit
+        (MState.pure (Ket.basis (0 : Fin (2 ^ 2))))) (3 : Fin (2 ^ 2)) : ℝ) =
+    σ ^ 28 + (1 - σ ^ 28) / 4 := by
+  have hideal : ‖(grover2QubitCircuit.evolve (Ket.basis (0 : Fin (2 ^ 2))).vec)
+      (3 : Fin (2 ^ 2))‖ ^ 2 = Grover.p_succ 1 (2 ^ 2) :=
+    groverState_bornProb (3 : Fin (2 ^ 2)) 1
+      (ψ := applyUnitaryKet grover2QubitCircuit.eval (Ket.basis 0))
+      grover2QubitCircuit_evolve_basis_zero
+  have hmain := noisyGrover_circuit_bornProb σ hσ grover2QubitCircuit
+    (Ket.basis (0 : Fin (2 ^ 2))) (3 : Fin (2 ^ 2)) 1 hideal
+  have hp1 : Grover.p_succ 1 (2 ^ 2) = 1 := p_succ_one_four
+  rw [size_grover2QubitCircuit, hp1] at hmain
+  rw [hmain]
+  norm_num
+
+/-! ## Verification checks -/
 
 #check @targetBasisState_eq_ketToReal
 #check @uniformSuperposition_eq_ketToReal
@@ -427,10 +729,13 @@ lemma quantumInfo_quantumComputation_smoke (n K : ℕ) (target : Fin (2 ^ n))
 #check @idealUnitaryTrajectory_groverIterGates
 #check @idealUnitaryTrajectory_groverFullGates
 #check @groverState_bornProb
-
-/-- info: 'IsotropicGrover.quantumInfo_quantumComputation_smoke' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms quantumInfo_quantumComputation_smoke
+#check @noisyGrover_unitaryList_succProb
+#check @noisyGrover_iterGates_succProb
+#check @noisyGrover_fullGates_succProb
+#check @noisyGrover_circuit_bornProb
+#check @noisyGrover_circuit_trajectory_succProb
+#check @noisyGrover_circuit_hadamard1_bornProb
+#check @noisyGrover_circuit_grover2_bornProb
 
 /--
 info: 'IsotropicGrover.isotropicGrover_groverState2D' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -455,5 +760,47 @@ info: 'IsotropicGrover.groverState_bornProb' depends on axioms: [propext, Classi
 -/
 #guard_msgs in
 #print axioms groverState_bornProb
+
+/--
+info: 'IsotropicGrover.noisyGrover_unitaryList_succProb' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyGrover_unitaryList_succProb
+
+/--
+info: 'IsotropicGrover.noisyGrover_iterGates_succProb' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyGrover_iterGates_succProb
+
+/--
+info: 'IsotropicGrover.noisyGrover_fullGates_succProb' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyGrover_fullGates_succProb
+
+/--
+info: 'IsotropicGrover.noisyGrover_circuit_bornProb' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyGrover_circuit_bornProb
+
+/--
+info: 'IsotropicGrover.noisyGrover_circuit_trajectory_succProb' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyGrover_circuit_trajectory_succProb
+
+/--
+info: 'IsotropicGrover.noisyGrover_circuit_hadamard1_bornProb' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyGrover_circuit_hadamard1_bornProb
+
+/--
+info: 'IsotropicGrover.noisyGrover_circuit_grover2_bornProb' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyGrover_circuit_grover2_bornProb
 
 end IsotropicGrover
