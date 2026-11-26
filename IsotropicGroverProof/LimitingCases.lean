@@ -42,9 +42,8 @@ lemma mixtureProb_at_one (p : ℝ) (N : ℕ) : mixtureProb p N 1 = p := by
 /-- As f → 1, the expected success probability tends to p_ideal. -/
 theorem tendsto_ideal_as_fidelity_one (p : ℝ) (N : ℕ) :
     Tendsto (mixtureProb p N) (𝓝 1) (𝓝 p) := by
-  have h : ContinuousAt (mixtureProb p N) 1 := (mixtureProb_continuous p N).continuousAt
-  simp only [ContinuousAt, mixtureProb_at_one] at h
-  exact h
+  simpa only [ContinuousAt, mixtureProb_at_one] using
+    (mixtureProb_continuous p N).continuousAt (x := 1)
 
 /-! ## Limiting case 2: full decoherence -/
 
@@ -56,9 +55,8 @@ lemma mixtureProb_at_zero (p : ℝ) (N : ℕ) : mixtureProb p N 0 = 1 / N := by
     The decoherent limit: the algorithm is no better than random guessing. -/
 theorem tendsto_random_as_fidelity_zero (p : ℝ) (N : ℕ) :
     Tendsto (mixtureProb p N) (𝓝 0) (𝓝 (1 / N)) := by
-  have h : ContinuousAt (mixtureProb p N) 0 := (mixtureProb_continuous p N).continuousAt
-  simp only [ContinuousAt, mixtureProb_at_zero] at h
-  exact h
+  simpa only [ContinuousAt, mixtureProb_at_zero] using
+    (mixtureProb_continuous p N).continuousAt (x := 0)
 
 /-! ## Monotonicity: more noise → worse performance -/
 
@@ -67,13 +65,9 @@ theorem tendsto_random_as_fidelity_zero (p : ℝ) (N : ℕ) :
 lemma mixtureProb_mono (p : ℝ) (N : ℕ) (hN : 0 < N)
     (hp : 1 / (N : ℝ) ≤ p) : Monotone (mixtureProb p N) := by
   intro f₁ f₂ hf
-  simp only [mixtureProb]
-  have hN' : (N : ℝ) > 0 := Nat.cast_pos.mpr hN
-  have hN'' : (N : ℝ) ≠ 0 := hN'.ne'
-  suffices h : 0 ≤ f₂ * p + (1 - f₂) / ↑N - (f₁ * p + (1 - f₁) / ↑N) by linarith
-  have key : f₂ * p + (1 - f₂) / ↑N - (f₁ * p + (1 - f₁) / ↑N) =
-             (f₂ - f₁) * (p - 1 / ↑N) := by field_simp; ring
-  rw [key]
+  have hN' : (N : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hN.ne'
+  suffices 0 ≤ (f₂ - f₁) * (p - 1 / (N : ℝ)) by
+    simp only [mixtureProb]; field_simp [hN'] at this ⊢; linarith
   exact mul_nonneg (sub_nonneg.mpr hf) (sub_nonneg.mpr hp)
 
 /-! ## Connection to isotropicGrover_main -/
@@ -107,17 +101,14 @@ lemma continuous_mixtureProb_pow (p : ℝ) (N : ℕ) (G : ℕ) :
 /-- As the per-gate parameter `σ → 1`, the mixture tends to `p` (ideal success probability). -/
 theorem tendsto_mixtureProb_pow_as_sigma_one (p : ℝ) (N : ℕ) (G : ℕ) :
     Tendsto (fun σ : ℝ => mixtureProb p N (σ ^ (2 * G))) (𝓝 1) (𝓝 p) := by
-  have hc := (continuous_mixtureProb_pow p N G).continuousAt (x := 1)
-  simp only [ContinuousAt, one_pow, mixtureProb_at_one] at hc
-  exact hc
+  simpa only [ContinuousAt, one_pow, mixtureProb_at_one] using
+    (continuous_mixtureProb_pow p N G).continuousAt (x := 1)
 
 /-- As the per-gate parameter `σ → 0` with `G > 0`, the mixture tends to `1/N` (random guess). -/
 theorem tendsto_mixtureProb_pow_as_sigma_zero (p : ℝ) (N : ℕ) {G : ℕ} (hG : 0 < G) :
     Tendsto (fun σ : ℝ => mixtureProb p N (σ ^ (2 * G))) (𝓝 0) (𝓝 (1 / (N : ℝ))) := by
-  have hc := (continuous_mixtureProb_pow p N G).continuousAt (x := 0)
-  have h2G : 2 * G ≠ 0 := by omega
-  simp only [ContinuousAt, zero_pow h2G, mixtureProb_at_zero] at hc
-  exact hc
+  simpa only [ContinuousAt, zero_pow (by omega : 2 * G ≠ 0), mixtureProb_at_zero] using
+    (continuous_mixtureProb_pow p N G).continuousAt (x := 0)
 
 /-! ## Direct limiting case corollaries for isotropicGrover_main -/
 

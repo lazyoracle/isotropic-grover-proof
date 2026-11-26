@@ -59,14 +59,25 @@ lemma stdBasisVec_norm (n : ℕ) (i : Fin (d n)) : ‖stdBasisVec n i‖ = 1 := 
   simp [stdBasisVec, PiLp.norm_single]
 
 lemma inner_stdBasisVec (n : ℕ) (i j : Fin (d n)) :
-    inner (𝕜 := ℝ) (stdBasisVec n i) (stdBasisVec n j) = if i = j then 1 else 0 := by
-  have h := (orthonormal_iff_ite (𝕜 := ℝ)).mp
-              (EuclideanSpace.orthonormal_single (𝕜 := ℝ) (ι := Fin (d n)))
-  exact h i j
+    inner (𝕜 := ℝ) (stdBasisVec n i) (stdBasisVec n j) = if i = j then 1 else 0 :=
+  (orthonormal_iff_ite (𝕜 := ℝ)).mp
+    (EuclideanSpace.orthonormal_single (𝕜 := ℝ) (ι := Fin (d n))) i j
 
 lemma inner_stdBasisVec_eq_apply {n : ℕ} (v : E n) (i : Fin (d n)) :
     inner (𝕜 := ℝ) v (stdBasisVec n i) = v i := by
   simp [stdBasisVec, ← EuclideanSpace.basisFun_apply]
+
+/-- Norm of a linear combination `a • u + b • v` of orthonormal vectors `u, v : E n`
+    when `a ^ 2 + b ^ 2 = 1`. -/
+lemma norm_smul_add_smul_of_ortho {n : ℕ} {u v : E n} (hu : ‖u‖ = 1) (hv : ‖v‖ = 1)
+    (huv : inner (𝕜 := ℝ) u v = 0) {a b : ℝ} (hab : a ^ 2 + b ^ 2 = 1) :
+    ‖a • u + b • v‖ = 1 := by
+  have hsq : ‖a • u + b • v‖ ^ 2 = 1 := by
+    rw [norm_add_sq_real, norm_smul, norm_smul, inner_smul_left, inner_smul_right,
+        hu, hv, huv, Real.norm_eq_abs, Real.norm_eq_abs, mul_one, mul_one,
+        sq_abs, sq_abs]
+    linarith
+  nlinarith [norm_nonneg (a • u + b • v)]
 
 /-! ## Index bounds for the success probability -/
 
@@ -89,24 +100,15 @@ noncomputable def succProbIdx1 (n : ℕ) (w : Fin (2 ^ n)) : Fin (d n) :=
 
 lemma succProbIdx0_inj {n : ℕ} {x y : Fin (2 ^ n)}
     (h : succProbIdx0 n x = succProbIdx0 n y) : x = y := by
-  ext
-  have hval : (succProbIdx0 n x).val = (succProbIdx0 n y).val := by rw [h]
-  dsimp [succProbIdx0] at hval
-  omega
+  ext; have := congrArg Fin.val h; dsimp [succProbIdx0] at this; omega
 
 lemma succProbIdx1_inj {n : ℕ} {x y : Fin (2 ^ n)}
     (h : succProbIdx1 n x = succProbIdx1 n y) : x = y := by
-  ext
-  have hval : (succProbIdx1 n x).val = (succProbIdx1 n y).val := by rw [h]
-  dsimp [succProbIdx1] at hval
-  omega
+  ext; have := congrArg Fin.val h; dsimp [succProbIdx1] at this; omega
 
 lemma succProbIdx0_ne_succProbIdx1 {n : ℕ} (x y : Fin (2 ^ n)) :
     succProbIdx0 n x ≠ succProbIdx1 n y := by
-  intro h
-  have hval : (succProbIdx0 n x).val = (succProbIdx1 n y).val := by rw [h]
-  dsimp [succProbIdx0, succProbIdx1] at hval
-  omega
+  intro h; have := congrArg Fin.val h; dsimp [succProbIdx0, succProbIdx1] at this; omega
 
 /-- The success probability of measuring outcome w given real state vector v.
     In the real representation, p = |a_w|² = α_{2w}² + α_{2w+1}², where

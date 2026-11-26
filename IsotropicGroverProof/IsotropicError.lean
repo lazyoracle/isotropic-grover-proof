@@ -184,16 +184,12 @@ private lemma poissonKernelDensity_d2 (σ θ : ℝ) : poissonKernelDensity 2 σ 
 
 private lemma norm_sq_exp_sub_d2 (σ θ : ℝ) :
     ‖(Complex.exp (↑θ * Complex.I) - ↑σ : ℂ)‖^2 = 1 + σ^2 - 2*σ*(cos θ) := by
-  have h1 : (Complex.exp (↑θ * Complex.I) - ↑σ).re = cos θ - σ := by
-    simp [Complex.exp_mul_I, Complex.cos_ofReal_re]
-  have h2 : (Complex.exp (↑θ * Complex.I) - ↑σ).im = sin θ := by
-    simp [Complex.exp_mul_I, Complex.sin_ofReal_re]
-  rw [RCLike.norm_sq_eq_def]
-  rw [← show (Complex.exp (↑θ * Complex.I) - ↑σ).re =
-    RCLike.re (Complex.exp (↑θ * Complex.I) - ↑σ) from rfl]
-  rw [← show (Complex.exp (↑θ * Complex.I) - ↑σ).im =
-    RCLike.im (Complex.exp (↑θ * Complex.I) - ↑σ) from rfl]
-  rw [h1, h2]; nlinarith [Real.sin_sq_add_cos_sq θ]
+  rw [← Complex.normSq_eq_norm_sq, Complex.normSq_apply]
+  simp only [Complex.sub_re, Complex.sub_im, Complex.exp_mul_I, Complex.add_re, Complex.add_im,
+    Complex.cos_ofReal_re, Complex.cos_ofReal_im, Complex.mul_re, Complex.mul_im,
+    Complex.sin_ofReal_re, Complex.sin_ofReal_im, Complex.I_re, Complex.I_im,
+    Complex.ofReal_re, Complex.ofReal_im]
+  nlinarith [Real.sin_sq_add_cos_sq θ]
 
 private lemma pK_is_pKDens_d2 (σ θ : ℝ) :
     poissonKernel (0:ℂ) (σ:ℂ) (Complex.exp (↑θ * Complex.I)) = poissonKernelDensity 2 σ θ := by
@@ -304,36 +300,29 @@ private lemma fold_sym_d2 (f : ℝ → ℝ) (hf : ∀ θ, f (2 * Real.pi - θ) =
     simp only [show 2 * Real.pi - 2 * Real.pi = 0 from by ring,
                show 2 * Real.pi - Real.pi = Real.pi from by ring]
     congr 1; funext θ; exact hf θ
-  linarith [split, key,
-    show ∫ θ in (0:ℝ)..2 * Real.pi, f θ = ∫ x in (0:ℝ)..2 * Real.pi, f x from rfl,
-    show ∫ θ in (0:ℝ)..Real.pi, f θ = ∫ x in (0:ℝ)..Real.pi, f x from rfl,
-    show ∫ θ in Real.pi..2 * Real.pi, f θ = ∫ x in Real.pi..2 * Real.pi, f x from rfl]
+  rw [← split, key]
+  ring
 
 private lemma halfcircle_cos_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
     ∫ θ in (0:ℝ)..Real.pi, poissonKernelDensity 2 σ θ * cos θ = Real.pi * σ := by
   have hcont : Continuous (fun θ => poissonKernelDensity 2 σ θ * cos θ) :=
     (poissonKernelDensity_continuous 2 σ (Set.Ioo_subset_Ico_self hσ)).mul continuous_cos
   have sym : ∀ θ, poissonKernelDensity 2 σ (2 * Real.pi - θ) * cos (2 * Real.pi - θ) =
-             poissonKernelDensity 2 σ θ * cos θ := by
-    intro θ; simp_rw [poissonKernelDensity_d2, Real.cos_two_pi_sub]
+             poissonKernelDensity 2 σ θ * cos θ := fun θ => by
+    simp_rw [poissonKernelDensity_d2, Real.cos_two_pi_sub]
   have hfull := fullcircle_cos_d2 σ hσ
-  have hfold := fold_sym_d2 _ sym hcont
-  have h2pi : (2 * Real.pi) > 0 := by linarith [Real.pi_pos]
-  have hfull' : ∫ θ in (0:ℝ)..2 * Real.pi,
-      poissonKernelDensity 2 σ θ * cos θ = 2 * Real.pi * σ := by
-    field_simp [h2pi.ne'] at hfull ⊢; linarith
-  rw [hfold] at hfull'; linarith
+  rw [fold_sym_d2 _ sym hcont] at hfull
+  field_simp [Real.pi_ne_zero] at hfull
+  linarith
 
 private lemma halfcircle_norm_d2 (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1) :
     ∫ θ in (0:ℝ)..Real.pi, poissonKernelDensity 2 σ θ = Real.pi := by
-  have sym : ∀ θ, poissonKernelDensity 2 σ (2 * Real.pi - θ) = poissonKernelDensity 2 σ θ := by
-    intro θ; simp_rw [poissonKernelDensity_d2, Real.cos_two_pi_sub]
+  have sym : ∀ θ, poissonKernelDensity 2 σ (2 * Real.pi - θ) = poissonKernelDensity 2 σ θ :=
+    fun θ => by simp_rw [poissonKernelDensity_d2, Real.cos_two_pi_sub]
   have hfull := fullcircle_norm_d2 σ hσ
-  have hfold := fold_sym_d2 _ sym (poissonKernelDensity_continuous 2 σ (Set.Ioo_subset_Ico_self hσ))
-  have h2pi : (2 * Real.pi) > 0 := by linarith [Real.pi_pos]
-  have hfull' : ∫ θ in (0:ℝ)..2 * Real.pi, poissonKernelDensity 2 σ θ = 2 * Real.pi := by
-    field_simp [h2pi.ne'] at hfull ⊢; linarith
-  rw [hfold] at hfull'; linarith
+  rw [fold_sym_d2 _ sym (poissonKernelDensity_continuous 2 σ (Set.Ioo_subset_Ico_self hσ))] at hfull
+  field_simp [Real.pi_ne_zero] at hfull
+  linarith
 
 /-! ### 1D FTC recurrences and d = 3 base case -/
 
@@ -716,18 +705,8 @@ noncomputable def isotropicError (Φ e₂ : E n) (θ : ℝ) : E n :=
 /-- The error state has norm 1 when Φ and e₂ are unit vectors and e₂ ⊥ Φ. -/
 lemma isotropicError_norm (Φ e₂ : E n) (θ : ℝ)
     (hΦ : ‖Φ‖ = 1) (he₂ : ‖e₂‖ = 1) (hperp : inner (𝕜 := ℝ) Φ e₂ = 0) :
-    ‖isotropicError Φ e₂ θ‖ = 1 := by
-  have hsq : ‖isotropicError Φ e₂ θ‖ ^ 2 = 1 := by
-    rw [isotropicError, norm_add_sq_real]
-    have h1 : ‖cos θ • Φ‖ ^ 2 = cos θ ^ 2 := by
-      rw [norm_smul, mul_pow]; simp [Real.norm_eq_abs, sq_abs, hΦ]
-    have h2 : ‖sin θ • e₂‖ ^ 2 = sin θ ^ 2 := by
-      rw [norm_smul, mul_pow]; simp [Real.norm_eq_abs, sq_abs, he₂]
-    have h3 : inner (𝕜 := ℝ) (cos θ • Φ) (sin θ • e₂) = 0 := by
-      simp [inner_smul_left, inner_smul_right, hperp]
-    rw [h1, h2, h3]
-    linarith [Real.sin_sq_add_cos_sq θ]
-  nlinarith [norm_nonneg (isotropicError Φ e₂ θ), sq_nonneg (‖isotropicError Φ e₂ θ‖ - 1)]
+    ‖isotropicError Φ e₂ θ‖ = 1 :=
+  norm_smul_add_smul_of_ortho hΦ he₂ hperp (Real.cos_sq_add_sin_sq θ)
 
 /-! ## TDD spot-checks -/
 

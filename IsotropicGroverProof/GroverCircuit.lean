@@ -39,7 +39,7 @@ namespace IsotropicGrover
 open Real MeasureTheory
 open scoped Matrix Circuit.Notation
 
-/-! ## Shared real/complex vector and orthonormal linear-combination helpers -/
+/-! ## Shared real/complex vector helpers -/
 
 private lemma realToVec_stdBasisVec_idx0 (n : ℕ) (w x : Fin (2 ^ n)) :
     realToVec (stdBasisVec n (succProbIdx0 n w)) x = if w = x then 1 else 0 := by
@@ -58,18 +58,6 @@ private lemma realToVec_sum {n : ℕ} {ι : Type*} (s : Finset ι) (f : ι → E
     apply Complex.ext <;> simp
   | @insert a s ha ih =>
     rw [Finset.sum_insert ha, realToVec_add, Pi.add_apply, ih, Finset.sum_insert ha]
-
-/-- Norm of a linear combination `a • u + b • v` of orthonormal vectors `u, v : E n`
-    when `a ^ 2 + b ^ 2 = 1`. -/
-lemma norm_smul_add_smul_of_ortho {n : ℕ} {u v : E n} (hu : ‖u‖ = 1) (hv : ‖v‖ = 1)
-    (huv : inner (𝕜 := ℝ) u v = 0) {a b : ℝ} (hab : a ^ 2 + b ^ 2 = 1) :
-    ‖a • u + b • v‖ = 1 := by
-  have hsq : ‖a • u + b • v‖ ^ 2 = 1 := by
-    rw [norm_add_sq_real, norm_smul, norm_smul, inner_smul_left, inner_smul_right,
-        hu, hv, huv, Real.norm_eq_abs, Real.norm_eq_abs, mul_one, mul_one,
-        sq_abs, sq_abs]
-    linarith
-  nlinarith [norm_nonneg (a • u + b • v)]
 
 /-! ## Target basis state -/
 

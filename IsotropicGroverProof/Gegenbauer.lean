@@ -36,8 +36,7 @@ open Real MeasureTheory
     Δ((x · Φ)²) − Δ(‖x‖²/d) = 2‖Φ‖² − 2d/d = 2 − 2 = 0 for any d ≠ 0. -/
 lemma laplacian_trace_cancellation (d : ℝ) (hd : d ≠ 0) :
     (2 : ℝ) - (2 * d) / d = 0 := by
-  field_simp [hd]
-  try ring
+  rw [mul_div_cancel_right₀ 2 hd, sub_self]
 
 /-- Boundary matching of the harmonic extension H(x) = (x · Φ)² − ‖x‖²/d + 1/d:
     on the unit sphere S^{d-1} where ‖ξ‖² = 1,

@@ -76,14 +76,8 @@ theorem sequentialFidelity_eq (d : ℕ) (σ : ℝ) (k : ℕ) (hd : 2 ≤ d) :
     ring
   | succ k ih =>
     simp only [sequentialFidelity]
-    have hstep := stepTransition_sub_inv_d d σ (sequentialFidelity d σ k) hd
-    have hT : stepTransition d σ (sequentialFidelity d σ k) =
-        1 / (d : ℝ) + σ ^ 2 * (sequentialFidelity d σ k - 1 / (d : ℝ)) := by
-      linarith
-    rw [hT, ih]
-    have hpow : σ ^ (2 * (k + 1)) = σ ^ 2 * σ ^ (2 * k) := by
-      rw [show 2 * (k + 1) = 2 + 2 * k by omega, pow_add]
-    rw [hpow]
+    rw [eq_add_of_sub_eq (stepTransition_sub_inv_d d σ (sequentialFidelity d σ k) hd),
+        ih, mul_add, pow_add]
     field_simp
     ring
 
@@ -574,11 +568,9 @@ theorem noisyTrajectoryExpectation_sub (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
     noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => f Ψ - g Ψ) =
     noisyTrajectoryExpectation n σ gates Φ₀ f -
     noisyTrajectoryExpectation n σ gates Φ₀ g := by
-  have hsub : (fun Ψ : E n => f Ψ - g Ψ) = (fun Ψ => f Ψ + -g Ψ) := by
-    ext Ψ; exact sub_eq_add_neg _ _
-  have hg_neg : Continuous (fun Ψ : E n => -g Ψ) := Continuous.neg hg
-  rw [hsub, noisyTrajectoryExpectation_add σ hσ gates Φ₀ hΦ₀ hf hg_neg,
-      noisyTrajectoryExpectation_neg, sub_eq_add_neg]
+  simp_rw [sub_eq_add_neg]
+  rw [noisyTrajectoryExpectation_add σ hσ gates Φ₀ hΦ₀ hf (g := fun Ψ => -g Ψ) hg.neg,
+      noisyTrajectoryExpectation_neg]
 
 /-! ### Multi-gate bilinear second-moment, fidelity, and success-probability theorems -/
 
