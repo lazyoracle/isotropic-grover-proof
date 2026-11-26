@@ -16,6 +16,23 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      BUILD_CACHE_PATHS: |
+        .lake/build
+        .lake/packages/physlib/.lake/build
+        .lake/packages/formal-quantum-computation/.lake/build
+      DOCS_CACHE_PATHS: |
+        docbuild/lakefile.toml
+        docbuild/lake-manifest.json
+        docbuild/.root-manifest.sha256
+        docbuild/.lake/build
+        .lake/packages/doc-gen4
+        .lake/packages/MD4Lean
+        .lake/packages/BibtexQuery
+        .lake/packages/UnicodeBasic
+        .lake/packages/leansqlite
+        .lake/packages/Cli/.lake/build
 
     steps:
       - uses: actions/checkout@v5
@@ -39,10 +56,7 @@ jobs:
         id: cache-restore
         uses: actions/cache/restore@v5
         with:
-          path: |
-            .lake/build
-            .lake/packages/physlib/.lake/build
-            .lake/packages/formal-quantum-computation/.lake/build
+          path: ${{ env.BUILD_CACHE_PATHS }}
           key: lake-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}-${{ github.sha }}
           restore-keys: lake-build-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}-
 
@@ -61,27 +75,14 @@ jobs:
         if: success() && steps.cache-restore.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
-          path: |
-            .lake/build
-            .lake/packages/physlib/.lake/build
-            .lake/packages/formal-quantum-computation/.lake/build
+          path: ${{ env.BUILD_CACHE_PATHS }}
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
       - name: Restore docs cache
         id: docs-cache-restore
         uses: actions/cache/restore@v5
         with:
-          path: |
-            docbuild/lakefile.toml
-            docbuild/lake-manifest.json
-            docbuild/.root-manifest.sha256
-            docbuild/.lake/build
-            .lake/packages/doc-gen4
-            .lake/packages/MD4Lean
-            .lake/packages/BibtexQuery
-            .lake/packages/UnicodeBasic
-            .lake/packages/leansqlite
-            .lake/packages/Cli/.lake/build
+          path: ${{ env.DOCS_CACHE_PATHS }}
           key: docs-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}
           restore-keys: docs-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-
 
@@ -95,17 +96,7 @@ jobs:
         if: success() && steps.docs-cache-restore.outputs.cache-hit != 'true'
         uses: actions/cache/save@v5
         with:
-          path: |
-            docbuild/lakefile.toml
-            docbuild/lake-manifest.json
-            docbuild/.root-manifest.sha256
-            docbuild/.lake/build
-            .lake/packages/doc-gen4
-            .lake/packages/MD4Lean
-            .lake/packages/BibtexQuery
-            .lake/packages/UnicodeBasic
-            .lake/packages/leansqlite
-            .lake/packages/Cli/.lake/build
+          path: ${{ env.DOCS_CACHE_PATHS }}
           key: ${{ steps.docs-cache-restore.outputs.cache-primary-key }}
 
       - name: Upload website (API documentation)

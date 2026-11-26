@@ -8,6 +8,35 @@ if [ -d "$HOME/.elan/bin" ]; then
   export PATH="$HOME/.elan/bin:$PATH"
 fi
 
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1"
+  else
+    shasum -a 256 "$1"
+  fi
+}
+
+manifest_git_packages_present() {
+  if [ ! -f lake-manifest.json ]; then
+    return 1
+  fi
+  python3 -c '
+import json, os, sys
+try:
+    with open("lake-manifest.json", encoding="utf-8") as f:
+        manifest = json.load(f)
+    pkgs_dir = manifest.get("packagesDir", "../.lake/packages")
+    git_pkgs = [
+        p["name"].replace("«", "").replace("»", "")
+        for p in manifest.get("packages", [])
+        if p.get("type") == "git"
+    ]
+except Exception:
+    sys.exit(1)
+sys.exit(0 if git_pkgs and all(os.path.isdir(os.path.join(pkgs_dir, p)) for p in git_pkgs) else 1)
+'
+}
+
 LEAN_REV="$(cut -d: -f2 < lean-toolchain | tr -d '[:space:]')"
 
 mkdir -p docbuild
@@ -35,15 +64,12 @@ fi
 
 (
   cd docbuild
-  if [ ! -f lake-manifest.json ] \
-    || [ ! -d ../.lake/packages/doc-gen4 ] \
-    || [ ! -d ../.lake/packages/MD4Lean ] \
-    || [ ! -d ../.lake/packages/BibtexQuery ] \
-    || [ ! -d ../.lake/packages/UnicodeBasic ] \
-    || [ ! -d ../.lake/packages/leansqlite ] \
-    || ! sha256sum -c --status .root-manifest.sha256 2>/dev/null; then
+  root_hash="$(sha256_file ../lake-manifest.json)"
+  if ! manifest_git_packages_present \
+    || [ ! -f .root-manifest.sha256 ] \
+    || [ "$(cat .root-manifest.sha256)" != "$root_hash" ]; then
     MATHLIB_NO_CACHE_ON_UPDATE=1 lake update isotropic-grover-proof
-    sha256sum ../lake-manifest.json > .root-manifest.sha256
+    printf '%s\n' "$root_hash" > .root-manifest.sha256
   fi
   rm -f .lake/build/doc-data/*.docs_built
   rm -rf .lake/build/doc/IsotropicGroverProof .lake/build/doc/IsotropicGroverProof.html
