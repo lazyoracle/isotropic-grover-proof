@@ -1,14 +1,16 @@
 -- IsotropicGroverProof/GroverCircuit.lean
--- M9: Grover circuit state vectors and specialization of isotropicGrover_main.
+-- M9: Grover circuit state vectors, specialization of isotropicGrover_main,
+--     and bridge to QuantumComputation.Algorithms.Grover.
 --
 -- Formalizes:
--- 1. The target basis state |w⟩ and its success probability (1).
+-- 1. The target basis state |w⟩, its ketToReal equivalence, and its success probability (1).
 -- 2. The non-target orthogonal superposition |w^⟂⟩ and its orthogonality to |w⟩.
--- 3. The uniform superposition state |s⟩, proving ‖|s⟩‖ = 1 and succProb = 1/2^n,
---    and showing its expected success probability under isotropic noise is identically 1/2^n.
+-- 3. The uniform superposition state |s⟩, its ketToReal equivalence, ‖|s⟩‖ = 1, succProb = 1/2^n,
+--    and invariance under isotropic noise.
 -- 4. The 2D Grover search plane spanned by |w⟩ and |w^⟂⟩, parameterized by angle α
 --    or ideal success probability p_ideal ∈ [0, 1].
--- 5. Specialization of `isotropicGrover_main` to the Grover search plane and ideal output state.
+-- 5. Canonical Grover unitary sequences (`groverIterGates`, `groverFullGates`) and their
+--    noiseless evolution to `Grover.groverState` and Born-rule probability `Grover.p_succ`.
 
 import QuantumInfo.States.Pure.Braket
 import QuantumInfo.States.Mixed.MState
@@ -18,17 +20,53 @@ import QuantumComputation.Algorithms.Grover.Operators
 import QuantumComputation.Algorithms.Grover.Amplitude
 import QuantumComputation.Circuits.ResourceCounting
 import IsotropicGroverProof.MainTheorem
+import IsotropicGroverProof.QuantumChannel
 
 /-!
-# Grover Circuit State Specializations
+# Grover Circuit State Specializations and `QuantumComputation.Algorithms.Grover` Bridge
 
 Specializes `isotropicGrover_main` to the target basis state, uniform superposition,
-and 2D Grover search plane.
+and 2D Grover search plane, and bridges `QuantumInfo` ket trajectories across
+`Grover.oracleUnitary`, `Grover.diffuserUnitary`, and `hadamardUnitary` to
+`Grover.groverState` and `Grover.p_succ`.
 -/
 
 namespace IsotropicGrover
 
 open Real MeasureTheory
+open scoped Matrix
+
+/-! ## Shared real/complex vector and orthonormal linear-combination helpers -/
+
+private lemma realToVec_stdBasisVec_idx0 (n : ℕ) (w x : Fin (2 ^ n)) :
+    realToVec (stdBasisVec n (succProbIdx0 n w)) x = if w = x then 1 else 0 := by
+  have hiff : succProbIdx0 n x = succProbIdx0 n w ↔ w = x :=
+    ⟨fun h => (succProbIdx0_inj h).symm, fun h => congrArg _ h.symm⟩
+  have hne : ∀ a b, succProbIdx1 n a ≠ succProbIdx0 n b :=
+    fun a b h => succProbIdx0_ne_succProbIdx1 b a h.symm
+  by_cases hwx : w = x <;> apply Complex.ext <;>
+    simp [stdBasisVec_apply, hiff, hne, hwx]
+
+private lemma realToVec_sum {n : ℕ} {ι : Type*} (s : Finset ι) (f : ι → E n) (x : Fin (2 ^ n)) :
+    realToVec (∑ i ∈ s, f i) x = ∑ i ∈ s, realToVec (f i) x := by
+  classical
+  induction s using Finset.induction_on with
+  | empty =>
+    apply Complex.ext <;> simp
+  | @insert a s ha ih =>
+    rw [Finset.sum_insert ha, realToVec_add, Pi.add_apply, ih, Finset.sum_insert ha]
+
+/-- Norm of a linear combination `a • u + b • v` of orthonormal vectors `u, v : E n`
+    when `a ^ 2 + b ^ 2 = 1`. -/
+lemma norm_smul_add_smul_of_ortho {n : ℕ} {u v : E n} (hu : ‖u‖ = 1) (hv : ‖v‖ = 1)
+    (huv : inner (𝕜 := ℝ) u v = 0) {a b : ℝ} (hab : a ^ 2 + b ^ 2 = 1) :
+    ‖a • u + b • v‖ = 1 := by
+  have hsq : ‖a • u + b • v‖ ^ 2 = 1 := by
+    rw [norm_add_sq_real, norm_smul, norm_smul, inner_smul_left, inner_smul_right,
+        hu, hv, huv, Real.norm_eq_abs, Real.norm_eq_abs, mul_one, mul_one,
+        sq_abs, sq_abs]
+    linarith
+  nlinarith [norm_nonneg (a • u + b • v)]
 
 /-! ## Target basis state -/
 
@@ -37,10 +75,20 @@ open Real MeasureTheory
 noncomputable def targetBasisState (n : ℕ) (w : Fin (2 ^ n)) : E n :=
   stdBasisVec n (succProbIdx0 n w)
 
+/-- `targetBasisState n w` is the real embedding `ketToReal (Ket.basis w)`. -/
+lemma targetBasisState_eq_ketToReal (n : ℕ) (w : Fin (2 ^ n)) :
+    targetBasisState n w = ketToReal (Ket.basis w) := by
+  rw [← vecToReal_realToVec (targetBasisState n w), ketToReal]
+  congr 1
+  ext x
+  rw [targetBasisState, realToVec_stdBasisVec_idx0]
+  simp [Ket.basis]
+
 /-- The target basis state is a unit vector: ‖|w⟩‖ = 1. -/
 lemma norm_targetBasisState (n : ℕ) (w : Fin (2 ^ n)) :
-    ‖targetBasisState n w‖ = 1 :=
-  stdBasisVec_norm n (succProbIdx0 n w)
+    ‖targetBasisState n w‖ = 1 := by
+  rw [targetBasisState_eq_ketToReal]
+  exact norm_ketToReal (Ket.basis w)
 
 /-- Inner product of |w⟩ with real component 2w is 1. -/
 lemma inner_targetBasisState_idx0 (n : ℕ) (w : Fin (2 ^ n)) :
@@ -59,9 +107,8 @@ lemma inner_targetBasisState_idx1 (n : ℕ) (w : Fin (2 ^ n)) :
 /-- The ideal success probability of measuring outcome w on |w⟩ is 1. -/
 lemma succProb_targetBasisState (n : ℕ) (w : Fin (2 ^ n)) :
     succProb n (targetBasisState n w) w = 1 := by
-  unfold succProb
-  rw [inner_targetBasisState_idx0, inner_targetBasisState_idx1]
-  ring
+  rw [targetBasisState_eq_ketToReal, (succProb_ketToReal_eq_born (Ket.basis w) w).1]
+  simp [Ket.apply, Ket.basis]
 
 /-! ## Orthogonal non-target state -/
 
@@ -71,43 +118,25 @@ noncomputable def targetPerpState (n : ℕ) (w : Fin (2 ^ n)) : E n :=
   (1 / Real.sqrt ((2 ^ n : ℝ) - 1)) •
     ∑ x : Fin (2 ^ n), (if x = w then (0 : ℝ) else 1) • stdBasisVec n (succProbIdx0 n x)
 
+private lemma realToVec_targetPerpState (n : ℕ) (w y : Fin (2 ^ n)) :
+    realToVec (targetPerpState n w) y =
+    if y = w then 0 else ((1 / Real.sqrt ((2 ^ n : ℝ) - 1) : ℝ) : ℂ) := by
+  unfold targetPerpState
+  rw [realToVec_smul, Pi.smul_apply, realToVec_sum]
+  simp_rw [realToVec_smul, Pi.smul_apply, realToVec_stdBasisVec_idx0, smul_eq_mul, mul_ite,
+    mul_one, mul_zero]
+  simp only [Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
+  by_cases hy : y = w <;> simp [hy]
+
 lemma inner_targetPerpState_idx0 (n : ℕ) (w : Fin (2 ^ n)) :
     inner (𝕜 := ℝ) (targetPerpState n w) (stdBasisVec n (succProbIdx0 n w)) = 0 := by
-  unfold targetPerpState
-  simp_rw [inner_smul_left, sum_inner]
-  simp only [starRingEnd_apply, star_trivial]
-  have h : (∑ x : Fin (2 ^ n),
-      inner (𝕜 := ℝ) ((if x = w then (0 : ℝ) else 1) • stdBasisVec n (succProbIdx0 n x))
-                     (stdBasisVec n (succProbIdx0 n w))) = 0 := by
-    simp_rw [inner_smul_left, inner_stdBasisVec, starRingEnd_apply, star_trivial]
-    have : ∀ x : Fin (2 ^ n),
-        (if x = w then (0 : ℝ) else 1) *
-          (if succProbIdx0 n x = succProbIdx0 n w then 1 else 0) = 0 := by
-      intro x
-      by_cases hx : x = w
-      · subst hx; simp
-      · have hne : succProbIdx0 n x ≠ succProbIdx0 n w := fun heq => hx (succProbIdx0_inj heq)
-        simp [hx, hne]
-    simp_rw [this]
-    simp
-  rw [h, mul_zero]
+  rw [inner_stdBasisVec_eq_apply, ← realToVec_re, realToVec_targetPerpState]
+  simp
 
 lemma inner_targetPerpState_idx1 (n : ℕ) (w : Fin (2 ^ n)) :
     inner (𝕜 := ℝ) (targetPerpState n w) (stdBasisVec n (succProbIdx1 n w)) = 0 := by
-  unfold targetPerpState
-  simp_rw [inner_smul_left, sum_inner]
-  simp only [starRingEnd_apply, star_trivial]
-  have h : (∑ x : Fin (2 ^ n),
-      inner (𝕜 := ℝ) ((if x = w then (0 : ℝ) else 1) • stdBasisVec n (succProbIdx0 n x))
-                     (stdBasisVec n (succProbIdx1 n w))) = 0 := by
-    simp_rw [inner_smul_left, inner_stdBasisVec, starRingEnd_apply, star_trivial]
-    have : ∀ x : Fin (2 ^ n),
-        (if x = w then (0 : ℝ) else 1) *
-          (if succProbIdx0 n x = succProbIdx1 n w then 1 else 0) = 0 := by
-      intro x; simp [succProbIdx0_ne_succProbIdx1]
-    simp_rw [this]
-    simp
-  rw [h, mul_zero]
+  rw [inner_stdBasisVec_eq_apply, ← realToVec_im, realToVec_targetPerpState]
+  simp
 
 /-- The target state |w⟩ and the non-target state |w^⟂⟩ are orthogonal. -/
 lemma inner_targetBasisState_targetPerpState (n : ℕ) (w : Fin (2 ^ n)) :
@@ -118,78 +147,33 @@ lemma inner_targetBasisState_targetPerpState (n : ℕ) (w : Fin (2 ^ n)) :
 /-- Success probability of measuring outcome w on |w^⟂⟩ is 0. -/
 lemma succProb_targetPerpState (n : ℕ) (w : Fin (2 ^ n)) :
     succProb n (targetPerpState n w) w = 0 := by
-  unfold succProb
-  rw [inner_targetPerpState_idx0, inner_targetPerpState_idx1]
-  ring
+  simp [succProb, inner_targetPerpState_idx0, inner_targetPerpState_idx1]
 
 /-- The non-target state |w^⟂⟩ is a unit vector when 1 < 2^n (i.e., n ≥ 1). -/
 lemma norm_targetPerpState (n : ℕ) (w : Fin (2 ^ n)) (hn : 1 < 2 ^ n) :
     ‖targetPerpState n w‖ = 1 := by
-  have h_inner : inner (𝕜 := ℝ) (targetPerpState n w) (targetPerpState n w) = 1 := by
-    unfold targetPerpState
-    simp_rw [inner_smul_left, inner_smul_right, sum_inner, inner_sum]
-    simp only [starRingEnd_apply, star_trivial]
-    have h_double : (∑ x : Fin (2 ^ n), ∑ y : Fin (2 ^ n),
-        inner (𝕜 := ℝ) ((if x = w then (0 : ℝ) else 1) • stdBasisVec n (succProbIdx0 n x))
-                       ((if y = w then (0 : ℝ) else 1) • stdBasisVec n (succProbIdx0 n y))) =
-        (2 ^ n : ℝ) - 1 := by
-      simp_rw [inner_smul_left, inner_smul_right, inner_stdBasisVec,
-               starRingEnd_apply, star_trivial]
-      have h_inner_sum : ∀ x : Fin (2 ^ n), (∑ y : Fin (2 ^ n),
-          (if x = w then (0 : ℝ) else 1) *
-            ((if y = w then (0 : ℝ) else 1) *
-              (if succProbIdx0 n x = succProbIdx0 n y then 1 else 0))) =
-          if x = w then 0 else 1 := by
-        intro x
-        by_cases hx : x = w
-        · subst hx
-          simp
-        · simp only [hx, ite_false, one_mul]
-          have hy_eq : ∀ y : Fin (2 ^ n),
-              (if y = w then (0 : ℝ) else 1) *
-                (if succProbIdx0 n x = succProbIdx0 n y then 1 else 0) =
-              if y = x then 1 else 0 := by
-            intro y
-            by_cases hyx : y = x
-            · subst hyx
-              simp [hx]
-            · have h_ne_idx : succProbIdx0 n x ≠ succProbIdx0 n y :=
-                fun heq => hyx (succProbIdx0_inj heq).symm
-              simp [hyx, h_ne_idx]
-          simp_rw [hy_eq]
-          simp
-      simp_rw [h_inner_sum]
-      have : (∑ x : Fin (2 ^ n), (if x = w then (0 : ℝ) else 1)) = (2 ^ n : ℝ) - 1 := by
-        rw [Finset.sum_ite]
-        simp only [Finset.sum_const_zero, zero_add, Finset.sum_const, nsmul_eq_mul, mul_one]
-        have h_filter : (Finset.univ.filter (fun x => ¬x = w)).card = 2 ^ n - 1 := by
-          have h_comp : Finset.univ.filter (fun x => ¬x = w) = Finset.univ \ {w} := by
-            ext; simp
-          rw [h_comp, Finset.card_sdiff_of_subset
-                (Finset.singleton_subset_iff.mpr (Finset.mem_univ w))]
-          simp
-        rw [h_filter]
-        have h1 : 1 ≤ 2 ^ n := by omega
-        rw [Nat.cast_sub h1]
-        simp
-      exact this
-    rw [h_double]
-    have h_pos : 0 < (2 ^ n : ℝ) - 1 := by
-      have : (1 : ℝ) < (2 ^ n : ℝ) := by exact_mod_cast hn
-      linarith
-    have h_sqrt : (Real.sqrt ((2 ^ n : ℝ) - 1)) ^ 2 = (2 ^ n : ℝ) - 1 :=
-      Real.sq_sqrt (by linarith)
-    have h_ne : (2 ^ n : ℝ) - 1 ≠ 0 := by linarith
-    calc
-      (1 / Real.sqrt ((2 ^ n : ℝ) - 1)) *
-        ((1 / Real.sqrt ((2 ^ n : ℝ) - 1)) * ((2 ^ n : ℝ) - 1))
-        = (1 / (Real.sqrt ((2 ^ n : ℝ) - 1) ^ 2)) * ((2 ^ n : ℝ) - 1) := by ring
-      _ = (1 / ((2 ^ n : ℝ) - 1)) * ((2 ^ n : ℝ) - 1) := by rw [h_sqrt]
-      _ = 1 := one_div_mul_cancel h_ne
-  have h_norm_sq : ‖targetPerpState n w‖ ^ 2 = 1 := by
-    rw [← @real_inner_self_eq_norm_sq, h_inner]
-  have h_nonneg : 0 ≤ ‖targetPerpState n w‖ := norm_nonneg _
-  nlinarith
+  have h1 : (1 : ℝ) < (2 ^ n : ℝ) := by exact_mod_cast hn
+  have hsq : ‖targetPerpState n w‖ ^ 2 = 1 := by
+    rw [← sum_norm_sq_realToVec]
+    simp_rw [realToVec_targetPerpState]
+    have hterm : ∀ y : Fin (2 ^ n),
+        ‖if y = w then (0 : ℂ) else ((1 / Real.sqrt ((2 ^ n : ℝ) - 1) : ℝ) : ℂ)‖ ^ 2 =
+        if y = w then 0 else 1 / ((2 ^ n : ℝ) - 1) := by
+      intro y
+      by_cases hy : y = w
+      · simp [hy]
+      · simp only [hy, ↓reduceIte, Complex.norm_real, Real.norm_eq_abs, sq_abs, one_div_pow,
+          Real.sq_sqrt (by linarith : 0 ≤ (2 ^ n : ℝ) - 1)]
+    simp_rw [hterm]
+    rw [Finset.sum_ite, Finset.sum_const_zero, zero_add, Finset.sum_const, nsmul_eq_mul]
+    have hcard : (Finset.univ.filter (fun y : Fin (2 ^ n) => ¬y = w)).card = 2 ^ n - 1 := by
+      rw [show Finset.univ.filter (fun y : Fin (2 ^ n) => ¬y = w) = Finset.univ \ {w} by ext; simp,
+          Finset.card_sdiff_of_subset (Finset.singleton_subset_iff.mpr (Finset.mem_univ w))]
+      simp
+    rw [hcard, Nat.cast_sub (by omega : 1 ≤ 2 ^ n)]
+    push_cast
+    exact mul_one_div_cancel (by linarith)
+  nlinarith [norm_nonneg (targetPerpState n w)]
 
 /-! ## Uniform superposition state -/
 
@@ -198,59 +182,33 @@ lemma norm_targetPerpState (n : ℕ) (w : Fin (2 ^ n)) (hn : 1 < 2 ^ n) :
 noncomputable def uniformSuperposition (n : ℕ) : E n :=
   (1 / Real.sqrt (2 ^ n)) • ∑ x : Fin (2 ^ n), stdBasisVec n (succProbIdx0 n x)
 
+lemma uniform_superposition_vec {n : ℕ} (x : Fin (2 ^ n)) :
+    (uniform_superposition : Ket (Fin (2 ^ n))).vec x = ((1 / Real.sqrt (2 ^ n) : ℝ) : ℂ) := by
+  simp [uniform_superposition, Ket.normalize]
+
+/-- `uniformSuperposition n` is the real embedding `ketToReal uniform_superposition`. -/
+lemma uniformSuperposition_eq_ketToReal (n : ℕ) :
+    uniformSuperposition n = ketToReal (uniform_superposition : Ket (Fin (2 ^ n))) := by
+  rw [← vecToReal_realToVec (uniformSuperposition n), ketToReal]
+  congr 1
+  ext y
+  rw [uniformSuperposition, realToVec_smul, Pi.smul_apply, realToVec_sum, uniform_superposition_vec]
+  simp_rw [realToVec_stdBasisVec_idx0]
+  simp
+
 /-- The success probability of measuring any outcome w on the uniform superposition is 1 / 2^n. -/
 lemma succProb_uniformSuperposition (n : ℕ) (w : Fin (2 ^ n)) :
     succProb n (uniformSuperposition n) w = 1 / (2 ^ n : ℝ) := by
-  unfold succProb uniformSuperposition
-  simp_rw [inner_smul_left, sum_inner]
-  simp only [starRingEnd_apply, star_trivial]
-  have h0 : (∑ x : Fin (2 ^ n),
-      inner (𝕜 := ℝ) (stdBasisVec n (succProbIdx0 n x))
-                     (stdBasisVec n (succProbIdx0 n w))) = 1 := by
-    simp_rw [inner_stdBasisVec]
-    have : ∀ x : Fin (2 ^ n),
-        (if succProbIdx0 n x = succProbIdx0 n w then (1 : ℝ) else 0) =
-          (if x = w then 1 else 0) := by
-      intro x
-      by_cases h : x = w
-      · subst h; simp
-      · have hne : succProbIdx0 n x ≠ succProbIdx0 n w := fun heq => h (succProbIdx0_inj heq)
-        simp [h, hne]
-    simp_rw [this]
-    simp
-  have h1 : (∑ x : Fin (2 ^ n),
-      inner (𝕜 := ℝ) (stdBasisVec n (succProbIdx0 n x))
-                     (stdBasisVec n (succProbIdx1 n w))) = 0 := by
-    simp_rw [inner_stdBasisVec]
-    have : ∀ x : Fin (2 ^ n),
-        (if succProbIdx0 n x = succProbIdx1 n w then (1 : ℝ) else 0) = 0 := by
-      intro x; simp [succProbIdx0_ne_succProbIdx1]
-    simp_rw [this]
-    simp
-  rw [h0, h1]
-  have hpos : (0 : ℝ) ≤ (2 : ℝ) ^ n := by positivity
-  have hsqrt : Real.sqrt ((2 : ℝ) ^ n) ^ 2 = (2 : ℝ) ^ n := Real.sq_sqrt hpos
-  calc
-    (1 / Real.sqrt (2 ^ n) * 1) ^ 2 + (1 / Real.sqrt (2 ^ n) * 0) ^ 2
-      = (1 / Real.sqrt (2 ^ n)) ^ 2 := by ring
-    _ = 1 / (Real.sqrt (2 ^ n) ^ 2) := by rw [one_div_pow]
-    _ = 1 / (2 ^ n : ℝ) := by rw [hsqrt]
+  rw [uniformSuperposition_eq_ketToReal,
+      (succProb_ketToReal_eq_born (uniform_superposition : Ket (Fin (2 ^ n))) w).1,
+      Ket.apply, uniform_superposition_vec, Complex.norm_real, Real.norm_eq_abs, sq_abs,
+      one_div_pow, Real.sq_sqrt (by positivity)]
 
 /-- The uniform superposition state is a unit vector: ‖|s⟩‖ = 1. -/
 lemma norm_uniformSuperposition (n : ℕ) :
     ‖uniformSuperposition n‖ = 1 := by
-  have h_sum := sum_succProb_eq_norm_sq n (uniformSuperposition n)
-  simp_rw [succProb_uniformSuperposition] at h_sum
-  have h_card : (∑ _w : Fin (2 ^ n), (1 : ℝ) / (2 ^ n : ℝ)) = 1 := by
-    simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin]
-    have hne : (2 : ℝ) ^ n ≠ 0 := by positivity
-    have h_mul := mul_one_div_cancel (G₀ := ℝ) hne
-    exact nsmul_eq_mul (2 ^ n) (1 / (2 ^ n : ℝ)) ▸ (by
-      push_cast
-      exact h_mul)
-  rw [h_card] at h_sum
-  have h_nonneg : 0 ≤ ‖uniformSuperposition n‖ := norm_nonneg _
-  nlinarith
+  rw [uniformSuperposition_eq_ketToReal]
+  exact norm_ketToReal (uniform_superposition : Ket (Fin (2 ^ n)))
 
 /-- For the uniform superposition |s⟩ (prior to Grover iterations), the expected success
     probability under isotropic noise is identically 1 / 2^n for ANY gate count G and parameter σ.
@@ -262,11 +220,20 @@ theorem isotropicGrover_uniformSuperposition (n : ℕ) (G : ℕ) (hG : 0 < G)
           ∂(perpSphereMeasure (uniformSuperposition n))
       ∂(composedMeasure (d n) G σ) =
     1 / (2 ^ n : ℝ) := by
-  rw [isotropicGrover_main G hG σ hσ (uniformSuperposition n) (norm_uniformSuperposition n) w]
-  rw [succProb_uniformSuperposition]
+  rw [isotropicGrover_main G hG σ hσ (uniformSuperposition n) (norm_uniformSuperposition n) w,
+      succProb_uniformSuperposition]
   ring
 
 /-! ## Grover state in the 2D search plane -/
+
+private lemma succProb_smul_target_add_perp (n : ℕ) (w : Fin (2 ^ n)) (a b : ℝ) :
+    succProb n (a • targetBasisState n w + b • targetPerpState n w) w = a ^ 2 := by
+  unfold succProb
+  simp_rw [inner_add_left, inner_smul_left]
+  simp only [starRingEnd_apply, star_trivial,
+    inner_targetBasisState_idx0, inner_targetBasisState_idx1,
+    inner_targetPerpState_idx0, inner_targetPerpState_idx1]
+  ring
 
 /-- A general state in the 2D Grover search plane spanned by |w⟩ and |w^⟂⟩,
     parameterized by angle α: |ψ(α)⟩ = sin(α)|w⟩ + cos(α)|w^⟂⟩. -/
@@ -275,36 +242,14 @@ noncomputable def groverState2D (n : ℕ) (w : Fin (2 ^ n)) (α : ℝ) : E n :=
 
 /-- Any Grover state |ψ(α)⟩ in the 2D search plane is a unit vector when 1 < 2^n. -/
 lemma norm_groverState2D (n : ℕ) (w : Fin (2 ^ n)) (α : ℝ) (hn : 1 < 2 ^ n) :
-    ‖groverState2D n w α‖ = 1 := by
-  have h_inner : inner (𝕜 := ℝ) (groverState2D n w α) (groverState2D n w α) = 1 := by
-    unfold groverState2D
-    simp_rw [inner_add_left, inner_add_right, inner_smul_left, inner_smul_right]
-    simp only [starRingEnd_apply, star_trivial]
-    rw [inner_targetBasisState_targetPerpState]
-    have h_perp_basis : inner (𝕜 := ℝ) (targetPerpState n w) (targetBasisState n w) = 0 := by
-      rw [real_inner_comm, inner_targetBasisState_targetPerpState]
-    rw [h_perp_basis]
-    have h_norm_basis : inner (𝕜 := ℝ) (targetBasisState n w) (targetBasisState n w) = 1 := by
-      rw [real_inner_self_eq_norm_sq, norm_targetBasisState, one_pow]
-    have h_norm_perp : inner (𝕜 := ℝ) (targetPerpState n w) (targetPerpState n w) = 1 := by
-      rw [real_inner_self_eq_norm_sq, norm_targetPerpState n w hn, one_pow]
-    rw [h_norm_basis, h_norm_perp]
-    have := Real.sin_sq_add_cos_sq α
-    linarith
-  have h_norm_sq : ‖groverState2D n w α‖ ^ 2 = 1 := by
-    rw [← @real_inner_self_eq_norm_sq, h_inner]
-  have h_nonneg : 0 ≤ ‖groverState2D n w α‖ := norm_nonneg _
-  nlinarith
+    ‖groverState2D n w α‖ = 1 :=
+  norm_smul_add_smul_of_ortho (norm_targetBasisState n w) (norm_targetPerpState n w hn)
+    (inner_targetBasisState_targetPerpState n w) (Real.sin_sq_add_cos_sq α)
 
 /-- The ideal success probability of measuring outcome w on |ψ(α)⟩ is sin²(α). -/
 lemma succProb_groverState2D (n : ℕ) (w : Fin (2 ^ n)) (α : ℝ) :
-    succProb n (groverState2D n w α) w = Real.sin α ^ 2 := by
-  unfold succProb groverState2D
-  simp_rw [inner_add_left, inner_smul_left]
-  simp only [starRingEnd_apply, star_trivial]
-  rw [inner_targetBasisState_idx0, inner_targetBasisState_idx1]
-  rw [inner_targetPerpState_idx0, inner_targetPerpState_idx1]
-  ring
+    succProb n (groverState2D n w α) w = Real.sin α ^ 2 :=
+  succProb_smul_target_add_perp n w (Real.sin α) (Real.cos α)
 
 /-- The expected success probability of any state in the 2D Grover search plane under
     isotropic noise is σ^(2G) * sin²(α) + (1 - σ^(2G)) / 2^n. -/
@@ -314,8 +259,8 @@ theorem isotropicGrover_groverState2D (n : ℕ) (G : ℕ) (hG : 0 < G) (σ : ℝ
           ∂(perpSphereMeasure (groverState2D n w α))
       ∂(composedMeasure (d n) G σ) =
     σ ^ (2 * G) * Real.sin α ^ 2 + (1 - σ ^ (2 * G)) / (2 ^ n : ℝ) := by
-  rw [isotropicGrover_main G hG σ hσ (groverState2D n w α) (norm_groverState2D n w α hn) w]
-  rw [succProb_groverState2D]
+  rw [isotropicGrover_main G hG σ hσ (groverState2D n w α) (norm_groverState2D n w α hn) w,
+      succProb_groverState2D]
 
 /-! ## Grover state parameterized directly by ideal success probability p_ideal -/
 
@@ -327,50 +272,15 @@ noncomputable def groverState2D_prob (n : ℕ) (w : Fin (2 ^ n)) (p_ideal : ℝ)
 /-- The state |ψ(p_ideal)⟩ is a unit vector for any p_ideal ∈ [0, 1] when 1 < 2^n. -/
 lemma norm_groverState2D_prob (n : ℕ) (w : Fin (2 ^ n)) (p_ideal : ℝ)
     (hp : p_ideal ∈ Set.Icc (0 : ℝ) 1) (hn : 1 < 2 ^ n) :
-    ‖groverState2D_prob n w p_ideal‖ = 1 := by
-  have h_inner :
-      inner (𝕜 := ℝ) (groverState2D_prob n w p_ideal) (groverState2D_prob n w p_ideal) = 1 := by
-    unfold groverState2D_prob
-    simp_rw [inner_add_left, inner_add_right, inner_smul_left, inner_smul_right]
-    simp only [starRingEnd_apply, star_trivial]
-    rw [inner_targetBasisState_targetPerpState]
-    have h_perp_basis : inner (𝕜 := ℝ) (targetPerpState n w) (targetBasisState n w) = 0 := by
-      rw [real_inner_comm, inner_targetBasisState_targetPerpState]
-    rw [h_perp_basis]
-    have h_norm_basis : inner (𝕜 := ℝ) (targetBasisState n w) (targetBasisState n w) = 1 := by
-      rw [real_inner_self_eq_norm_sq, norm_targetBasisState, one_pow]
-    have h_norm_perp : inner (𝕜 := ℝ) (targetPerpState n w) (targetPerpState n w) = 1 := by
-      rw [real_inner_self_eq_norm_sq, norm_targetPerpState n w hn, one_pow]
-    rw [h_norm_basis, h_norm_perp]
-    have hp0 : 0 ≤ p_ideal := hp.1
-    have hp1 : 0 ≤ 1 - p_ideal := sub_nonneg.mpr hp.2
-    have h_sq1 : (Real.sqrt p_ideal) ^ 2 = p_ideal := Real.sq_sqrt hp0
-    have h_sq2 : (Real.sqrt (1 - p_ideal)) ^ 2 = 1 - p_ideal := Real.sq_sqrt hp1
-    calc
-      Real.sqrt p_ideal * (Real.sqrt p_ideal * 1) +
-        Real.sqrt p_ideal * (Real.sqrt (1 - p_ideal) * 0) +
-        (Real.sqrt (1 - p_ideal) * (Real.sqrt p_ideal * 0) +
-          Real.sqrt (1 - p_ideal) * (Real.sqrt (1 - p_ideal) * 1))
-        = (Real.sqrt p_ideal) ^ 2 + (Real.sqrt (1 - p_ideal)) ^ 2 := by ring
-      _ = p_ideal + (1 - p_ideal) := by rw [h_sq1, h_sq2]
-      _ = 1 := by ring
-  have h_norm_sq : ‖groverState2D_prob n w p_ideal‖ ^ 2 = 1 := by
-    rw [← @real_inner_self_eq_norm_sq, h_inner]
-  have h_nonneg : 0 ≤ ‖groverState2D_prob n w p_ideal‖ := norm_nonneg _
-  nlinarith
+    ‖groverState2D_prob n w p_ideal‖ = 1 :=
+  norm_smul_add_smul_of_ortho (norm_targetBasisState n w) (norm_targetPerpState n w hn)
+    (inner_targetBasisState_targetPerpState n w) (by
+      rw [Real.sq_sqrt hp.1, Real.sq_sqrt (sub_nonneg.mpr hp.2)]; ring)
 
 /-- The ideal success probability of measuring outcome w on |ψ(p_ideal)⟩ is exactly p_ideal. -/
 lemma succProb_groverState2D_prob (n : ℕ) (w : Fin (2 ^ n)) (p_ideal : ℝ) (hp : 0 ≤ p_ideal) :
     succProb n (groverState2D_prob n w p_ideal) w = p_ideal := by
-  unfold succProb groverState2D_prob
-  simp_rw [inner_add_left, inner_smul_left]
-  simp only [starRingEnd_apply, star_trivial]
-  rw [inner_targetBasisState_idx0, inner_targetBasisState_idx1]
-  rw [inner_targetPerpState_idx0, inner_targetPerpState_idx1]
-  have : (Real.sqrt p_ideal * 1 + Real.sqrt (1 - p_ideal) * 0) ^ 2 +
-         (Real.sqrt p_ideal * 0 + Real.sqrt (1 - p_ideal) * 0) ^ 2 =
-         (Real.sqrt p_ideal) ^ 2 := by ring
-  rw [this, Real.sq_sqrt hp]
+  rw [groverState2D_prob, succProb_smul_target_add_perp, Real.sq_sqrt hp]
 
 /-- The expected success probability of |ψ(p_ideal)⟩ under isotropic noise is exactly
     σ^(2G) * p_ideal + (1 - σ^(2G)) / 2^n. -/
@@ -382,8 +292,8 @@ theorem isotropicGrover_groverState2D_prob (n : ℕ) (G : ℕ) (hG : 0 < G)
       ∂(composedMeasure (d n) G σ) =
     σ ^ (2 * G) * p_ideal + (1 - σ ^ (2 * G)) / (2 ^ n : ℝ) := by
   rw [isotropicGrover_main G hG σ hσ (groverState2D_prob n w p_ideal)
-        (norm_groverState2D_prob n w p_ideal hp hn) w]
-  rw [succProb_groverState2D_prob n w p_ideal hp.1]
+        (norm_groverState2D_prob n w p_ideal hp hn) w,
+      succProb_groverState2D_prob n w p_ideal hp.1]
 
 /-! ## Ideal Grover output state -/
 
@@ -396,13 +306,93 @@ theorem isotropicGrover_targetBasisState (n : ℕ) (G : ℕ) (hG : 0 < G)
           ∂(perpSphereMeasure (targetBasisState n w))
       ∂(composedMeasure (d n) G σ) =
     σ ^ (2 * G) + (1 - σ ^ (2 * G)) / (2 ^ n : ℝ) := by
-  rw [isotropicGrover_main G hG σ hσ (targetBasisState n w) (norm_targetBasisState n w) w]
-  rw [succProb_targetBasisState]
+  rw [isotropicGrover_main G hG σ hσ (targetBasisState n w) (norm_targetBasisState n w) w,
+      succProb_targetBasisState]
   ring
 
-/-! ## Dependency smoke check -/
+/-! ## Canonical Grover unitary sequences and noiseless state-evolution bridge -/
 
-open scoped Matrix in
+/-- Left-to-right list of `2 * K` macro unitaries for `K` Grover iterations: each iteration
+    applies the phase oracle `Grover.oracleUnitary target` followed by `Grover.diffuserUnitary`. -/
+noncomputable def groverIterGates {n : ℕ} (target : Fin (2 ^ n)) : ℕ → List 𝐔[Fin (2 ^ n)]
+  | 0 => []
+  | k + 1 => groverIterGates target k ++ [Grover.oracleUnitary target, Grover.diffuserUnitary]
+
+@[simp]
+lemma groverIterGates_zero {n : ℕ} (target : Fin (2 ^ n)) :
+    groverIterGates target 0 = [] := rfl
+
+@[simp]
+lemma groverIterGates_succ {n : ℕ} (target : Fin (2 ^ n)) (k : ℕ) :
+    groverIterGates target (k + 1) =
+    groverIterGates target k ++ [Grover.oracleUnitary target, Grover.diffuserUnitary] := rfl
+
+/-- Left-to-right list of `2 * K + 1` macro unitaries for Hadamard preparation followed by
+    `K` Grover iterations. -/
+noncomputable def groverFullGates (n : ℕ) (target : Fin (2 ^ n)) (K : ℕ) : List 𝐔[Fin (2 ^ n)] :=
+  (hadamardUnitary : 𝐔[Fin (2 ^ n)]) :: groverIterGates target K
+
+@[simp]
+lemma length_groverIterGates {n : ℕ} (target : Fin (2 ^ n)) (K : ℕ) :
+    (groverIterGates target K).length = 2 * K := by
+  induction K with
+  | zero => rfl
+  | succ k ih =>
+    simp [groverIterGates, ih]
+    omega
+
+@[simp]
+lemma length_groverFullGates (n : ℕ) (target : Fin (2 ^ n)) (K : ℕ) :
+    (groverFullGates n target K).length = 2 * K + 1 := by
+  simp [groverFullGates]
+
+/-- Applying `hadamardUnitary` to `Ket.basis 0` prepares `uniform_superposition`. -/
+lemma applyUnitaryKet_hadamardUnitary_basis_zero (n : ℕ) :
+    applyUnitaryKet (hadamardUnitary : 𝐔[Fin (2 ^ n)]) (Ket.basis (0 : Fin (2 ^ n))) =
+    (uniform_superposition : Ket (Fin (2 ^ n))) := by
+  ext i
+  rw [Ket.apply, Ket.apply, uniform_superposition_vec]
+  change (hadamardMatrix n *ᵥ (Ket.basis (0 : Fin (2 ^ n))).vec) i = _
+  simp [Matrix.mulVec, dotProduct, Ket.basis]
+
+/-- Evolving `uniform_superposition` along `groverIterGates target K` produces the exact
+    amplitude vector `Grover.groverState target K` from `QuantumComputation.Algorithms.Grover`. -/
+theorem idealUnitaryTrajectory_groverIterGates {n : ℕ} (target : Fin (2 ^ n)) (K : ℕ) :
+    (idealUnitaryTrajectory (groverIterGates target K)
+      (uniform_superposition : Ket (Fin (2 ^ n)))).vec =
+    Grover.groverState target K := by
+  induction K with
+  | zero =>
+    ext x
+    simp [uniform_superposition_vec, Grover.groverState]
+  | succ k ih =>
+    simp only [groverIterGates_succ, idealUnitaryTrajectory_append, idealUnitaryTrajectory_cons,
+      idealUnitaryTrajectory_nil]
+    change Grover.diffuserMatrix *ᵥ (Grover.oracleMatrix target *ᵥ
+      (idealUnitaryTrajectory (groverIterGates target k)
+        (uniform_superposition : Ket (Fin (2 ^ n)))).vec) =
+      Grover.groverState target (k + 1)
+    rw [ih, Grover.groverState]
+
+/-- Evolving `Ket.basis 0` along `groverFullGates n target K` (Hadamard preparation followed by
+    `K` Grover iterations) produces `Grover.groverState target K`. -/
+theorem idealUnitaryTrajectory_groverFullGates (n : ℕ) (target : Fin (2 ^ n)) (K : ℕ) :
+    (idealUnitaryTrajectory (groverFullGates n target K) (Ket.basis (0 : Fin (2 ^ n)))).vec =
+    Grover.groverState target K := by
+  rw [groverFullGates, idealUnitaryTrajectory_cons, applyUnitaryKet_hadamardUnitary_basis_zero]
+  exact idealUnitaryTrajectory_groverIterGates target K
+
+/-- Any normalized ket `ψ` whose amplitude vector equals `Grover.groverState target K` has
+    Born-rule measurement probability `‖ψ target‖ ^ 2 = Grover.p_succ K (2 ^ n)`. -/
+theorem groverState_bornProb {n : ℕ} (target : Fin (2 ^ n)) (K : ℕ) {ψ : Ket (Fin (2 ^ n))}
+    (hψ : ψ.vec = Grover.groverState target K) :
+    ‖ψ target‖ ^ 2 = Grover.p_succ K (2 ^ n) := by
+  rw [Ket.apply, hψ, (Grover.groverState_target_sum target K).1,
+      Complex.norm_real, Real.norm_eq_abs, sq_abs,
+      Grover.p_succ_eq_sin_sq, Nat.cast_pow, Nat.cast_ofNat, ← Grover.halfAngle]
+
+/-! ## Dependency smoke check & verification checks -/
+
 /-- Smoke check that `Physlib`'s `QuantumInfo` (`Ket`, `MState.pure`, `MState.uniform`,
 `CPTPMap.id`, `POVM.measureDiscard_apply`) and `formal-quantum-computation`'s
 `QuantumComputation` (`Grover.diffuserUnitary`, `Grover.oracleUnitary`,
@@ -428,6 +418,16 @@ lemma quantumInfo_quantumComputation_smoke (n K : ℕ) (target : Fin (2 ^ n))
    Grover.p_succ_eq_sin_sq K (2 ^ n),
    rfl⟩
 
+#check @targetBasisState_eq_ketToReal
+#check @uniformSuperposition_eq_ketToReal
+#check @groverIterGates
+#check @groverFullGates
+#check @length_groverIterGates
+#check @length_groverFullGates
+#check @idealUnitaryTrajectory_groverIterGates
+#check @idealUnitaryTrajectory_groverFullGates
+#check @groverState_bornProb
+
 /-- info: 'IsotropicGrover.quantumInfo_quantumComputation_smoke' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms quantumInfo_quantumComputation_smoke
@@ -437,5 +437,23 @@ info: 'IsotropicGrover.isotropicGrover_groverState2D' depends on axioms: [propex
 -/
 #guard_msgs in
 #print axioms isotropicGrover_groverState2D
+
+/--
+info: 'IsotropicGrover.idealUnitaryTrajectory_groverIterGates' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms idealUnitaryTrajectory_groverIterGates
+
+/--
+info: 'IsotropicGrover.idealUnitaryTrajectory_groverFullGates' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms idealUnitaryTrajectory_groverFullGates
+
+/--
+info: 'IsotropicGrover.groverState_bornProb' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms groverState_bornProb
 
 end IsotropicGrover
