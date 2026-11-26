@@ -1,24 +1,15 @@
 -- IsotropicGroverProof/IsotropicError.lean
--- M2: The isotropic error model — Poisson kernel marginal density g(θ;σ),
---     the error state Ψ = cos θ · Φ + sin θ · e₂, and 1D FTC recurrences for
---     all-dimension first and second moments of the Poisson marginal.
---
--- SORRY BUDGET: 0
--- AXIOM BUDGET: 0
---   PROVED (poissonMarginal_isProbMeasure): normalization via interval integral positivity
---   PROVED (poissonMarginal_mean_cos): first moment E[cos θ] = σ for all d ≥ 2 via 1D FTC
---     and two-step induction from d = 2 (complex Poisson) and d = 3 (elementary antiderivative)
---   PROVED (halfcircle_cos_sq_eq): unnormalized second moment recurrence for all d ≥ 2 via 1D FTC
+-- Single-gate isotropic pure-state error model: Poisson kernel marginal density g(θ; σ),
+-- closed-interval angle measure poissonAngleMeasure on σ ∈ [0, 1], 1D FTC moment recurrences
+-- proving E[cos θ] = σ and E[cos² θ] = ((d - 1)σ² + 1) / d for all d ≥ 2, and the perturbed
+-- unit state isotropicError Φ e₂ θ = cos θ • Φ + sin θ • e₂.
 
-import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Deriv
 import Mathlib.Analysis.SpecialFunctions.Pow.Continuity
 import Mathlib.Analysis.SpecialFunctions.Pow.Deriv
 import Mathlib.MeasureTheory.Measure.WithDensity
-import Mathlib.MeasureTheory.Integral.Bochner.Basic
 import Mathlib.MeasureTheory.Integral.Bochner.Set
 import Mathlib.MeasureTheory.Integral.Bochner.ContinuousLinearMap
-import Mathlib.MeasureTheory.Integral.IntervalIntegral.Basic
 import Mathlib.MeasureTheory.Integral.IntervalIntegral.FundThmCalculus
 import Mathlib.MeasureTheory.Measure.Lebesgue.Basic
 import Mathlib.MeasureTheory.Function.LocallyIntegrable
@@ -696,6 +687,24 @@ theorem poissonAngleMeasure_cos_sq (d : ℕ) (σ : ℝ)
     ring
   · exact poissonMarginal_cos_sq_Ico d σ ⟨hσ.1, lt_of_le_of_ne hσ.2 h1⟩ hd
 
+/-- `cos² θ` is integrable under any probability measure on `ℝ`. -/
+lemma cos_sq_integrable_prob {μ : Measure ℝ} [IsProbabilityMeasure μ] :
+    Integrable (fun θ => cos θ ^ 2) μ := by
+  apply Integrable.mono' (integrable_const (1 : ℝ))
+  · exact (continuous_cos.pow 2).measurable.aestronglyMeasurable
+  · filter_upwards with θ
+    rw [Real.norm_eq_abs, abs_of_nonneg (sq_nonneg _)]
+    nlinarith [Real.sin_sq_add_cos_sq θ, sq_nonneg (Real.sin θ)]
+
+/-- `sin² θ` is integrable under any probability measure on `ℝ`. -/
+lemma sin_sq_integrable_prob {μ : Measure ℝ} [IsProbabilityMeasure μ] :
+    Integrable (fun θ => sin θ ^ 2) μ := by
+  apply Integrable.mono' (integrable_const (1 : ℝ))
+  · exact (continuous_sin.pow 2).measurable.aestronglyMeasurable
+  · filter_upwards with θ
+    rw [Real.norm_eq_abs, abs_of_nonneg (sq_nonneg _)]
+    nlinarith [Real.sin_sq_add_cos_sq θ, sq_nonneg (Real.cos θ)]
+
 /-! ## The isotropic error state -/
 
 /-- The state after a single isotropic error with perturbation angle θ and noise direction e₂.
@@ -741,6 +750,18 @@ info: 'IsotropicGrover.halfcircle_cos_sq_eq' depends on axioms: [propext, Classi
 -/
 #guard_msgs in
 #print axioms halfcircle_cos_sq_eq
+
+/--
+info: 'IsotropicGrover.poissonAngleMeasure_isProbMeasure' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms poissonAngleMeasure_isProbMeasure
+
+/--
+info: 'IsotropicGrover.poissonAngleMeasure_mean_cos' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms poissonAngleMeasure_mean_cos
 
 /--
 info: 'IsotropicGrover.poissonAngleMeasure_cos_sq' depends on axioms: [propext, Classical.choice, Quot.sound]

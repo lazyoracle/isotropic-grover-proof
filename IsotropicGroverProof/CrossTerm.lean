@@ -1,9 +1,7 @@
 -- IsotropicGroverProof/CrossTerm.lean
--- M4: The cross term in E[p_e] vanishes because E[e₂] = 0.
---     Derives the expanded form: E[p_e] = f₂ · p_ideal + (1-f₂) · E[|⟨w|e₂⟩|²]
---
--- SORRY BUDGET: 0 (fully proved)
---   PROVED (perpSphereMeasure_neg_invariant): antipodal symmetry of sphere measure
+-- Uniform probability measure perpSphereMeasure on the equatorial unit sphere V_perp Φ ∩ S^{d-1},
+-- antipodal/isometry/Householder reflection symmetries, vanishing of the linear cross term,
+-- and the expanded expectation formula expanded_E_pe.
 
 import Mathlib.Analysis.InnerProductSpace.Projection.Basic
 import Mathlib.Analysis.InnerProductSpace.Projection.Reflection
@@ -11,8 +9,6 @@ import Mathlib.Analysis.InnerProductSpace.Continuous
 import Mathlib.Analysis.Normed.Lp.MeasurableSpace
 import Mathlib.Analysis.Normed.Group.BallSphere
 import Mathlib.MeasureTheory.Measure.Module
-import Mathlib.MeasureTheory.Group.MeasurableEquiv
-import Mathlib.MeasureTheory.Integral.Prod
 import Mathlib.MeasureTheory.Constructions.HaarToSphere
 import Mathlib.MeasureTheory.Measure.Haar.InnerProductSpace
 import Mathlib.MeasureTheory.Measure.Haar.OfBasis
@@ -22,10 +18,13 @@ import Mathlib.LinearAlgebra.Dimension.Finite
 import IsotropicGroverProof.Composition
 
 /-!
-# Cross Term Vanishing and Expanded Success Probability
+# Equatorial Sphere Measure, Reflection Symmetries, and Cross-Term Vanishing
 
-Proves that the cross term in `E[p_e]` vanishes by antipodal symmetry of the perpendicular
-sphere measure and derives `E[p_e] = f₂ · p_ideal + (1 - f₂) · E[|⟨w|e₂⟩|²]`.
+Constructs the normalized uniform sphere measure `perpSphereMeasure Φ` on `V_perp Φ ∩ S^{d-1}`,
+establishes antipodal invariance (`perpSphereMeasure_neg_invariant`), ambient linear-isometry
+equivariance (`perpSphereMeasure_map_isometry`), orthogonal/Householder reflection symmetries
+(`integral_perpSphere_inner_mul_ortho`, `integral_perpSphere_inner_sq_eq`), and derives
+`E[p_e] = f₂ · p_ideal + (1 - f₂) · E[|⟨w|e₂⟩|²]` (`expanded_E_pe`).
 -/
 
 namespace IsotropicGrover
@@ -66,8 +65,8 @@ lemma inner_neg_V_perp (û v : E n) :
 /-! ## Uniform measure on the sphere of V_perp
     We model this as a Measure (E n) supported on {v | v ∈ V_perp Φ ∧ ‖v‖ = 1}. -/
 
-private lemma V_perp_finrank_pos (Φ : E n) : 0 < Module.finrank ℝ ↥(V_perp Φ) := by
-  have hd : 2 ≤ d n := by simp [d]; linarith [Nat.one_le_two_pow (n := n)]
+lemma V_perp_finrank_pos (Φ : E n) : 0 < Module.finrank ℝ ↥(V_perp Φ) := by
+  have hd := two_le_d n
   have horth := Submodule.finrank_add_finrank_orthogonal (𝕜 := ℝ) (E := E n)
     (Submodule.span ℝ {Φ})
   have hfin : Module.finrank ℝ (E n) = d n := by simp [E]
@@ -606,25 +605,14 @@ theorem expanded_E_pe (G : ℕ) (hG : 0 < G) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 
           ∂(perpSphereMeasure Φ) ∂(composedMeasure (d n) G σ) =
     f₂ (d n) G σ * succProb n Φ w +
     (1 - f₂ (d n) G σ) * ∫ e₂, succProb n e₂ w ∂(perpSphereMeasure Φ) := by
-  have hd : 2 ≤ d n := by simp only [d]; have := @Nat.one_le_two_pow n; omega
   have : IsProbabilityMeasure (composedMeasure (d n) G σ) :=
-    composedMeasure_isProbMeasure (d n) G σ hσ hG hd
+    composedMeasure_isProbMeasure (d n) G σ hσ hG (two_le_d n)
   simp_rw [integral_e₂_succProb Φ _ w]
   -- Goal: ∫ θ, (cos²θ · p + sin²θ · q) ∂μ = f₂·p + (1-f₂)·q
   -- where f₂ = ∫ cos²θ ∂μ definitionally
   set μ := composedMeasure (d n) G σ
-  have hcos_int : Integrable (fun θ => cos θ ^ 2) μ := by
-    apply Integrable.mono' (integrable_const (1 : ℝ))
-    · exact (continuous_cos.pow 2).measurable.aestronglyMeasurable
-    · filter_upwards with θ
-      rw [Real.norm_eq_abs, abs_of_nonneg (sq_nonneg _)]
-      nlinarith [Real.sin_sq_add_cos_sq θ, sq_nonneg (Real.sin θ)]
-  have hsin_int : Integrable (fun θ => sin θ ^ 2) μ := by
-    apply Integrable.mono' (integrable_const (1 : ℝ))
-    · exact (continuous_sin.pow 2).measurable.aestronglyMeasurable
-    · filter_upwards with θ
-      rw [Real.norm_eq_abs, abs_of_nonneg (sq_nonneg _)]
-      nlinarith [Real.sin_sq_add_cos_sq θ, sq_nonneg (Real.cos θ)]
+  have hcos_int : Integrable (fun θ => cos θ ^ 2) μ := cos_sq_integrable_prob
+  have hsin_int : Integrable (fun θ => sin θ ^ 2) μ := sin_sq_integrable_prob
   have hf₂_def : f₂ (d n) G σ = ∫ θ, cos θ ^ 2 ∂μ := rfl
   have hsin_f₂ : ∫ θ, sin θ ^ 2 ∂μ = 1 - f₂ (d n) G σ := by
     have hsum : ∫ θ, (cos θ ^ 2 + sin θ ^ 2) ∂μ = 1 := by
@@ -891,5 +879,17 @@ example (Φ e₂ : E n) (θ : ℝ) (w : Fin (2 ^ n)) :
   succProb_isotropicError_expand Φ e₂ θ w
 
 #check @perpSphereMeasure_map_isometry
+
+/--
+info: 'IsotropicGrover.perpSphereMeasure_map_isometry' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms perpSphereMeasure_map_isometry
+
+/--
+info: 'IsotropicGrover.expanded_E_pe' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms expanded_E_pe
 
 end IsotropicGrover

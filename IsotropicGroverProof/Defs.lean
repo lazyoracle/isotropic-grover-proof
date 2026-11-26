@@ -1,11 +1,9 @@
 -- IsotropicGroverProof/Defs.lean
--- M1: Core types — ambient Euclidean space, unit sphere, standard basis vectors,
---     and the success-probability formula for Grover's algorithm.
---
--- SORRY BUDGET: 0 (this file should compile without any sorry)
+-- Core state-space definitions: ambient real Euclidean space E n = ℝ^{2·2^n},
+-- unit sphere, standard basis vectors, shared dimension lemmas, and computational-basis
+-- measurement probability succProb with Parseval normalization.
 
 import Mathlib.Analysis.InnerProductSpace.PiL2
-import Mathlib.Analysis.InnerProductSpace.Basic
 
 /-!
 # Core Definitions for the Isotropic Grover Proof
@@ -23,6 +21,22 @@ abbrev d (n : ℕ) : ℕ := 2 * 2 ^ n
 
 lemma two_le_d (n : ℕ) : 2 ≤ d n := by
   simp only [d]; have := @Nat.one_le_two_pow n; omega
+
+lemma one_lt_d (n : ℕ) : 1 < d n := by
+  have := two_le_d n; omega
+
+lemma cast_d (n : ℕ) : (d n : ℝ) = 2 * (2 ^ n : ℝ) := by
+  simp only [d]; push_cast; ring
+
+lemma cast_d_ne_zero (n : ℕ) : (d n : ℝ) ≠ 0 := by
+  positivity
+
+lemma cast_d_sub_one_pos (n : ℕ) : 0 < (d n : ℝ) - 1 := by
+  have : (1 : ℝ) < (d n : ℝ) := Nat.one_lt_cast.mpr (one_lt_d n)
+  linarith
+
+lemma cast_d_sub_one_ne_zero (n : ℕ) : (d n : ℝ) - 1 ≠ 0 :=
+  (cast_d_sub_one_pos n).ne'
 
 /-- The ambient Euclidean space ℝ^d. -/
 abbrev E (n : ℕ) := EuclideanSpace ℝ (Fin (d n))
@@ -133,5 +147,11 @@ example : d 0 = 2 := by norm_num [d]
 example : d 1 = 4 := by norm_num [d]
 example : d 2 = 8 := by norm_num [d]
 example : d 3 = 16 := by norm_num [d]
+
+/--
+info: 'IsotropicGrover.sum_succProb_eq_norm_sq' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms sum_succProb_eq_norm_sq
 
 end IsotropicGrover

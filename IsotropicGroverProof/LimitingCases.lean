@@ -1,9 +1,8 @@
 -- IsotropicGroverProof/LimitingCases.lean
--- M8: Limiting case corollaries — pure continuity/arithmetic, no sorrys.
---     1. σ^{2G} → 1 (perfect gates):  E[p_e] → p_ideal
---     2. σ^{2G} → 0 (full decoherence): E[p_e] → 1/N
+-- Limiting regimes, monotonicity, and closed-interval [0, 1] continuity of the mixture
+-- formula: noiseless limit (σ → 1), complete decoherence limit (σ → 0), zero-gate base case
+-- (gates = []), and exact endpoint evaluations for noisyTrajectory_succProb.
 
-import Mathlib.Topology.Algebra.Order.LiminfLimsup
 import Mathlib.Topology.Order.OrderClosed
 import IsotropicGroverProof.MainTheorem
 import IsotropicGroverProof.Sequential
@@ -286,9 +285,69 @@ example : mixtureProb (1/2 : ℝ) 4 1 = 1/2 := by simp [mixtureProb]
 #check @tendsto_noisyTrajectory_succProb_sigma_zero
 
 /--
+info: 'IsotropicGrover.tendsto_ideal_as_fidelity_one' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms tendsto_ideal_as_fidelity_one
+
+/--
+info: 'IsotropicGrover.tendsto_random_as_fidelity_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms tendsto_random_as_fidelity_zero
+
+/--
+info: 'IsotropicGrover.mixtureProb_mono' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms mixtureProb_mono
+
+/--
+info: 'IsotropicGrover.tendsto_expectedSuccProb_as_sigma_one' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms tendsto_expectedSuccProb_as_sigma_one
+
+/--
+info: 'IsotropicGrover.tendsto_expectedSuccProb_as_sigma_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms tendsto_expectedSuccProb_as_sigma_zero
+
+/--
+info: 'IsotropicGrover.noisyTrajectory_succProb_at_sigma_one' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyTrajectory_succProb_at_sigma_one
+
+/--
+info: 'IsotropicGrover.noisyTrajectory_succProb_at_sigma_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyTrajectory_succProb_at_sigma_zero
+
+/--
+info: 'IsotropicGrover.noisyTrajectory_succProb_nil' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyTrajectory_succProb_nil
+
+/--
 info: 'IsotropicGrover.continuousOn_noisyTrajectory_succProb' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms continuousOn_noisyTrajectory_succProb
+
+/--
+info: 'IsotropicGrover.tendsto_noisyTrajectory_succProb_sigma_one' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms tendsto_noisyTrajectory_succProb_sigma_one
+
+/--
+info: 'IsotropicGrover.tendsto_noisyTrajectory_succProb_sigma_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms tendsto_noisyTrajectory_succProb_sigma_zero
 
 end IsotropicGrover

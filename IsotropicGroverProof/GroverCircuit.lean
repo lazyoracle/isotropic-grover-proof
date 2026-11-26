@@ -1,6 +1,6 @@
 -- IsotropicGroverProof/GroverCircuit.lean
--- M9: Grover circuit state vectors, specialization of isotropicGrover_main,
---     and bridge to QuantumComputation.Algorithms.Grover.
+-- Grover circuit state vectors, specialization of isotropicGrover_main,
+-- and bridge to QuantumComputation.Algorithms.Grover.
 --
 -- Formalizes:
 -- 1. The target basis state |w⟩, its ketToReal equivalence, and its success probability (1).
@@ -1003,10 +1003,28 @@ theorem noisyGrover_circuit_grover2_bornProb (σ : ℝ) (hσ : σ ∈ Set.Icc 0 
 #check @noisyGrover_circuit_grover2_bornProb
 
 /--
+info: 'IsotropicGrover.isotropicGrover_uniformSuperposition' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms isotropicGrover_uniformSuperposition
+
+/--
 info: 'IsotropicGrover.isotropicGrover_groverState2D' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms isotropicGrover_groverState2D
+
+/--
+info: 'IsotropicGrover.isotropicGrover_groverState2D_prob' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms isotropicGrover_groverState2D_prob
+
+/--
+info: 'IsotropicGrover.isotropicGrover_targetBasisState' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms isotropicGrover_targetBasisState
 
 /--
 info: 'IsotropicGrover.idealUnitaryTrajectory_groverIterGates' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -1045,6 +1063,14 @@ info: 'IsotropicGrover.noisyGrover_unitaryList_groverMatrix_bornProb' depends on
 -/
 #guard_msgs in
 #print axioms noisyGrover_unitaryList_groverMatrix_bornProb
+
+/--
+info: 'IsotropicGrover.noisyGrover_unitaryList_groverMatrix_succProb' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyGrover_unitaryList_groverMatrix_succProb
 
 /--
 info: 'IsotropicGrover.noisyGrover_iterGates_bornProb' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -1087,6 +1113,20 @@ info: 'IsotropicGrover.noisyGrover_circuit_groverMatrix_bornProb' depends on axi
 -/
 #guard_msgs in
 #print axioms noisyGrover_circuit_groverMatrix_bornProb
+
+/--
+info: 'IsotropicGrover.noisyGrover_circuit_groverMatrix_trajectory_succProb' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyGrover_circuit_groverMatrix_trajectory_succProb
+
+/--
+info: 'IsotropicGrover.grover2QubitCircuit_eval_val' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms grover2QubitCircuit_eval_val
 
 /--
 info: 'IsotropicGrover.noisyGrover_circuit_hadamard1_bornProb' depends on axioms: [propext, Classical.choice, Quot.sound]

@@ -1,15 +1,11 @@
 -- IsotropicGroverProof/MainTheorem.lean
--- M7: The main theorem — combining M4 (expanded E[p_e]), M5 (decoherent floor),
---     and M6 (f₂ formula) to prove:
---     E[p_e] = σ^{2G} · p_ideal + (1 - σ^{2G}) / N
---
--- SORRY BUDGET: 0
---   Zero sorrys and zero custom axioms across the entire dependency chain
---   (CrossTerm M4, SecondMoment M5, Gegenbauer M6).
---   The algebra here (ring/field_simp) closes directly from those proved theorems.
---
--- KEY VERIFICATION: The `ring` call at the end is the integration test —
--- if any intermediate theorem has the wrong real-arithmetic statement, this will fail.
+-- Effective-measure mixture theorem isotropicGrover_main: combines expanded_E_pe,
+-- decoherent_floor, and f₂_formula to establish
+--   E[p_e] = σ^{2G} · p_ideal + (1 - σ^{2G}) / 2^n
+-- for any unit state Φ ∈ E n, gate count G > 0, and σ ∈ (0, 1).
+-- Gate-by-gate pure-state trajectories, CPTPMap channels, and syntactic Circuit n
+-- generalizations across σ ∈ [0, 1] and all G : ℕ are proved in Sequential.lean,
+-- QuantumChannel.lean, and GroverCircuit.lean.
 
 import IsotropicGroverProof.SecondMoment
 import IsotropicGroverProof.Gegenbauer
@@ -29,21 +25,20 @@ variable {n : ℕ}
 
 /-! ## Main theorem
 
-`isotropicGrover_main` is the general geometric engine: it establishes the exact
-σ^{2G} mixture formula for any arbitrary unit vector Φ ∈ E(n) and gate
-count G > 0, relying on the spherical symmetry of the isotropic error measure.
+`isotropicGrover_main` establishes the exact `σ^{2G}` mixture formula under the effective
+measure `composedMeasure (d n) G σ` for any unit vector `Φ ∈ E n`, gate count `G > 0`, and
+`σ ∈ (0, 1)`, relying on the spherical symmetry of the isotropic error measure.
 
-The general unit-vector invariance specializes to Grover's algorithm via
-`IsotropicGroverProof.GroverCircuit`:
-- Uniform superposition |s⟩ (`uniformSuperposition`): `isotropicGrover_uniformSuperposition`
-  proves that prior to Grover iterations (or with ideal success prob 1/2^n),
-  E[p_e] = 1 / 2^n identically for any G and σ.
-- 2D Grover search plane (`groverState2D`, `groverState2D_prob`):
-  `isotropicGrover_groverState2D` and `isotropicGrover_groverState2D_prob` instantiate
-  Φ with states in the plane span(|w⟩, |w^⟂⟩), yielding
-  σ^{2G} * sin²(α) + (1 - σ^{2G}) / 2^n and σ^{2G} * p_ideal + (1 - σ^{2G}) / 2^n.
-- Target basis state |w⟩ (`targetBasisState`): `isotropicGrover_targetBasisState`
-  evaluates the ideal Grover output state (p_ideal = 1) to σ^{2G} + (1 - σ^{2G}) / 2^n.
+Downstream modules extend and specialize this result:
+- `IsotropicGroverProof.Sequential` generalizes the mixture formula to gate-by-gate pure-state
+  Markov trajectories (`noisyTrajectory_succProb`) across all `σ ∈ [0, 1]` and `G : ℕ`.
+- `IsotropicGroverProof.QuantumChannel` bridges isotropic sphere perturbations to `QuantumInfo`
+  `CPTPMap` depolarizing channels and `QuantumComputation` syntactic `Circuit.size`
+  (`noisyCircuit_bornProb`).
+- `IsotropicGroverProof.GroverCircuit` specializes both `isotropicGrover_main` and the
+  `QuantumInfo` / `QuantumComputation` channel theorems to Grover's algorithm (`Grover.p_succ`),
+  covering `uniformSuperposition`, `groverState2D`, `groverState2D_prob`, `targetBasisState`,
+  canonical macro-gate sequences, and concrete 1- and 2-qubit primitive-gate circuits.
 -/
 
 /-- **The σ^{2G} mixture formula.**
@@ -62,28 +57,19 @@ The general unit-vector invariance specializes to Grover's algorithm via
     corrections cancel exactly in the algebra below. -/
 theorem isotropicGrover_main (G : ℕ) (hG : 0 < G) (σ : ℝ) (hσ : σ ∈ Set.Ioo 0 1)
     (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) :
-    -- Expected noisy success probability
     ∫ θ, ∫ e₂, succProb n (isotropicError Φ e₂ θ) w
           ∂(perpSphereMeasure Φ)
       ∂(composedMeasure (d n) G σ) =
-    -- The σ^{2G} mixture formula
     σ ^ (2 * G) * succProb n Φ w + (1 - σ ^ (2 * G)) / (2 ^ n : ℝ) := by
-  -- d n = 2 * 2^n ≥ 2 holds for all n : ℕ (even n = 0 where d = 2)
-  have hd2 : 2 ≤ d n := by simp only [d]; have := @Nat.one_le_two_pow n; omega
-  rw [expanded_E_pe G hG σ hσ Φ hΦ w]
-  rw [decoherent_floor Φ hΦ w hd2]
-  rw [f₂_formula (d n) G σ hσ hd2 hG]
-  -- Pure algebra: d n = 2 * 2^n and the identity checks out
-  have hd_ne : (d n : ℝ) ≠ 0 := by positivity
-  have hd1_ne : (d n : ℝ) - 1 ≠ 0 := by
-    have : (1 : ℝ) < (d n : ℝ) := by
-      have : 1 < d n := by simp only [d]; have := @Nat.one_le_two_pow n; omega
-      exact_mod_cast this
-    linarith
+  have hd2 := two_le_d n
+  rw [expanded_E_pe G hG σ hσ Φ hΦ w,
+      decoherent_floor Φ hΦ w hd2,
+      f₂_formula (d n) G σ hσ hd2 hG]
+  have hd_ne := cast_d_ne_zero n
+  have hd1_ne := cast_d_sub_one_ne_zero n
   have hN_ne : (2 : ℝ) ^ n ≠ 0 := by positivity
-  have hd_eq : (d n : ℝ) = 2 * 2^n := by simp only [d]; push_cast; ring
   field_simp [hd_ne, hd1_ne, hN_ne]
-  rw [hd_eq]
+  rw [cast_d n]
   ring
 
 /-- Specialization of `isotropicGrover_main` to `n = 0` (`d = 2`, retained for backwards
@@ -96,12 +82,12 @@ theorem isotropicGrover_n0 (G : ℕ) (hG : 0 < G) (σ : ℝ) (hσ : σ ∈ Set.I
     σ ^ (2 * G) * succProb 0 Φ w + (1 - σ ^ (2 * G)) / (2 ^ 0 : ℝ) :=
   isotropicGrover_main G hG σ hσ Φ hΦ w
 
-/-! ## TDD spot-checks — algebra verification -/
+/-! ## Verification spot-checks -/
 
--- The algebraic identity at the heart of the proof (no sorrys needed here):
--- f₂ · p + (1-f₂) · (2-p)/(d-1) = σ^{2G} · p + (1-σ^{2G})/N
--- when f₂ = ((d-1)σ^{2G}+1)/d and d = 2N.
-example (p σ2G : ℝ) (N : ℕ) (hN : 0 < N) : -- d = 2N
+-- Exact algebraic cancellation of finite-d factors:
+-- f₂ · p + (1 - f₂) · (2 - p) / (d - 1) = σ^{2G} · p + (1 - σ^{2G}) / N
+-- when f₂ = ((d - 1)σ^{2G} + 1) / d and d = 2N.
+example (p σ2G : ℝ) (N : ℕ) (hN : 0 < N) :
     let d : ℝ := 2 * N
     let f₂ : ℝ := ((d - 1) * σ2G + 1) / d
     f₂ * p + (1 - f₂) * (2 - p) / (d - 1) =
@@ -122,5 +108,11 @@ info: 'IsotropicGrover.isotropicGrover_main' depends on axioms: [propext, Classi
 -/
 #guard_msgs in
 #print axioms isotropicGrover_main
+
+/--
+info: 'IsotropicGrover.isotropicGrover_n0' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms isotropicGrover_n0
 
 end IsotropicGrover

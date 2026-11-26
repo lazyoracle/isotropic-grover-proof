@@ -1,14 +1,8 @@
 -- IsotropicGroverProof/SecondMoment.lean
--- M5: The second moment matrix E[e₂ e₂ᵀ] = P_{V⊥}/(d-1), where P_{V⊥} is the
---     orthogonal projector onto V_perp. Derives the decoherent floor formula:
---     E[|⟨w|e₂⟩|²] = (2 - p_ideal)/(d - 1)
---
--- SORRY BUDGET: 0 (fully proved)
---   PROVED (secondMoment_eq_scalar_perp): Schur-type invariance argument
---   PROVED (trace_secondMoment_eq_one): via Parseval identity on the sphere
+-- Equatorial second-moment operator E[e₂ e₂ᵀ] = P_{V⊥} / (d - 1), the decoherent floor
+-- formula (2 - p_ideal) / (d - 1), and the general bilinear second-moment identity
+-- isotropicError_bilinear_secondMoment across σ ∈ [0, 1].
 
-import Mathlib.Analysis.InnerProductSpace.Projection.Basic
-import Mathlib.LinearAlgebra.Trace
 import Mathlib.MeasureTheory.Function.L2Space
 import IsotropicGroverProof.CrossTerm
 
@@ -43,6 +37,27 @@ lemma P_perp_apply (Φ v : E n) (hΦ : ‖Φ‖ = 1) :
 
 /-! ## Second moment matrix = (1/(d-1)) · P_perp -/
 
+private lemma perpSphere_smul_integrable (Ψ u : E n) :
+    Integrable (fun e₂ : E n => ⟪e₂, u⟫_ℝ • e₂) (perpSphereMeasure Ψ) := by
+  apply Integrable.mono' (integrable_const ‖u‖)
+  · exact ((inner_integrable Ψ u).aestronglyMeasurable).smul aestronglyMeasurable_id
+  · filter_upwards [perpSphereMeasure_norm_ae Ψ] with e₂ ⟨_, he₂⟩
+    rw [norm_smul, Real.norm_eq_abs, he₂, mul_one]
+    exact le_trans (abs_real_inner_le_norm e₂ u) (by rw [he₂, one_mul])
+
+private lemma perpSphere_inner_mul_integrable (Ψ u v : E n) :
+    Integrable (fun e₂ : E n => ⟪e₂, u⟫_ℝ * ⟪e₂, v⟫_ℝ) (perpSphereMeasure Ψ) := by
+  apply Integrable.mono' (integrable_const (‖u‖ * ‖v‖))
+  · exact (inner_integrable Ψ u).aestronglyMeasurable.mul
+      (inner_integrable Ψ v).aestronglyMeasurable
+  · filter_upwards [perpSphereMeasure_norm_ae Ψ] with e₂ ⟨_, he₂⟩
+    rw [Real.norm_eq_abs, abs_mul]
+    calc |⟪e₂, u⟫_ℝ| * |⟪e₂, v⟫_ℝ|
+        ≤ (‖e₂‖ * ‖u‖) * (‖e₂‖ * ‖v‖) :=
+          mul_le_mul (abs_real_inner_le_norm _ _) (abs_real_inner_le_norm _ _)
+            (abs_nonneg _) (mul_nonneg (norm_nonneg _) (norm_nonneg _))
+      _ = ‖u‖ * ‖v‖ := by rw [he₂]; ring
+
 /-- Every continuous linear operator T : E n → E n that commutes with all rotations
     fixing Φ must be a scalar multiple of P_perp Φ (restricted to V_perp) plus
     a scalar multiple of the rank-1 projector onto Φ.
@@ -54,54 +69,9 @@ theorem secondMoment_eq_scalar_perp (Φ : E n) (hΦ : ‖Φ‖ = 1) :
       c • P_perp Φ u := by
   -- Setup: ONB of V_perp, define c as ∫ ⟨e₂, b₀⟩²
   let b := stdOrthonormalBasis ℝ ↥(V_perp Φ)
-  have hVfr : 0 < Module.finrank ℝ ↥(V_perp Φ) := by
-    have hd : 2 ≤ d n := by simp [d]; linarith [Nat.one_le_two_pow (n := n)]
-    have horth := Submodule.finrank_add_finrank_orthogonal (𝕜 := ℝ) (E := E n)
-      (Submodule.span ℝ {Φ})
-    have hfin : Module.finrank ℝ (E n) = d n := by simp [E]
-    have hspan : Module.finrank ℝ (Submodule.span ℝ {Φ} : Submodule ℝ (E n)) ≤ 1 :=
-      (finrank_span_le_card ({Φ} : Set (E n))).trans (by simp)
-    change 0 < Module.finrank ℝ ↥(Submodule.span ℝ {Φ} : Submodule ℝ (E n))ᗮ
-    have h2 : Module.finrank ℝ ↥(Submodule.span ℝ {Φ} : Submodule ℝ (E n)) +
-              Module.finrank ℝ ↥(Submodule.span ℝ {Φ} : Submodule ℝ (E n))ᗮ = d n := by
-      linarith [horth]
-    omega
-  let i₀ : Fin (Module.finrank ℝ ↥(V_perp Φ)) := ⟨0, hVfr⟩
+  let i₀ : Fin (Module.finrank ℝ ↥(V_perp Φ)) := ⟨0, V_perp_finrank_pos Φ⟩
   use ∫ e₂, ⟪e₂, ((b i₀ : ↥(V_perp Φ)) : E n)⟫_ℝ ^ 2 ∂(perpSphereMeasure Φ)
   set c := ∫ e₂, ⟪e₂, ((b i₀ : ↥(V_perp Φ)) : E n)⟫_ℝ ^ 2 ∂(perpSphereMeasure Φ) with hc_def
-  -- Integrability helpers
-  have norm_sq_int : Integrable (fun e₂ : E n => ‖e₂‖ ^ 2) (perpSphereMeasure Φ) := by
-    have : (fun e₂ : E n => ‖e₂‖ ^ 2) = fun e₂ => ∑ w : Fin (2 ^ n), succProb n e₂ w := by
-      ext e₂; exact (sum_succProb_eq_norm_sq n e₂).symm
-    rw [this]
-    exact integrable_finsetSum _ (fun w _ => succProb_integrable Φ w)
-  have smul_int : ∀ v : E n, Integrable (fun e₂ : E n => inner (𝕜 := ℝ) e₂ v • e₂)
-      (perpSphereMeasure Φ) := by
-    intro v
-    apply Integrable.mono' (norm_sq_int.const_mul ‖v‖)
-    · exact ((inner_integrable Φ v).aestronglyMeasurable).smul aestronglyMeasurable_id
-    · filter_upwards with e₂
-      rw [norm_smul]
-      calc ‖inner (𝕜 := ℝ) e₂ v‖ * ‖e₂‖
-          ≤ ‖e₂‖ * ‖v‖ * ‖e₂‖ := by
-              apply mul_le_mul_of_nonneg_right
-              · rw [Real.norm_eq_abs]; exact abs_real_inner_le_norm e₂ v
-              · exact norm_nonneg _
-        _ = ‖v‖ * ‖e₂‖ ^ 2 := by ring
-  -- Product integrability helper
-  have prod_int : ∀ (y z : E n),
-      Integrable (fun e₂ : E n => ⟪e₂, y⟫_ℝ * ⟪e₂, z⟫_ℝ) (perpSphereMeasure Φ) := by
-    intro y z
-    apply Integrable.mono' (norm_sq_int.const_mul (‖y‖ * ‖z‖))
-    · exact ((inner_integrable Φ y).aestronglyMeasurable.mul
-        (inner_integrable Φ z).aestronglyMeasurable)
-    · filter_upwards with e₂
-      rw [Real.norm_eq_abs, abs_mul]
-      calc |⟪e₂, y⟫_ℝ| * |⟪e₂, z⟫_ℝ|
-          ≤ (‖e₂‖ * ‖y‖) * (‖e₂‖ * ‖z‖) := by
-            apply mul_le_mul (abs_real_inner_le_norm _ _) (abs_real_inner_le_norm _ _)
-              (abs_nonneg _) (mul_nonneg (norm_nonneg _) (norm_nonneg _))
-        _ = (‖y‖ * ‖z‖) * ‖e₂‖ ^ 2 := by ring
   intro u
   -- Show equality via ext_inner_right: suffices ∀ w, ⟪LHS, w⟫ = ⟪RHS, w⟫
   apply ext_inner_right ℝ
@@ -111,7 +81,7 @@ theorem secondMoment_eq_scalar_perp (Φ : E n) (hΦ : ‖Φ‖ = 1) :
   -- LHS: ⟪∫ ⟨e₂, u⟩ e₂, w⟫ = ∫ ⟨e₂, u⟩⟨e₂, w⟩
   have lhs_rw : ⟪∫ e₂, ⟪(e₂ : E n), u⟫_ℝ • (e₂ : E n) ∂(perpSphereMeasure Φ), w⟫_ℝ =
       ∫ e₂, ⟪(e₂ : E n), u⟫_ℝ * ⟪(e₂ : E n), w⟫_ℝ ∂(perpSphereMeasure Φ) := by
-    rw [real_inner_comm, ← integral_inner (smul_int u) w]
+    rw [real_inner_comm, ← integral_inner (perpSphere_smul_integrable Φ u) w]
     congr 1; ext e₂
     rw [real_inner_smul_right, real_inner_comm w]
   rw [lhs_rw]
@@ -254,14 +224,14 @@ theorem secondMoment_eq_scalar_perp (Φ : E n) (hΦ : ‖Φ‖ = 1) :
           (⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ * ⟪a, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ)) =
         (fun a => (⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ) *
           (⟪a, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ * ⟪a, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ)) := by ext; ring
-      rw [hrw]; exact (prod_int _ _).const_mul _
+      rw [hrw]; exact (perpSphere_inner_mul_integrable Φ _ _).const_mul _
   · -- Integrability of the outer summand for each i (a sum over j)
     apply integrable_finsetSum; intro j _
     have hrw : (fun a => ⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪a, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ *
         (⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ * ⟪a, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ)) =
       (fun a => (⟪(b i : ↥(V_perp Φ)), uV⟫_ℝ * ⟪(b j : ↥(V_perp Φ)), wV⟫_ℝ) *
         (⟪a, ((b i : ↥(V_perp Φ)) : E n)⟫_ℝ * ⟪a, ((b j : ↥(V_perp Φ)) : E n)⟫_ℝ)) := by ext; ring
-    rw [hrw]; exact (prod_int _ _).const_mul _
+    rw [hrw]; exact (perpSphere_inner_mul_integrable Φ _ _).const_mul _
 
 /-- The trace of the second moment operator equals 1 (since ‖e₂‖ = 1 a.s.). -/
 lemma trace_secondMoment_eq_one (Φ : E n) (_hΦ : ‖Φ‖ = 1) :
@@ -331,25 +301,6 @@ theorem secondMoment_coeff (Φ : E n) (hΦ : ‖Φ‖ = 1) (_hn : 2 ≤ d n) :
     have htrace : c * ((d n : ℝ) - 1) = 1 := by
       have h1 := trace_secondMoment_eq_one Φ hΦ
       have h2 := trace_P_perp Φ hΦ
-      -- Derive integrability of ⟨e₂, u⟩ • e₂ via Cauchy-Schwarz and norm-squared integrability
-      have norm_sq_int : Integrable (fun e₂ : E n => ‖e₂‖ ^ 2) (perpSphereMeasure Φ) := by
-        have : (fun e₂ : E n => ‖e₂‖ ^ 2) = fun e₂ => ∑ w : Fin (2 ^ n), succProb n e₂ w := by
-          ext e₂; exact (sum_succProb_eq_norm_sq n e₂).symm
-        rw [this]
-        exact integrable_finsetSum _ (fun w _ => succProb_integrable Φ w)
-      have smul_int : ∀ v : E n, Integrable (fun e₂ : E n => inner (𝕜 := ℝ) e₂ v • e₂)
-          (perpSphereMeasure Φ) := by
-        intro v
-        apply Integrable.mono' (norm_sq_int.const_mul ‖v‖)
-        · exact ((inner_integrable Φ v).aestronglyMeasurable).smul aestronglyMeasurable_id
-        · filter_upwards with e₂
-          rw [norm_smul]
-          calc ‖inner (𝕜 := ℝ) e₂ v‖ * ‖e₂‖
-              ≤ ‖e₂‖ * ‖v‖ * ‖e₂‖ := by
-                  apply mul_le_mul_of_nonneg_right
-                  · rw [Real.norm_eq_abs]; exact abs_real_inner_le_norm e₂ v
-                  · exact norm_nonneg _
-            _ = ‖v‖ * ‖e₂‖ ^ 2 := by ring
       -- For each i, ∫ ⟨e₂, eᵢ⟩² ∂μ = c * ⟨P_perp Φ eᵢ, eᵢ⟩
       have key : ∀ i : Fin (d n),
           ∫ e₂, ⟪(e₂ : E n), stdBasisVec n i⟫_ℝ ^ 2 ∂(perpSphereMeasure Φ) =
@@ -359,7 +310,8 @@ theorem secondMoment_coeff (Φ : E n) (hΦ : ‖Φ‖ = 1) (_hn : 2 ≤ d n) :
         have step : ⟪∫ e₂, ⟪(e₂ : E n), stdBasisVec n i⟫_ℝ • (e₂ : E n) ∂(perpSphereMeasure Φ),
                       stdBasisVec n i⟫_ℝ = c * ⟪P_perp Φ (stdBasisVec n i), stdBasisVec n i⟫_ℝ := by
           rw [hi]; simp [real_inner_smul_left]
-        rw [← step, real_inner_comm, ← integral_inner (smul_int _) (stdBasisVec n i)]
+        rw [← step, real_inner_comm,
+            ← integral_inner (perpSphere_smul_integrable Φ _) (stdBasisVec n i)]
         congr 1; ext e₂
         simp only [real_inner_smul_right, sq, real_inner_comm (stdBasisVec n i)]
       have hsum : ∑ i : Fin (d n),
@@ -367,13 +319,7 @@ theorem secondMoment_coeff (Φ : E n) (hΦ : ‖Φ‖ = 1) (_hn : 2 ≤ d n) :
           c * ∑ i : Fin (d n), ⟪P_perp Φ (stdBasisVec n i), stdBasisVec n i⟫_ℝ := by
         simp_rw [key]; rw [← Finset.mul_sum]
       rw [hsum, h2] at h1; linarith
-    have hd1 : (0 : ℝ) < (d n : ℝ) - 1 := by
-      have h : 1 < d n := by
-        simp only [d]
-        have : 0 < 2 ^ n := pow_pos (by norm_num) n
-        omega
-      have : (1 : ℝ) < (d n : ℝ) := by exact_mod_cast h
-      linarith
+    have hd1 := cast_d_sub_one_pos n
     field_simp at htrace ⊢
     linarith
   rw [hc_val]
@@ -386,30 +332,7 @@ theorem secondMoment_coeff (Φ : E n) (hΦ : ‖Φ‖ = 1) (_hn : 2 ≤ d n) :
 theorem decoherent_floor (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) (hn : 2 ≤ d n) :
     ∫ e₂, succProb n (e₂ : E n) w ∂(perpSphereMeasure Φ) =
     (2 - succProb n Φ w) / ((d n : ℝ) - 1) := by
-  have hd1_ne : (d n : ℝ) - 1 ≠ 0 := by
-    have : 1 < d n := by simp only [d]; have := @Nat.one_le_two_pow n; omega
-    have : (1 : ℝ) < (d n : ℝ) := by exact_mod_cast this
-    linarith
-  -- Integrability of ‖e₂‖² (as a sum of succProb over all w)
-  have norm_sq_int : Integrable (fun e₂ : E n => ‖e₂‖ ^ 2) (perpSphereMeasure Φ) := by
-    have : (fun e₂ : E n => ‖e₂‖ ^ 2) = fun e₂ => ∑ w : Fin (2 ^ n), succProb n e₂ w := by
-      ext e₂; exact (sum_succProb_eq_norm_sq n e₂).symm
-    rw [this]
-    exact integrable_finsetSum _ (fun w _ => succProb_integrable Φ w)
-  -- Integrability of ⟨e₂, u⟩ • e₂ via Cauchy-Schwarz bound
-  have smul_int : ∀ v : E n, Integrable (fun e₂ : E n => inner (𝕜 := ℝ) e₂ v • e₂)
-      (perpSphereMeasure Φ) := by
-    intro v
-    apply Integrable.mono' (norm_sq_int.const_mul ‖v‖)
-    · exact ((inner_integrable Φ v).aestronglyMeasurable).smul aestronglyMeasurable_id
-    · filter_upwards with e₂
-      rw [norm_smul]
-      calc ‖inner (𝕜 := ℝ) e₂ v‖ * ‖e₂‖
-          ≤ ‖e₂‖ * ‖v‖ * ‖e₂‖ := by
-              apply mul_le_mul_of_nonneg_right
-              · rw [Real.norm_eq_abs]; exact abs_real_inner_le_norm e₂ v
-              · exact norm_nonneg _
-        _ = ‖v‖ * ‖e₂‖ ^ 2 := by ring
+  have hd1_ne := cast_d_sub_one_ne_zero n
   -- Key lemma: ∫ ⟨e₂, û⟩² ∂μ = (1 - ⟨Φ, û⟩²)/(d-1) for unit vectors û
   have scalar : ∀ û : E n, ‖û‖ = 1 →
       ∫ e₂, ⟪(e₂ : E n), û⟫_ℝ ^ 2 ∂(perpSphereMeasure Φ) =
@@ -418,7 +341,7 @@ theorem decoherent_floor (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) (hn :
     -- Express ∫ ⟨e₂, û⟩² as inner of second moment vector with û
     have lhs_eq : ∫ e₂, ⟪(e₂ : E n), û⟫_ℝ ^ 2 ∂(perpSphereMeasure Φ) =
         ⟪∫ e₂, ⟪(e₂ : E n), û⟫_ℝ • (e₂ : E n) ∂(perpSphereMeasure Φ), û⟫_ℝ := by
-      rw [real_inner_comm, ← integral_inner (smul_int _) û]
+      rw [real_inner_comm, ← integral_inner (perpSphere_smul_integrable Φ _) û]
       congr 1; ext e₂
       simp only [real_inner_smul_right, sq, real_inner_comm û]
     rw [lhs_eq, secondMoment_coeff Φ hΦ hn û]
@@ -454,27 +377,6 @@ theorem decoherent_floor (Φ : E n) (hΦ : ‖Φ‖ = 1) (w : Fin (2 ^ n)) (hn :
   ring
 
 /-! ## General bilinear second-moment identity on `[0, 1]` -/
-
-private lemma perpSphere_smul_integrable (Ψ u : E n) :
-    Integrable (fun e₂ : E n => ⟪e₂, u⟫_ℝ • e₂) (perpSphereMeasure Ψ) := by
-  apply Integrable.mono' (integrable_const ‖u‖)
-  · exact ((inner_integrable Ψ u).aestronglyMeasurable).smul aestronglyMeasurable_id
-  · filter_upwards [perpSphereMeasure_norm_ae Ψ] with e₂ ⟨_, he₂⟩
-    rw [norm_smul, Real.norm_eq_abs, he₂, mul_one]
-    exact le_trans (abs_real_inner_le_norm e₂ u) (by rw [he₂, one_mul])
-
-private lemma perpSphere_inner_mul_integrable (Ψ u v : E n) :
-    Integrable (fun e₂ : E n => ⟪e₂, u⟫_ℝ * ⟪e₂, v⟫_ℝ) (perpSphereMeasure Ψ) := by
-  apply Integrable.mono' (integrable_const (‖u‖ * ‖v‖))
-  · exact (inner_integrable Ψ u).aestronglyMeasurable.mul
-      (inner_integrable Ψ v).aestronglyMeasurable
-  · filter_upwards [perpSphereMeasure_norm_ae Ψ] with e₂ ⟨_, he₂⟩
-    rw [Real.norm_eq_abs, abs_mul]
-    calc |⟪e₂, u⟫_ℝ| * |⟪e₂, v⟫_ℝ|
-        ≤ (‖e₂‖ * ‖u‖) * (‖e₂‖ * ‖v‖) :=
-          mul_le_mul (abs_real_inner_le_norm _ _) (abs_real_inner_le_norm _ _)
-            (abs_nonneg _) (mul_nonneg (norm_nonneg _) (norm_nonneg _))
-      _ = ‖u‖ * ‖v‖ := by rw [he₂]; ring
 
 /-- Bilinear expectation of inner products over `perpSphereMeasure Ψ`:
     `∫ e₂, ⟪e₂, u⟫ ⟪e₂, v⟫ = (⟪u, v⟫ - ⟪Ψ, u⟫ ⟪Ψ, v⟫) / (d n - 1)`. -/
@@ -525,22 +427,6 @@ private lemma integral_e₂_bilinear (Ψ : E n) (hΨ : ‖Ψ‖ = 1) (u v : E n)
       perpSphere_inner_mul_inner Ψ hΨ u v]
   simp
 
-private lemma cos_sq_integrable_prob {μ : Measure ℝ} [IsProbabilityMeasure μ] :
-    Integrable (fun θ => cos θ ^ 2) μ := by
-  apply Integrable.mono' (integrable_const (1 : ℝ))
-  · exact (continuous_cos.pow 2).measurable.aestronglyMeasurable
-  · filter_upwards with θ
-    rw [Real.norm_eq_abs, abs_of_nonneg (sq_nonneg _)]
-    nlinarith [Real.sin_sq_add_cos_sq θ, sq_nonneg (Real.sin θ)]
-
-private lemma sin_sq_integrable_prob {μ : Measure ℝ} [IsProbabilityMeasure μ] :
-    Integrable (fun θ => sin θ ^ 2) μ := by
-  apply Integrable.mono' (integrable_const (1 : ℝ))
-  · exact (continuous_sin.pow 2).measurable.aestronglyMeasurable
-  · filter_upwards with θ
-    rw [Real.norm_eq_abs, abs_of_nonneg (sq_nonneg _)]
-    nlinarith [Real.sin_sq_add_cos_sq θ, sq_nonneg (Real.cos θ)]
-
 /-- **General bilinear second-moment identity** for a single isotropic sphere error step
     with parameter `σ ∈ [0, 1]`, unit vector `‖Ψ‖ = 1`, and arbitrary vectors `u, v : E n`. -/
 theorem isotropicError_bilinear_secondMoment (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
@@ -548,7 +434,6 @@ theorem isotropicError_bilinear_secondMoment (σ : ℝ) (hσ : σ ∈ Set.Icc 0 
     ∫ θ, ∫ e₂, ⟪isotropicError Ψ e₂ θ, u⟫_ℝ * ⟪isotropicError Ψ e₂ θ, v⟫_ℝ
           ∂(perpSphereMeasure Ψ) ∂(poissonAngleMeasure (d n) σ) =
     σ ^ 2 * (⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) + (1 - σ ^ 2) / (d n : ℝ) * ⟪u, v⟫_ℝ := by
-  have hd2 := two_le_d n
   set μ := poissonAngleMeasure (d n) σ
   have : IsProbabilityMeasure μ := poissonAngleMeasure_d_isProbMeasure n σ hσ
   have hcos_int : Integrable (fun θ => cos θ ^ 2) μ := cos_sq_integrable_prob
@@ -561,11 +446,9 @@ theorem isotropicError_bilinear_secondMoment (σ : ℝ) (hσ : σ ∈ Set.Icc 0 
   simp_rw [integral_e₂_bilinear Ψ hΨ u v]
   rw [integral_add (hcos_int.mul_const _) (hsin_int.mul_const _),
       integral_mul_const, integral_mul_const, hsin_eq,
-      poissonAngleMeasure_cos_sq (d n) σ hσ hd2]
-  have hd_ne : (d n : ℝ) ≠ 0 := by positivity
-  have hd1_ne : (d n : ℝ) - 1 ≠ 0 := by
-    have : (1 : ℝ) < (d n : ℝ) := by exact_mod_cast (by omega : 1 < d n)
-    linarith
+      poissonAngleMeasure_cos_sq (d n) σ hσ (two_le_d n)]
+  have hd_ne := cast_d_ne_zero n
+  have hd1_ne := cast_d_sub_one_ne_zero n
   field_simp [hd_ne, hd1_ne]
   ring
 
@@ -604,9 +487,8 @@ theorem isotropicError_succProb_oneStep (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
     rw [real_inner_self_eq_norm_sq, stdBasisVec_norm, one_pow]
   have he₁ : ⟪e₁, e₁⟫_ℝ = 1 := by
     rw [real_inner_self_eq_norm_sq, stdBasisVec_norm, one_pow]
-  have hd_eq : (d n : ℝ) = 2 * (2 ^ n : ℝ) := by simp only [d]; push_cast; ring
   have hN_ne : (2 ^ n : ℝ) ≠ 0 := by positivity
-  simp only [succProb, sq, he₀, he₁, hd_eq]
+  simp only [succProb, sq, he₀, he₁, cast_d n]
   field_simp [hN_ne]
   ring
 
@@ -624,6 +506,18 @@ example : (2 - (1:ℝ)) / (8 - 1) = 1/7 := by norm_num
 #check @perpSphere_inner_mul_inner
 #check @isotropicError_bilinear_secondMoment
 #check @isotropicError_succProb_oneStep
+
+/--
+info: 'IsotropicGrover.decoherent_floor' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms decoherent_floor
+
+/--
+info: 'IsotropicGrover.perpSphere_inner_mul_inner' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms perpSphere_inner_mul_inner
 
 /--
 info: 'IsotropicGrover.isotropicError_bilinear_secondMoment' depends on axioms: [propext, Classical.choice, Quot.sound]
