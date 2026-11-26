@@ -6,11 +6,14 @@
 import Mathlib.Topology.Algebra.Order.LiminfLimsup
 import Mathlib.Topology.Order.OrderClosed
 import IsotropicGroverProof.MainTheorem
+import IsotropicGroverProof.Sequential
 
 /-!
 # Limiting Cases of the Mixture Formula
 
-Establishes continuity of the mixture formula and its limits as `σ^{2G} → 1` and `σ^{2G} → 0`.
+Establishes continuity of the mixture formula, its limits as `σ^{2G} → 1` and `σ^{2G} → 0`,
+and exact closed-interval `[0, 1]` endpoint evaluations (`σ = 1`, `σ = 0`, and `gates = []`)
+and `ContinuousOn` corollaries for the multi-gate sequential noisy trajectory.
 -/
 
 namespace IsotropicGrover
@@ -178,6 +181,85 @@ theorem tendsto_expectedSuccProb_as_sigma_zero_right (G : ℕ) (hG : 0 < G)
   rw [← nhdsWithin_Ioo_eq_nhdsGT zero_lt_one]
   exact tendsto_expectedSuccProb_as_sigma_zero G hG Φ hΦ w
 
+/-! ## Closed-interval `[0, 1]` evaluation and continuity for `noisyTrajectory_succProb` -/
+
+/-- For all `σ ∈ [0, 1]` and any gate list `gates` (including `gates = []`), the multi-gate
+    sequential noisy trajectory success probability equals `mixtureProb` evaluated at ideal
+    probability `succProb n (idealGateTrajectory gates Φ₀) w` and fidelity
+    `σ ^ (2 * gates.length)`. -/
+theorem noisyTrajectory_succProb_eq_mixtureProb (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
+    (gates : List (E n ≃ₗᵢ[ℝ] E n)) (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1) (w : Fin (2 ^ n)) :
+    noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => succProb n Ψ w) =
+    mixtureProb (succProb n (idealGateTrajectory gates Φ₀) w) (2 ^ n)
+      (σ ^ (2 * gates.length)) := by
+  rw [noisyTrajectory_succProb σ hσ gates Φ₀ hΦ₀ w]
+  simp only [mixtureProb, Nat.cast_pow, Nat.cast_ofNat]
+
+/-- Exact noiseless endpoint (`σ = 1`): for any gate sequence `gates`, the expected noisy
+    success probability equals the ideal output success probability. -/
+theorem noisyTrajectory_succProb_at_sigma_one
+    (gates : List (E n ≃ₗᵢ[ℝ] E n)) (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1) (w : Fin (2 ^ n)) :
+    noisyTrajectoryExpectation n 1 gates Φ₀ (fun Ψ => succProb n Ψ w) =
+    succProb n (idealGateTrajectory gates Φ₀) w := by
+  rw [noisyTrajectory_succProb_eq_mixtureProb 1 ⟨ zero_le_one, le_rfl ⟩ gates Φ₀ hΦ₀ w,
+      one_pow, mixtureProb_at_one]
+
+/-- Exact decoherent endpoint (`σ = 0`): for any non-empty gate sequence `gates ≠ []`,
+    a single completely decoherent step already drives the expected success probability
+    to the uniform floor `1 / 2^n`. -/
+theorem noisyTrajectory_succProb_at_sigma_zero
+    (gates : List (E n ≃ₗᵢ[ℝ] E n)) (hgates : gates ≠ [])
+    (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1) (w : Fin (2 ^ n)) :
+    noisyTrajectoryExpectation n 0 gates Φ₀ (fun Ψ => succProb n Ψ w) =
+    1 / (2 ^ n : ℝ) := by
+  have hlen : 2 * gates.length ≠ 0 := by
+    have := List.length_pos_iff.mpr hgates
+    omega
+  rw [noisyTrajectory_succProb_eq_mixtureProb 0 ⟨ le_rfl, zero_le_one ⟩ gates Φ₀ hΦ₀ w,
+      zero_pow hlen, mixtureProb_at_zero]
+  simp only [Nat.cast_pow, Nat.cast_ofNat]
+
+/-- Zero-gate (`G = 0`) evaluation: for an empty gate list `gates = []`, the noisy trajectory
+    leaves the state untouched for any `σ : ℝ` (including `σ = 0`, matching `0 ^ 0 = 1`). -/
+theorem noisyTrajectory_succProb_nil (σ : ℝ) (Φ₀ : E n) (w : Fin (2 ^ n)) :
+    noisyTrajectoryExpectation n σ [] Φ₀ (fun Ψ => succProb n Ψ w) =
+    succProb n Φ₀ w :=
+  rfl
+
+/-- `σ ↦ noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => succProb n Ψ w)` is continuous
+    on the entire closed interval `Set.Icc 0 1`, including both endpoints `σ = 0` and `σ = 1`. -/
+theorem continuousOn_noisyTrajectory_succProb
+    (gates : List (E n ≃ₗᵢ[ℝ] E n)) (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1) (w : Fin (2 ^ n)) :
+    ContinuousOn
+      (fun σ => noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => succProb n Ψ w))
+      (Set.Icc 0 1) :=
+  (continuous_mixtureProb_pow (succProb n (idealGateTrajectory gates Φ₀) w)
+    (2 ^ n) gates.length).continuousOn.congr
+    (fun σ hσ => noisyTrajectory_succProb_eq_mixtureProb σ hσ gates Φ₀ hΦ₀ w)
+
+/-- Convergence to the ideal output success probability as `σ → 1` within `[0, 1]`,
+    valid for all gate sequences `gates` (including `gates = []`). -/
+theorem tendsto_noisyTrajectory_succProb_sigma_one
+    (gates : List (E n ≃ₗᵢ[ℝ] E n)) (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1) (w : Fin (2 ^ n)) :
+    Tendsto
+      (fun σ => noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => succProb n Ψ w))
+      (𝓝[Set.Icc 0 1] 1)
+      (𝓝 (succProb n (idealGateTrajectory gates Φ₀) w)) := by
+  have hcont := (continuousOn_noisyTrajectory_succProb gates Φ₀ hΦ₀ w) 1 ⟨zero_le_one, le_rfl⟩
+  rwa [ContinuousWithinAt, noisyTrajectory_succProb_at_sigma_one gates Φ₀ hΦ₀ w] at hcont
+
+/-- Convergence to the uniform random-guess floor `1 / 2^n` as `σ → 0` within `[0, 1]`
+    for any non-empty gate sequence `gates ≠ []`. -/
+theorem tendsto_noisyTrajectory_succProb_sigma_zero
+    (gates : List (E n ≃ₗᵢ[ℝ] E n)) (hgates : gates ≠ [])
+    (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1) (w : Fin (2 ^ n)) :
+    Tendsto
+      (fun σ => noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => succProb n Ψ w))
+      (𝓝[Set.Icc 0 1] 0)
+      (𝓝 (1 / (2 ^ n : ℝ))) := by
+  have hcont := (continuousOn_noisyTrajectory_succProb gates Φ₀ hΦ₀ w) 0 ⟨le_rfl, zero_le_one⟩
+  rwa [ContinuousWithinAt, noisyTrajectory_succProb_at_sigma_zero gates hgates Φ₀ hΦ₀ w] at hcont
+
 /-! ## TDD spot-checks -/
 
 -- Numeric: n=2 (N=4), p_ideal=0.9609, σ=0.99, G=100
@@ -195,5 +277,18 @@ example : mixtureProb (1/2 : ℝ) 4 1 = 1/2 := by simp [mixtureProb]
 #check @isotropicGrover_lhs_eq_mixtureProb
 #check @tendsto_expectedSuccProb_as_sigma_one
 #check @tendsto_expectedSuccProb_as_sigma_zero
+#check @noisyTrajectory_succProb_eq_mixtureProb
+#check @noisyTrajectory_succProb_at_sigma_one
+#check @noisyTrajectory_succProb_at_sigma_zero
+#check @noisyTrajectory_succProb_nil
+#check @continuousOn_noisyTrajectory_succProb
+#check @tendsto_noisyTrajectory_succProb_sigma_one
+#check @tendsto_noisyTrajectory_succProb_sigma_zero
+
+/--
+info: 'IsotropicGrover.continuousOn_noisyTrajectory_succProb' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms continuousOn_noisyTrajectory_succProb
 
 end IsotropicGrover

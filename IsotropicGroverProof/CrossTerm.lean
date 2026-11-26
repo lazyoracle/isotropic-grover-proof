@@ -371,6 +371,111 @@ lemma perpSphereMeasure_neg_invariant (Φ : E n) :
       ← Measure.map_map htoEn_meas hnegSph_meas,
       Measure.map_smul _ hnegSph_meas.aemeasurable, V_perp_rawSph_neg_invariant]
 
+/-- Pushing `perpSphereMeasure Φ` forward by an ambient linear isometry `L` yields
+    `perpSphereMeasure (L Φ)`. -/
+lemma perpSphereMeasure_map_isometry (Φ : E n) (L : E n ≃ₗᵢ[ℝ] E n) :
+    Measure.map L (perpSphereMeasure Φ) = perpSphereMeasure (L Φ) := by
+  have hb₁ : BorelSpace ↥(V_perp Φ) := inferInstance
+  have hb₂ : BorelSpace ↥(V_perp (L Φ)) := inferInstance
+  let L_perp : ↥(V_perp Φ) ≃ₗᵢ[ℝ] ↥(V_perp (L Φ)) :=
+    { toFun := fun v => ⟨L v.val, (mem_V_perp_iff (L Φ) (L v.val)).mpr
+        (by rw [L.inner_map_map]; exact (mem_V_perp_iff Φ v.val).mp v.property)⟩
+      invFun := fun w => ⟨L.symm w.val, (mem_V_perp_iff Φ (L.symm w.val)).mpr
+        (by rw [← L.inner_map_map, L.apply_symm_apply]
+            exact (mem_V_perp_iff (L Φ) w.val).mp w.property)⟩
+      map_add' := fun u v => Subtype.ext (map_add L u.val v.val)
+      map_smul' := fun c v => Subtype.ext (map_smul L c v.val)
+      left_inv := fun v => Subtype.ext (L.symm_apply_apply v.val)
+      right_inv := fun w => Subtype.ext (L.apply_symm_apply w.val)
+      norm_map' := fun v => L.norm_map v.val }
+  have hL_perp_meas : Measurable (L_perp : ↥(V_perp Φ) → ↥(V_perp (L Φ))) :=
+    @Continuous.measurable _ _ _ _ (@BorelSpace.opensMeasurable _ _ _ hb₁) _ _ hb₂
+      (L_perp : ↥(V_perp Φ) → ↥(V_perp (L Φ))) L_perp.continuous
+  have hL_perp_symm_meas : Measurable (L_perp.symm : ↥(V_perp (L Φ)) → ↥(V_perp Φ)) :=
+    @Continuous.measurable _ _ _ _ (@BorelSpace.opensMeasurable _ _ _ hb₂) _ _ hb₁
+      (L_perp.symm : ↥(V_perp (L Φ)) → ↥(V_perp Φ)) L_perp.symm.continuous
+  have hmembed : MeasurableEmbedding (L_perp : ↥(V_perp Φ) → ↥(V_perp (L Φ))) :=
+    ⟨L_perp.injective, hL_perp_meas, fun {s} hs => by
+      rw [Set.image_eq_preimage_of_inverse L_perp.symm_apply_apply L_perp.apply_symm_apply]
+      exact hL_perp_symm_meas hs⟩
+  have hhaar_eq : Measure.map L_perp (V_perp_haar Φ) = V_perp_haar (L Φ) := by
+    let b₁ := stdOrthonormalBasis ℝ ↥(V_perp Φ)
+    let b₂ := stdOrthonormalBasis ℝ ↥(V_perp (L Φ))
+    let eIdx := finCongr L_perp.toLinearEquiv.finrank_eq
+    let b₁' := (b₁.map L_perp).reindex eIdx
+    let M : ↥(V_perp (L Φ)) ≃ₗᵢ[ℝ] ↥(V_perp (L Φ)) := b₂.repr.trans b₁'.repr.symm
+    have hM_haar : Measure.map M (V_perp_haar (L Φ)) = V_perp_haar (L Φ) :=
+      V_perp_haar_map_isometry (L Φ) M
+    have hmap1 : Measure.map L_perp (V_perp_haar Φ) =
+        @Module.Basis.addHaar _ _ _ _ _ _ hb₂
+          (b₁.toBasis.map L_perp.toContinuousLinearEquiv.toLinearEquiv) := by
+      simpa [V_perp_haar, b₁] using
+        @Module.Basis.map_addHaar _ _ _ _ _ _ _ _ _ _ hb₁ hb₂ _ _
+          b₁.toBasis L_perp.toContinuousLinearEquiv
+    have hmap2 : Measure.map M (V_perp_haar (L Φ)) =
+        @Module.Basis.addHaar _ _ _ _ _ _ hb₂
+          (b₂.toBasis.map M.toContinuousLinearEquiv.toLinearEquiv) := by
+      simpa [V_perp_haar, b₂] using
+        @Module.Basis.map_addHaar _ _ _ _ _ _ _ _ _ _ hb₂ hb₂ _ _
+          b₂.toBasis M.toContinuousLinearEquiv
+    have hbasis_eq : b₂.toBasis.map M.toContinuousLinearEquiv.toLinearEquiv = b₁'.toBasis := by
+      ext i
+      simp [M]
+    have hb₁'_toBasis : b₁'.toBasis =
+        (b₁.toBasis.map L_perp.toContinuousLinearEquiv.toLinearEquiv).reindex eIdx := by
+      ext i
+      simp [b₁']
+    rw [hmap1, ← @Module.Basis.addHaar_reindex _ _ _ _ _ _ _ _ hb₂
+      (b₁.toBasis.map L_perp.toContinuousLinearEquiv.toLinearEquiv) eIdx,
+      ← hb₁'_toBasis, ← hbasis_eq, ← hmap2, hM_haar]
+  let fSph : Metric.sphere (0 : ↥(V_perp Φ)) 1 → Metric.sphere (0 : ↥(V_perp (L Φ))) 1 :=
+    fun x => ⟨L_perp x.val,
+      mem_sphere_zero_iff_norm.mpr (by rw [L_perp.norm_map]; exact norm_eq_of_mem_sphere x)⟩
+  have hfSph_meas : Measurable fSph :=
+    ((L_perp.continuous.comp continuous_subtype_val).subtype_mk _).measurable
+  have hrawSph_eq : Measure.map fSph (V_perp_rawSph Φ) = V_perp_rawSph (L Φ) := by
+    ext s hs
+    simp only [V_perp_rawSph, Measure.map_apply hfSph_meas hs]
+    rw [@Measure.toSphere_apply' _ _ _ _ (V_perp_haar Φ) hb₁ _ (hs.preimage hfSph_meas),
+        @Measure.toSphere_apply' _ _ _ _ (V_perp_haar (L Φ)) hb₂ _ hs,
+        L_perp.toLinearEquiv.finrank_eq]
+    congr 1
+    suffices hsets : ∀ (T₁ : Set ↥(V_perp Φ)) (T₂ : Set ↥(V_perp (L Φ))),
+        T₁ = L_perp ⁻¹' T₂ → (V_perp_haar Φ) T₁ = (V_perp_haar (L Φ)) T₂ by
+      apply hsets
+      ext y
+      simp only [Set.mem_preimage]
+      constructor
+      · rintro ⟨r, hr, v, ⟨z, hz, rfl⟩, rfl⟩
+        exact ⟨r, hr, (fSph z).val, ⟨fSph z, hz, rfl⟩, by simp [fSph, map_smul]⟩
+      · rintro ⟨r, hr, v, ⟨x, hxs, rfl⟩, h⟩
+        let w : Metric.sphere (0 : ↥(V_perp Φ)) 1 :=
+          ⟨L_perp.symm x.val, mem_sphere_zero_iff_norm.mpr
+            (by rw [L_perp.symm.norm_map]; exact norm_eq_of_mem_sphere x)⟩
+        refine ⟨r, hr, w.val, ⟨w, ?_, rfl⟩, ?_⟩
+        · simp only [Set.mem_preimage]
+          convert hxs using 1
+          ext; simp [fSph, w, L_perp.apply_symm_apply]
+        · have h1 := L_perp.symm_apply_apply y
+          rw [← h, map_smul] at h1
+          exact h1
+    intro T₁ T₂ hT
+    rw [hT, ← hmembed.map_apply (V_perp_haar Φ), hhaar_eq]
+  simp only [perpSphereMeasure]
+  set rawSph₁ := V_perp_rawSph Φ
+  set rawSph₂ := V_perp_rawSph (L Φ)
+  set toEn₁ := fun (x : Metric.sphere (0 : ↥(V_perp Φ)) 1) => ((x.val : ↥(V_perp Φ)) : E n)
+  set toEn₂ := fun (x : Metric.sphere (0 : ↥(V_perp (L Φ))) 1) => ((x.val : ↥(V_perp (L Φ))) : E n)
+  have htoEn₁_meas : Measurable toEn₁ := measurable_subtype_coe.comp measurable_subtype_coe
+  have htoEn₂_meas : Measurable toEn₂ := measurable_subtype_coe.comp measurable_subtype_coe
+  have hcomm : (L : E n → E n) ∘ toEn₁ = toEn₂ ∘ fSph := by
+    ext x; rfl
+  have hmass : rawSph₂ Set.univ = rawSph₁ Set.univ := by
+    rw [← hrawSph_eq, Measure.map_apply hfSph_meas MeasurableSet.univ, Set.preimage_univ]
+  rw [hmass, Measure.map_map L.continuous.measurable htoEn₁_meas, hcomm,
+      ← Measure.map_map htoEn₂_meas hfSph_meas,
+      Measure.map_smul _ hfSph_meas.aemeasurable, hrawSph_eq]
+
 /-! ## Integrability of inner products over perpSphereMeasure -/
 
 /-- Inner product ⟨e₂, y⟩ is integrable over perpSphereMeasure.
@@ -817,5 +922,7 @@ example (Φ e₂ : E n) (θ : ℝ) (w : Fin (2 ^ n)) :
                          inner (𝕜 := ℝ) e₂ (stdBasisVec n (succProbIdx1 n w))) +
     sin θ ^ 2 * succProb n e₂ w :=
   succProb_isotropicError_expand Φ e₂ θ w
+
+#check @perpSphereMeasure_map_isometry
 
 end IsotropicGrover
