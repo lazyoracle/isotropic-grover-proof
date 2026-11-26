@@ -8,8 +8,9 @@ Supports two validation layers:
    - Forbids raw `|` inside `$`...`$` on GFM table rows (use `\\vert`, `\\lVert`,
      `\\rVert` so table cell splitting never breaks inline math).
    - Enforces that `$$` appears only at column 0 as a standalone `$$` line
-     surrounded by blank lines, and forbids `\\<ascii-punct>` (other than EOL
-     `\\\\`) inside `$$...$$` where `cmark-gfm` strips backslashes.
+     surrounded by blank lines; forbids blank lines, Markdown block-interrupting
+     prefixes, backticks, HTML-tag-like `<...` sequences, and `\\<ascii-punct>`
+     (other than EOL `\\\\`) inside `$$...$$` where `cmark-gfm` strips or splits.
    - Inside ```` ```math ```` blocks, forbids bare trailing `\\\\` at end of line
      (requiring `\\\\[4pt]` etc. so GitHub's math filter does not emit `\\\\\\`).
    - Validates every math span/block for pure ASCII, balanced `{}` /
@@ -279,8 +280,6 @@ STANDARD_MATHJAX_COMMANDS: frozenset[str] = frozenset(
         "quad",
         "qquad",
         "thinspace",
-        "medspace",
-        "thickspace",
         "negthinspace",
         "negmedspace",
         "negthickspace",
@@ -504,11 +503,26 @@ def validate_tex_expression(tex: str, context: str) -> list[str]:
     return errors
 
 
+def _is_gfm_table_delimiter_row(line: str) -> bool:
+    """Return True if `line` is a GFM pipe-table delimiter row (with or without outer `|`)."""
+    stripped = line.strip()
+    if "|" not in stripped:
+        return False
+    cells = stripped.strip("|").split("|")
+    return bool(cells) and all(re.match(r"^\s*:?-+:?\s*$", cell) for cell in cells)
+
+
 def _scan_inline_line(
-    line: str, line_no: int, path: Path, spans: list[MathSpan], errors: list[str]
+    line: str,
+    line_no: int,
+    path: Path,
+    spans: list[MathSpan],
+    errors: list[str],
+    *,
+    is_table_row: bool = False,
 ) -> None:
     """Scan a non-fenced, non-display-math line for `$`...`$` and illegal plain `$`."""
-    is_table_row = line.lstrip().startswith("|")
+    is_table_row = is_table_row or line.lstrip().startswith("|")
     i = 0
     n = len(line)
     while i < n:
@@ -585,8 +599,8 @@ def _scan_inline_line(
         i += 1
 
 
-def check_offline(path: Path) -> list[str]:
-    """Run offline structural and LaTeX checks on a Markdown file."""
+def _collect_offline(path: Path) -> tuple[list[str], list[MathSpan]]:
+    """Run offline structural and LaTeX checks and return `(errors, spans)`."""
     errors: list[str] = []
     spans: list[MathSpan] = []
     lines = path.read_text(encoding="utf-8").splitlines()
@@ -601,6 +615,8 @@ def check_offline(path: Path) -> list[str]:
     in_dd_block = False
     dd_start_line = 0
     dd_lines: list[str] = []
+
+    in_table = False
 
     for idx, line in enumerate(lines):
         line_no = idx + 1
@@ -642,6 +658,27 @@ def check_offline(path: Path) -> list[str]:
                 dd_lines = []
                 continue
 
+            if line.strip() == "":
+                errors.append(
+                    f"{path}:{line_no}: blank line inside `$$...$$` display block "
+                    "terminates the paragraph in CommonMark"
+                )
+            if re.match(r"^\s*(?:[-+*]\s|\d+[.)]\s|>|#)", line):
+                errors.append(
+                    f"{path}:{line_no}: continuation line inside `$$...$$` starts with a "
+                    "Markdown block-interrupting marker (list, blockquote, or heading)"
+                )
+            if "`" in line:
+                errors.append(
+                    f"{path}:{line_no}: backtick `` ` `` inside `$$...$$` is parsed as "
+                    "`<code>` by CommonMark"
+                )
+            if re.search(r"<[A-Za-z/!]", line):
+                errors.append(
+                    f"{path}:{line_no}: HTML-tag-like `<...` inside `$$...$$` is silently "
+                    "stripped by GFM's sanitizer (put a space after `<` or use `\\langle`)"
+                )
+
             if "$$" in line:
                 errors.append(
                     f"{path}:{line_no}: `$$` inside display block must be on its own column-0 line"
@@ -654,8 +691,9 @@ def check_offline(path: Path) -> list[str]:
                 esc_seq = "\\" + bad_esc.group(1)
                 errors.append(
                     f"{path}:{line_no}: `{esc_seq}` inside `$$...$$` is stripped by cmark-gfm "
-                    "(use named macros like \\thinspace, \\medspace, \\negthinspace, "
-                    "\\lVert/\\rVert, \\lbrace/\\rbrace, or EOL `\\\\` without trailing spaces)"
+                    "(use named MathJax macros like \\thinspace, \\mspace{4mu}, \\mspace{5mu}, "
+                    "\\quad, \\negthinspace, \\lVert/\\rVert, \\lbrace/\\rbrace, "
+                    "```math with \\:/\\;, or EOL `\\\\` without trailing spaces)"
                 )
             if re.search(r"\\\\[ \t]+$", line):
                 errors.append(
@@ -668,6 +706,7 @@ def check_offline(path: Path) -> list[str]:
         # 3. Check for opening fenced code block (up to 3 spaces indentation, or inside list items)
         m_fence = re.match(r"^( *)(`{3,}|~{3,})(.*)$", line)
         if m_fence:
+            in_table = False
             fence_indent = len(m_fence.group(1))
             fence_marker = m_fence.group(2)
             info = m_fence.group(3).strip()
@@ -685,6 +724,7 @@ def check_offline(path: Path) -> list[str]:
 
         # 4. Check for standalone column-0 `$$` opening line
         if line == "$$":
+            in_table = False
             if idx > 0 and lines[idx - 1].strip() != "":
                 errors.append(
                     f"{path}:{line_no}: opening `$$` must be preceded by a blank line"
@@ -694,8 +734,34 @@ def check_offline(path: Path) -> list[str]:
             dd_lines = []
             continue
 
-        # 5. Ordinary Markdown line: scan inline code spans, `$`...`$`, and forbidden `$`
-        _scan_inline_line(line, line_no, path, spans, errors)
+        # 5. Track GFM pipe tables (with or without leading/trailing `|`)
+        if in_table:
+            if (
+                line.strip() == ""
+                or "|" not in line
+                or re.match(r"^\s*(?:[-+*]\s|\d+[.)]\s|>|#)", line)
+            ):
+                in_table = False
+
+        is_table_header = (
+            not in_table
+            and line.strip() != ""
+            and "|" in line
+            and idx + 1 < len(lines)
+            and _is_gfm_table_delimiter_row(lines[idx + 1])
+        )
+        if _is_gfm_table_delimiter_row(line) and idx > 0 and "|" in lines[idx - 1]:
+            in_table = True
+
+        # 6. Ordinary Markdown line: scan inline code spans, `$`...`$`, and forbidden `$`
+        _scan_inline_line(
+            line,
+            line_no,
+            path,
+            spans,
+            errors,
+            is_table_row=in_table or is_table_header,
+        )
 
     if in_fence:
         errors.append(f"{path}:{fence_start_line}: unclosed fenced code block `{fence_marker}`")
@@ -706,6 +772,12 @@ def check_offline(path: Path) -> list[str]:
         ctx = f"{path}:{span.line} ({span.kind})"
         errors.extend(validate_tex_expression(span.tex, ctx))
 
+    return errors, spans
+
+
+def check_offline(path: Path) -> list[str]:
+    """Run offline structural and LaTeX checks on a Markdown file."""
+    errors, _ = _collect_offline(path)
     return errors
 
 
@@ -822,8 +894,14 @@ class _GFMMathHTMLAuditor(HTMLParser):
         self.errors.extend(validate_tex_expression(tex, ctx))
 
 
-def check_gh_api(path: Path) -> tuple[list[str], int]:
+def check_gh_api(
+    path: Path, expected_span_count: int | None = None
+) -> tuple[list[str], int]:
     """Render `path` via `gh api /markdown -f mode=gfm` and audit the HTML."""
+    if expected_span_count is None:
+        _, offline_spans = _collect_offline(path)
+        expected_span_count = len(offline_spans)
+
     res = subprocess.run(
         ["gh", "api", "/markdown", "-f", "mode=gfm", "-F", f"text=@{path}"],
         capture_output=True,
@@ -853,6 +931,13 @@ def check_gh_api(path: Path) -> tuple[list[str], int]:
     auditor = _GFMMathHTMLAuditor(path, html)
     auditor.feed(html)
     errors.extend(auditor.errors)
+
+    if auditor.math_node_count != expected_span_count:
+        errors.append(
+            f"{path}: rendered `<math-renderer>` count ({auditor.math_node_count}) "
+            f"!= offline math span count ({expected_span_count})"
+        )
+
     return errors, auditor.math_node_count
 
 
@@ -881,11 +966,13 @@ def main(argv: list[str] | None = None) -> int:
             total_errors += 1
             continue
 
-        offline_errors = check_offline(path)
+        offline_errors, offline_spans = _collect_offline(path)
         gh_errors: list[str] = []
         math_nodes = 0
         if args.gh_api:
-            gh_errors, math_nodes = check_gh_api(path)
+            gh_errors, math_nodes = check_gh_api(
+                path, expected_span_count=len(offline_spans)
+            )
 
         file_errors = offline_errors + gh_errors
         if file_errors:

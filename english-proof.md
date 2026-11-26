@@ -169,7 +169,7 @@ Geometrically, $`\Psi'`$ is obtained by moving distance $`\theta`$ along a unifo
 On the open Euclidean unit ball $`B^d = \{\mathbf{y} \in \mathbb{R}^d : \|\mathbf{y}\| < 1\}`$ with boundary $`S^{d-1}`$, the **Poisson kernel** [[Axler, Bourdon & Ramey (2001)](#references), Ch. 5] is
 
 $$
-P(\mathbf{y}, \xi) = \frac{1 - \lVert\mathbf{y}\rVert^2}{\lVert\mathbf{y} - \xi\rVert^d}, \qquad \mathbf{y} \in B^d,\medspace \xi \in S^{d-1}.
+P(\mathbf{y}, \xi) = \frac{1 - \lVert\mathbf{y}\rVert^2}{\lVert\mathbf{y} - \xi\rVert^d}, \qquad \mathbf{y} \in B^d,\mspace{5mu} \xi \in S^{d-1}.
 $$
 
 Physically, if a standard $`d`$-dimensional Brownian particle starts at interior point $`\mathbf{y} = \sigma\Psi \in B^d`$ ($`\sigma \in [0, 1)`$) and diffuses until first hitting the boundary sphere $`S^{d-1}`$, the hitting location $`\xi \in S^{d-1}`$ has probability density proportional to $`P(\sigma\Psi, \xi)`$ with respect to uniform surface measure on $`S^{d-1}`$. Writing $`\cos\theta = \langle \Psi, \xi\rangle_{\mathbb{R}}`$ with $`\theta \in [0, \pi]`$, the squared chordal distance depends solely on $`\theta`$:

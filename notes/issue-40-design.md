@@ -14,14 +14,16 @@ Rendering the current `english-proof.md` and `README.md` through GitHub's live G
 1. **Use GitHub's Raw-Code Inline Math Delimiter (`` $`...`$ ``) Everywhere:**
    - GitHub's official `` $`...`$ `` syntax parses as a CommonMark code span first and emits `<math-renderer class="js-inline-math">$...$</math-renderer>` with **zero** backslash unescaping, **zero** `_` emphasis interference, and full support inside `**bold**`, headings, GFM tables, and `($`\sigma \in [0, 1)`$)`.
 
-2. **Use Standalone Top-Level `$$` Blocks and ```` ```math ```` Inside Lists:**
-   - At top level (column 0), format display math as standalone fenced blocks surrounded by blank lines:
+2. **Place All Display Math at Column 0 (`$$` Blocks and ```` ```math ```` Fences):**
+   - Empirically, GitHub's server-side `MathFilter` skips `<pre lang="math">` inside any `<li>` element that also contains inline `<math-renderer>` spans (leaving an unrendered code block), while indented `$$` blocks inside lists fail `cmark-gfm`'s block-math parser. All display equations are therefore placed at **column 0** (using bold numbered lead-ins or `####` subheadings instead of indenting display equations inside `<li>`).
+   - At column 0, format single-line display equations as standalone `$$` blocks surrounded by blank lines:
      ```markdown
      $$
      ...
      $$
      ```
-   - When a display equation is indented inside a numbered or bulleted list item (where indented `$$` fails in `cmark-gfm`), use an indented ```` ```math ```` fenced block (using `\\[4pt]` rather than bare trailing `\\` at end-of-line so GitHub's `math` fence filter does not emit `\\\`).
+     Note that `cmark-gfm` still strips `\<ascii-punct>` (except EOL `\\`) inside `$$...$$`, so use MathJax v3 named macros (`\thinspace`, `\mspace{5mu}`, `\negthinspace`, `\lVert`/`\rVert`, `\lbrace`/`\rbrace`) rather than `\,`/`\;`/`\!`/`\|`/`\{`.
+   - For multi-line `\begin{aligned}` and `\begin{cases}` display blocks at column 0, use ```` ```math ```` fenced blocks with `\\[4pt]` rather than bare trailing `\\` at end-of-line (so GitHub's `math` fence filter does not emit `\\\`).
 
 3. **Separate Lean Code Identifiers from Mathematical Notation:**
    - Remove all `\texttt{...}` and Lean underscores (`Grover.p\_succ`, `norm\_ketToReal`, `P\_perp\_apply`, `MState.uniform`, etc.) from inside math spans.
