@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v5
@@ -67,6 +67,54 @@ jobs:
             .lake/packages/formal-quantum-computation/.lake/build
           key: ${{ steps.cache-restore.outputs.cache-primary-key }}
 
-      - uses: leanprover-community/docgen-action@v1
+      - name: Restore docs cache
+        id: docs-cache-restore
+        uses: actions/cache/restore@v5
         with:
-          homepage: '.pages'
+          path: |
+            docbuild/lakefile.toml
+            docbuild/lake-manifest.json
+            docbuild/.root-manifest.sha256
+            docbuild/.lake/build
+            .lake/packages/doc-gen4
+            .lake/packages/MD4Lean
+            .lake/packages/BibtexQuery
+            .lake/packages/UnicodeBasic
+            .lake/packages/leansqlite
+            .lake/packages/Cli/.lake/build
+          key: docs-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}
+          restore-keys: docs-v2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-
+
+      - name: Configure VM overcommit for doc-gen4
+        run: sudo sysctl -w vm.overcommit_memory=1
+
+      - name: Build API documentation
+        run: ./scripts/build_docs.sh
+
+      - name: Save docs cache
+        if: success() && steps.docs-cache-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            docbuild/lakefile.toml
+            docbuild/lake-manifest.json
+            docbuild/.root-manifest.sha256
+            docbuild/.lake/build
+            .lake/packages/doc-gen4
+            .lake/packages/MD4Lean
+            .lake/packages/BibtexQuery
+            .lake/packages/UnicodeBasic
+            .lake/packages/leansqlite
+            .lake/packages/Cli/.lake/build
+          key: ${{ steps.docs-cache-restore.outputs.cache-primary-key }}
+
+      - name: Upload website (API documentation)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: _pages/
+
+      - name: Deploy to GitHub Pages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: deployment
+        uses: actions/deploy-pages@v5
