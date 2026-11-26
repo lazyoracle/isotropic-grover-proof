@@ -30,6 +30,7 @@ Supports two validation layers:
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 from html.parser import HTMLParser
 from pathlib import Path
 import re
@@ -39,282 +40,50 @@ from typing import NamedTuple
 
 
 STANDARD_MATHJAX_COMMANDS: frozenset[str] = frozenset(
-    {
+    (
         # Greek letters
-        "alpha",
-        "beta",
-        "gamma",
-        "delta",
-        "epsilon",
-        "varepsilon",
-        "zeta",
-        "eta",
-        "theta",
-        "vartheta",
-        "iota",
-        "kappa",
-        "lambda",
-        "mu",
-        "nu",
-        "xi",
-        "pi",
-        "varpi",
-        "rho",
-        "varrho",
-        "sigma",
-        "varsigma",
-        "tau",
-        "upsilon",
-        "phi",
-        "varphi",
-        "chi",
-        "psi",
-        "omega",
-        "Gamma",
-        "Delta",
-        "Theta",
-        "Lambda",
-        "Xi",
-        "Pi",
-        "Sigma",
-        "Upsilon",
-        "Phi",
-        "Psi",
-        "Omega",
+        "alpha beta gamma delta epsilon varepsilon zeta eta theta vartheta iota "
+        "kappa lambda mu nu xi pi varpi rho varrho sigma varsigma tau upsilon "
+        "phi varphi chi psi omega Gamma Delta Theta Lambda Xi Pi Sigma Upsilon "
+        "Phi Psi Omega "
         # Fonts & styles
-        "mathrm",
-        "mathbf",
-        "mathbb",
-        "mathcal",
-        "mathit",
-        "mathsf",
-        "mathfrak",
-        "mathscr",
-        "operatorname",
-        "text",
-        "textbf",
-        "textit",
-        "textrm",
-        "displaystyle",
-        "textstyle",
-        "scriptstyle",
-        "scriptscriptstyle",
+        "mathrm mathbf mathbb mathcal mathit mathsf mathfrak mathscr "
+        "operatorname text textbf textit textrm displaystyle textstyle "
+        "scriptstyle scriptscriptstyle "
         # Accents & decorations
-        "hat",
-        "widehat",
-        "tilde",
-        "widetilde",
-        "bar",
-        "overline",
-        "underline",
-        "vec",
-        "dot",
-        "ddot",
-        "boxed",
+        "hat widehat tilde widetilde bar overline underline vec dot ddot boxed "
         # Fractions, roots, environments
-        "frac",
-        "tfrac",
-        "dfrac",
-        "binom",
-        "sqrt",
-        "begin",
-        "end",
+        "frac tfrac dfrac binom sqrt begin end "
         # Delimiters & sizing
-        "left",
-        "right",
-        "middle",
-        "big",
-        "Big",
-        "bigg",
-        "Bigg",
-        "bigl",
-        "bigr",
-        "Bigl",
-        "Bigr",
-        "biggl",
-        "biggr",
-        "Biggl",
-        "Biggr",
-        "langle",
-        "rangle",
-        "lfloor",
-        "rfloor",
-        "lceil",
-        "rceil",
-        "lvert",
-        "rvert",
-        "lVert",
-        "rVert",
-        "vert",
-        "Vert",
-        "lbrace",
-        "rbrace",
+        "left right middle big Big bigg Bigg bigl bigr Bigl Bigr biggl biggr "
+        "Biggl Biggr langle rangle lfloor rfloor lceil rceil lvert rvert lVert "
+        "rVert vert Vert lbrace rbrace "
         # Big operators & trig/log functions
-        "sum",
-        "prod",
-        "coprod",
-        "int",
-        "iint",
-        "iiint",
-        "oint",
-        "bigcup",
-        "bigcap",
-        "bigoplus",
-        "bigotimes",
-        "sin",
-        "cos",
-        "tan",
-        "cot",
-        "sec",
-        "csc",
-        "arcsin",
-        "arccos",
-        "arctan",
-        "sinh",
-        "cosh",
-        "tanh",
-        "log",
-        "ln",
-        "exp",
-        "lim",
-        "sup",
-        "inf",
-        "min",
-        "max",
-        "arg",
-        "det",
-        "dim",
-        "ker",
-        "hom",
-        "deg",
-        "gcd",
-        "Pr",
+        "sum prod coprod int iint iiint oint bigcup bigcap bigoplus bigotimes "
+        "sin cos tan cot sec csc arcsin arccos arctan sinh cosh tanh log ln exp "
+        "lim sup inf min max arg det dim ker hom deg gcd Pr "
         # Relations, arrows, binary operators, misc symbols
-        "in",
-        "notin",
-        "ni",
-        "subset",
-        "subseteq",
-        "supset",
-        "supseteq",
-        "cup",
-        "cap",
-        "setminus",
-        "emptyset",
-        "varnothing",
-        "forall",
-        "exists",
-        "neg",
-        "land",
-        "lor",
-        "implies",
-        "iff",
-        "to",
-        "rightarrow",
-        "leftarrow",
-        "leftrightarrow",
-        "longrightarrow",
-        "longleftarrow",
-        "longleftrightarrow",
-        "Rightarrow",
-        "Leftarrow",
-        "Leftrightarrow",
-        "Longrightarrow",
-        "mapsto",
-        "longmapsto",
-        "uparrow",
-        "downarrow",
-        "ne",
-        "neq",
-        "le",
-        "leq",
-        "ge",
-        "geq",
-        "ll",
-        "gg",
-        "approx",
-        "sim",
-        "simeq",
-        "cong",
-        "equiv",
-        "propto",
-        "perp",
-        "parallel",
-        "mid",
-        "nmid",
-        "cdot",
-        "cdots",
-        "ldots",
-        "dots",
-        "vdots",
-        "ddots",
-        "times",
-        "div",
-        "pm",
-        "mp",
-        "circ",
-        "bullet",
-        "star",
-        "ast",
-        "oplus",
-        "ominus",
-        "otimes",
-        "oslash",
-        "odot",
-        "dagger",
-        "ddagger",
-        "top",
-        "bot",
-        "partial",
-        "nabla",
-        "infty",
-        "ell",
-        "Re",
-        "Im",
-        "wp",
-        "aleph",
-        "blacksquare",
-        "square",
-        "triangle",
+        "in notin ni subset subseteq supset supseteq cup cap setminus emptyset "
+        "varnothing forall exists neg land lor implies iff to rightarrow "
+        "leftarrow leftrightarrow longrightarrow longleftarrow "
+        "longleftrightarrow Rightarrow Leftarrow Leftrightarrow Longrightarrow "
+        "mapsto longmapsto uparrow downarrow ne neq le leq ge geq ll gg approx "
+        "sim simeq cong equiv propto perp parallel mid nmid cdot cdots ldots "
+        "dots vdots ddots times div pm mp circ bullet star ast oplus ominus "
+        "otimes oslash odot dagger ddagger top bot partial nabla infty ell Re "
+        "Im wp aleph blacksquare square triangle "
         # Spacing
-        "quad",
-        "qquad",
-        "thinspace",
-        "negthinspace",
-        "negmedspace",
-        "negthickspace",
-        "enspace",
-        "mspace",
-        "kern",
-        "phantom",
-        "hphantom",
-        "vphantom",
-    }
+        "quad qquad thinspace negthinspace negmedspace negthickspace enspace "
+        "mspace kern phantom hphantom vphantom"
+    ).split()
 )
 
 ALLOWED_ENVIRONMENTS: frozenset[str] = frozenset(
-    {
-        "aligned",
-        "cases",
-        "matrix",
-        "pmatrix",
-        "bmatrix",
-        "vmatrix",
-        "Vmatrix",
-        "array",
-    }
+    "aligned cases matrix pmatrix bmatrix vmatrix Vmatrix array".split()
 )
 
-TEXT_LIKE_MACROS: tuple[str, ...] = (
-    "mathrm",
-    "text",
-    "textbf",
-    "textit",
-    "textrm",
-    "operatorname",
-    "mathit",
-    "mathbf",
-    "mathsf",
+TEXT_LIKE_MACROS: tuple[str, ...] = tuple(
+    "mathrm text textbf textit textrm operatorname mathit mathbf mathsf".split()
 )
 
 PAIRED_MACRO_DELIMITERS: tuple[tuple[str, str], ...] = (
@@ -329,11 +98,38 @@ PAIRED_MACRO_DELIMITERS: tuple[tuple[str, str], ...] = (
     ("lceil", "rceil"),
 )
 
+_TEXT_MACRO_RE = re.compile(r"\\(" + "|".join(TEXT_LIKE_MACROS) + r")\s*\{")
+_LEAN_ISOMETRY_RE = re.compile(r"\\simeq\s*_\s*\{\\ell\s*i\}")
+_TABLE_DELIM_CELL_RE = re.compile(r"^\s*:?-+:?\s*$")
+_BLOCK_INTERRUPT_RE = re.compile(r"^\s*(?:[-+*]\s|\d+[.)]\s|>|#)")
+_FENCE_OPEN_RE = re.compile(r"^( *)(`{3,}|~{3,})(.*)$")
+_RAW_MATH_RENDERER_RE = re.compile(
+    r"<math-renderer\b[^>]*>(.*?)</math-renderer>", flags=re.DOTALL
+)
+_ARTIFACT_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (
+        re.compile(r"\\(?:sin|cos|tan|arcsin|arccos|log|ln)(?:\^\d+)?!"),
+        "stripped `\\!` after trig/log",
+    ),
+    (re.compile(r"\[\s*,\s*\]"), "stripped `[\\,]` -> `[,]`"),
+    (re.compile(r",\s*;"), "stripped `\\;` -> `,;`"),
+    (re.compile(r"(?<!\\)\\\[\d"), "stripped `\\\\[...]` -> `\\[`"),
+    (re.compile(r"(?<!\\)\\ "), "stripped mid-line `\\\\` -> `\\ `"),
+    (
+        re.compile(r"(?<!\\),\s*d\\(?:theta|mu|nu|xi|delta)"),
+        "stripped `\\,d...` -> `,d...`",
+    ),
+)
+
 
 class MathSpan(NamedTuple):
     kind: str  # "inline", "display_dd", "display_fence"
     line: int
     tex: str
+
+
+def _truncate(text: str, limit: int = 90) -> str:
+    return text[: limit - 3] + "..." if len(text) > limit else text
 
 
 def _extract_braced_arg(tex: str, brace_pos: int) -> tuple[str | None, int]:
@@ -366,31 +162,29 @@ def validate_tex_expression(tex: str, context: str) -> list[str]:
         return errors
 
     # 1. Pure ASCII check (catches raw Lean Unicode like Ψ, σ, ℝ, ≃ₗᵢ inside math)
-    for ch in tex:
-        if ord(ch) > 127:
-            errors.append(
-                f"{context}: non-ASCII character {ch!r} (U+{ord(ch):04X}) inside math; "
-                "use standard LaTeX macros instead"
-            )
-            break
+    bad_ch = next((ch for ch in tex if ord(ch) > 127), None)
+    if bad_ch is not None:
+        errors.append(
+            f"{context}: non-ASCII character {bad_ch!r} (U+{ord(bad_ch):04X}) inside math; "
+            "use standard LaTeX macros instead"
+        )
 
     # 2. Forbidden substrings
     if "\\texttt" in tex:
-        errors.append(f"{context}: forbidden \\texttt inside math (use Markdown `code` outside math)")
+        errors.append(
+            f"{context}: forbidden \\texttt inside math (use Markdown `code` outside math)"
+        )
     if "\\\\\\" in tex:
         errors.append(f"{context}: triple backslash '\\\\\\' inside math")
-    if re.search(r"\\simeq\s*_\s*\{\\ell\s*i\}", tex):
+    if _LEAN_ISOMETRY_RE.search(tex):
         errors.append(f"{context}: Lean isometry notation \\simeq_{{\\ell i}} inside math")
 
     # 3. No underscores (raw or escaped) inside \mathrm{...}, \text{...}, \operatorname{...}, etc.
-    macro_pat = re.compile(r"\\(" + "|".join(TEXT_LIKE_MACROS) + r")\s*\{")
-    for m in macro_pat.finditer(tex):
-        macro_name = m.group(1)
-        brace_idx = m.end() - 1
-        arg, _ = _extract_braced_arg(tex, brace_idx)
+    for m in _TEXT_MACRO_RE.finditer(tex):
+        arg, _ = _extract_braced_arg(tex, m.end() - 1)
         if arg is not None and "_" in arg:
             errors.append(
-                f"{context}: underscore inside \\{macro_name}{{{arg}}} "
+                f"{context}: underscore inside \\{m.group(1)}{{{arg}}} "
                 "(move Lean identifier outside math or use proper LaTeX subscript)"
             )
 
@@ -398,7 +192,7 @@ def validate_tex_expression(tex: str, context: str) -> list[str]:
     brace_depth = 0
     env_stack: list[tuple[str, int]] = []
     left_right_stack: list[tuple[int, int]] = []  # (brace_depth, len(env_stack))
-    macro_counts: dict[str, int] = {}
+    macro_counts: Counter[str] = Counter()
 
     i = 0
     n = len(tex)
@@ -414,7 +208,7 @@ def validate_tex_expression(tex: str, context: str) -> list[str]:
                 while j < n and tex[j].isalpha():
                     j += 1
                 cmd = tex[i + 1 : j]
-                macro_counts[cmd] = macro_counts.get(cmd, 0) + 1
+                macro_counts[cmd] += 1
 
                 if cmd not in STANDARD_MATHJAX_COMMANDS:
                     errors.append(f"{context}: non-standard or unknown LaTeX command '\\{cmd}'")
@@ -436,19 +230,18 @@ def validate_tex_expression(tex: str, context: str) -> list[str]:
                         errors.append(f"{context}: unsupported math environment '{env_name}'")
                     if cmd == "begin":
                         env_stack.append((env_name, brace_depth))
+                    elif not env_stack:
+                        errors.append(f"{context}: unmatched '\\end{{{env_name}}}'")
                     else:
-                        if not env_stack:
-                            errors.append(f"{context}: unmatched '\\end{{{env_name}}}'")
-                        else:
-                            open_env, open_depth = env_stack.pop()
-                            if open_env != env_name:
-                                errors.append(
-                                    f"{context}: '\\begin{{{open_env}}}' closed by '\\end{{{env_name}}}'"
-                                )
-                            elif open_depth != brace_depth:
-                                errors.append(
-                                    f"{context}: unbalanced '{{}}' inside '\\begin{{{open_env}}}'"
-                                )
+                        open_env, open_depth = env_stack.pop()
+                        if open_env != env_name:
+                            errors.append(
+                                f"{context}: '\\begin{{{open_env}}}' closed by '\\end{{{env_name}}}'"
+                            )
+                        elif open_depth != brace_depth:
+                            errors.append(
+                                f"{context}: unbalanced '{{}}' inside '\\begin{{{open_env}}}'"
+                            )
                     i = after_env
                     continue
 
@@ -466,15 +259,15 @@ def validate_tex_expression(tex: str, context: str) -> list[str]:
 
                 i = j
                 continue
-            else:
-                # Escaped non-letter (e.g. \\, \,, \;, \!, \{, \}, \|, \_)
-                if nxt == "_":
-                    errors.append(
-                        f"{context}: escaped underscore '\\_' inside math "
-                        "(move code identifier outside math)"
-                    )
-                i += 2
-                continue
+
+            # Escaped non-letter (e.g. \\, \,, \;, \!, \{, \}, \|, \_)
+            if nxt == "_":
+                errors.append(
+                    f"{context}: escaped underscore '\\_' inside math "
+                    "(move code identifier outside math)"
+                )
+            i += 2
+            continue
 
         if ch == "{":
             brace_depth += 1
@@ -493,8 +286,7 @@ def validate_tex_expression(tex: str, context: str) -> list[str]:
         errors.append(f"{context}: {len(left_right_stack)} unclosed '\\left' delimiter(s)")
 
     for left_cmd, right_cmd in PAIRED_MACRO_DELIMITERS:
-        lc = macro_counts.get(left_cmd, 0)
-        rc = macro_counts.get(right_cmd, 0)
+        lc, rc = macro_counts[left_cmd], macro_counts[right_cmd]
         if lc != rc:
             errors.append(
                 f"{context}: mismatched '\\{left_cmd}' ({lc}) vs '\\{right_cmd}' ({rc})"
@@ -509,7 +301,16 @@ def _is_gfm_table_delimiter_row(line: str) -> bool:
     if "|" not in stripped:
         return False
     cells = stripped.strip("|").split("|")
-    return bool(cells) and all(re.match(r"^\s*:?-+:?\s*$", cell) for cell in cells)
+    return bool(cells) and all(_TABLE_DELIM_CELL_RE.match(cell) for cell in cells)
+
+
+def _scan_backtick_run(line: str, bt_start: int) -> tuple[int, int]:
+    """Return `(backtick_len, closing_index_or_neg1)` for a backtick run at `bt_start`."""
+    bt_end = bt_start
+    while bt_end < len(line) and line[bt_end] == "`":
+        bt_end += 1
+    bt_len = bt_end - bt_start
+    return bt_len, line.find("`" * bt_len, bt_end)
 
 
 def _scan_inline_line(
@@ -530,29 +331,18 @@ def _scan_inline_line(
 
         # Check `$` followed immediately by backtick(s): GitHub `$`...`$` inline math
         if ch == "$" and i + 1 < n and line[i + 1] == "`":
-            # Count opening backticks
-            bt_start = i + 1
-            bt_end = bt_start
-            while bt_end < n and line[bt_end] == "`":
-                bt_end += 1
-            bt_len = bt_end - bt_start
+            bt_len, close_idx = _scan_backtick_run(line, i + 1)
             if bt_len != 1:
-                errors.append(
-                    f"{path}:{line_no}: inline math must use single backtick $`...`$"
-                )
-            close_seq = "`" * bt_len
-            close_idx = line.find(close_seq, bt_end)
+                errors.append(f"{path}:{line_no}: inline math must use single backtick $`...`$")
             if close_idx == -1:
                 errors.append(f"{path}:{line_no}: unclosed backtick in $`...`$ inline math")
                 return
             after_bt = close_idx + bt_len
             if after_bt >= n or line[after_bt] != "$":
-                errors.append(
-                    f"{path}:{line_no}: $` code span not closed with matching `$"
-                )
+                errors.append(f"{path}:{line_no}: $` code span not closed with matching `$")
                 i = after_bt
                 continue
-            tex = line[bt_end:close_idx]
+            tex = line[i + 1 + bt_len : close_idx]
             if tex.startswith(" ") and tex.endswith(" ") and len(tex) >= 2:
                 errors.append(
                     f"{path}:{line_no}: avoid both leading and trailing spaces inside $`...`$"
@@ -568,12 +358,7 @@ def _scan_inline_line(
 
         # Normal Markdown code span `...` (not preceded by `$`)
         if ch == "`":
-            bt_end = i
-            while bt_end < n and line[bt_end] == "`":
-                bt_end += 1
-            bt_len = bt_end - i
-            close_seq = "`" * bt_len
-            close_idx = line.find(close_seq, bt_end)
+            bt_len, close_idx = _scan_backtick_run(line, i)
             if close_idx == -1:
                 errors.append(f"{path}:{line_no}: unclosed Markdown backtick code span")
                 return
@@ -582,9 +367,7 @@ def _scan_inline_line(
 
         # Any other `$` outside code spans is forbidden (plain `$...$` or inline `$$`)
         if ch == "$":
-            snippet = line.strip()
-            if len(snippet) > 100:
-                snippet = snippet[:97] + "..."
+            snippet = _truncate(line.strip(), 100)
             if i + 1 < n and line[i + 1] == "$":
                 errors.append(
                     f"{path}:{line_no}: `$$` must appear only at column 0 on its own line: {snippet}"
@@ -636,8 +419,7 @@ def _collect_offline(path: Path) -> tuple[list[str], list[MathSpan]]:
                 continue
 
             if fence_is_math:
-                # Strip up to fence_indent leading spaces
-                dedented = line[min(fence_indent, len(line) - len(line.lstrip(" "))) :]
+                dedented = line[min(fence_indent, len(line) - len(stripped)) :]
                 if re.search(r"\\\\\s*$", dedented):
                     errors.append(
                         f"{path}:{line_no}: bare trailing '\\\\' inside ```math block "
@@ -663,7 +445,7 @@ def _collect_offline(path: Path) -> tuple[list[str], list[MathSpan]]:
                     f"{path}:{line_no}: blank line inside `$$...$$` display block "
                     "terminates the paragraph in CommonMark"
                 )
-            if re.match(r"^\s*(?:[-+*]\s|\d+[.)]\s|>|#)", line):
+            if _BLOCK_INTERRUPT_RE.match(line):
                 errors.append(
                     f"{path}:{line_no}: continuation line inside `$$...$$` starts with a "
                     "Markdown block-interrupting marker (list, blockquote, or heading)"
@@ -678,15 +460,13 @@ def _collect_offline(path: Path) -> tuple[list[str], list[MathSpan]]:
                     f"{path}:{line_no}: HTML-tag-like `<...` inside `$$...$$` is silently "
                     "stripped by GFM's sanitizer (put a space after `<` or use `\\langle`)"
                 )
-
             if "$$" in line:
                 errors.append(
                     f"{path}:{line_no}: `$$` inside display block must be on its own column-0 line"
                 )
 
             # Inside top-level $$...$$, cmark-gfm strips \<ascii-punct> EXCEPT exact EOL `\\`!
-            line_without_eol_break = re.sub(r"\\\\$", "", line)
-            bad_esc = re.search(r"\\([^A-Za-z\s])", line_without_eol_break)
+            bad_esc = re.search(r"\\([^A-Za-z\s])", re.sub(r"\\\\$", "", line))
             if bad_esc:
                 esc_seq = "\\" + bad_esc.group(1)
                 errors.append(
@@ -704,14 +484,13 @@ def _collect_offline(path: Path) -> tuple[list[str], list[MathSpan]]:
             continue
 
         # 3. Check for opening fenced code block (up to 3 spaces indentation, or inside list items)
-        m_fence = re.match(r"^( *)(`{3,}|~{3,})(.*)$", line)
+        m_fence = _FENCE_OPEN_RE.match(line)
         if m_fence:
             in_table = False
             fence_indent = len(m_fence.group(1))
             fence_marker = m_fence.group(2)
-            info = m_fence.group(3).strip()
             in_fence = True
-            fence_is_math = info == "math"
+            fence_is_math = m_fence.group(3).strip() == "math"
             fence_start_line = line_no
             fence_lines = []
             if fence_is_math and fence_indent > 0:
@@ -735,13 +514,10 @@ def _collect_offline(path: Path) -> tuple[list[str], list[MathSpan]]:
             continue
 
         # 5. Track GFM pipe tables (with or without leading/trailing `|`)
-        if in_table:
-            if (
-                line.strip() == ""
-                or "|" not in line
-                or re.match(r"^\s*(?:[-+*]\s|\d+[.)]\s|>|#)", line)
-            ):
-                in_table = False
+        if in_table and (
+            line.strip() == "" or "|" not in line or _BLOCK_INTERRUPT_RE.match(line)
+        ):
+            in_table = False
 
         is_table_header = (
             not in_table
@@ -769,8 +545,7 @@ def _collect_offline(path: Path) -> tuple[list[str], list[MathSpan]]:
         errors.append(f"{path}:{dd_start_line}: unclosed `$$` display math block")
 
     for span in spans:
-        ctx = f"{path}:{span.line} ({span.kind})"
-        errors.extend(validate_tex_expression(span.tex, ctx))
+        errors.extend(validate_tex_expression(span.tex, f"{path}:{span.line} ({span.kind})"))
 
     return errors, spans
 
@@ -784,10 +559,9 @@ def check_offline(path: Path) -> list[str]:
 class _GFMMathHTMLAuditor(HTMLParser):
     """Audit live HTML returned by `gh api /markdown -f mode=gfm`."""
 
-    def __init__(self, path: Path, raw_html: str) -> None:
+    def __init__(self, path: Path) -> None:
         super().__init__(convert_charrefs=True)
         self.path = path
-        self.raw_lines = raw_html.splitlines()
         self.errors: list[str] = []
         self.tag_stack: list[str] = []
         self.math_depth = 0
@@ -797,12 +571,11 @@ class _GFMMathHTMLAuditor(HTMLParser):
         self.math_node_count = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        attr_dict = dict(attrs)
         line_no, _ = self.getpos()
 
-        if tag == "pre" and attr_dict.get("lang") == "math":
+        if tag == "pre" and dict(attrs).get("lang") == "math":
             self.errors.append(
-                f"{self.path}:HTML:{line_no}: `<pre lang=\"math\">` was not converted to `<math-renderer>`"
+                f'{self.path}:HTML:{line_no}: `<pre lang="math">` was not converted to `<math-renderer>`'
             )
 
         if self.math_depth > 0:
@@ -825,8 +598,9 @@ class _GFMMathHTMLAuditor(HTMLParser):
         if tag == "math-renderer" and self.math_depth > 0:
             self.math_depth -= 1
             if self.math_depth == 0:
-                full_text = "".join(self.current_math_chunks)
-                self._audit_math_renderer_content(full_text, self.current_math_line)
+                self._audit_math_renderer_content(
+                    "".join(self.current_math_chunks), self.current_math_line
+                )
                 self.current_math_chunks = []
         elif tag in ("code", "pre") and self.code_or_pre_depth > 0:
             self.code_or_pre_depth -= 1
@@ -848,20 +622,12 @@ class _GFMMathHTMLAuditor(HTMLParser):
             return
 
         if self.code_or_pre_depth == 0:
-            if "$" in data:
-                snippet = " ".join(data.split())
-                if len(snippet) > 90:
-                    snippet = snippet[:87] + "..."
-                self.errors.append(
-                    f"{self.path}:HTML:{line_no}: leaked `$` in rendered HTML text: {snippet!r}"
-                )
-            if "\\" in data:
-                snippet = " ".join(data.split())
-                if len(snippet) > 90:
-                    snippet = snippet[:87] + "..."
-                self.errors.append(
-                    f"{self.path}:HTML:{line_no}: leaked `\\` in rendered HTML text: {snippet!r}"
-                )
+            for leaked in ("$", "\\"):
+                if leaked in data:
+                    snippet = _truncate(" ".join(data.split()), 90)
+                    self.errors.append(
+                        f"{self.path}:HTML:{line_no}: leaked `{leaked}` in rendered HTML text: {snippet!r}"
+                    )
 
     def _audit_math_renderer_content(self, content: str, html_line: int) -> None:
         ctx = f"{self.path}:HTML:{html_line} (<math-renderer>)"
@@ -875,21 +641,16 @@ class _GFMMathHTMLAuditor(HTMLParser):
         elif stripped.startswith("$") and stripped.endswith("$") and len(stripped) >= 2:
             tex = stripped[1:-1]
         else:
-            self.errors.append(f"{ctx}: unexpected delimiter wrapper in `<math-renderer>`: {stripped[:60]!r}")
+            self.errors.append(
+                f"{ctx}: unexpected delimiter wrapper in `<math-renderer>`: {stripped[:60]!r}"
+            )
             tex = stripped
 
-        # Detect classic cmark-gfm backslash-stripping artifacts inside <math-renderer>
-        artifact_patterns: tuple[tuple[str, str], ...] = (
-            (r"\\(?:sin|cos|tan|arcsin|arccos|log|ln)(?:\^\d+)?!", "stripped `\\!` after trig/log"),
-            (r"\[\s*,\s*\]", "stripped `[\\,]` -> `[,]`"),
-            (r",\s*;", "stripped `\\;` -> `,;`"),
-            (r"(?<!\\)\\\[\d", "stripped `\\\\[...]` -> `\\[`"),
-            (r"(?<!\\)\\ ", "stripped mid-line `\\\\` -> `\\ `"),
-            (r"(?<!\\),\s*d\\(?:theta|mu|nu|xi|delta)", "stripped `\\,d...` -> `,d...`"),
-        )
-        for pat, desc in artifact_patterns:
-            if re.search(pat, tex):
-                self.errors.append(f"{ctx}: cmark-gfm backslash-stripping artifact ({desc}): {tex.strip()[:90]!r}")
+        for pat, desc in _ARTIFACT_PATTERNS:
+            if pat.search(tex):
+                self.errors.append(
+                    f"{ctx}: cmark-gfm backslash-stripping artifact ({desc}): {tex.strip()[:90]!r}"
+                )
 
         self.errors.extend(validate_tex_expression(tex, ctx))
 
@@ -918,7 +679,7 @@ def check_gh_api(
     errors: list[str] = []
 
     # Also check raw `<math-renderer>...</math-renderer>` blocks for `<em`, `<code`, `<br`
-    for m in re.finditer(r"<math-renderer\b[^>]*>(.*?)</math-renderer>", html, flags=re.DOTALL):
+    for m in _RAW_MATH_RENDERER_RE.finditer(html):
         raw_inner = m.group(1)
         line_no = html.count("\n", 0, m.start()) + 1
         for bad in ("<em", "<code", "<br", "\\\\\\", "\\texttt"):
@@ -928,7 +689,7 @@ def check_gh_api(
                     f"{raw_inner.strip()[:90]!r}"
                 )
 
-    auditor = _GFMMathHTMLAuditor(path, html)
+    auditor = _GFMMathHTMLAuditor(path)
     auditor.feed(html)
     errors.extend(auditor.errors)
 
@@ -967,24 +728,23 @@ def main(argv: list[str] | None = None) -> int:
             continue
 
         offline_errors, offline_spans = _collect_offline(path)
-        gh_errors: list[str] = []
-        math_nodes = 0
-        if args.gh_api:
-            gh_errors, math_nodes = check_gh_api(
-                path, expected_span_count=len(offline_spans)
-            )
+        gh_errors, math_nodes = (
+            check_gh_api(path, expected_span_count=len(offline_spans))
+            if args.gh_api
+            else ([], 0)
+        )
 
         file_errors = offline_errors + gh_errors
         if file_errors:
             for err in file_errors:
                 print(f"FAIL: {err}", file=sys.stderr)
+            gh_summary = (
+                f", {len(gh_errors)} live GFM HTML error(s) across {math_nodes} <math-renderer> node(s)"
+                if args.gh_api
+                else ""
+            )
             print(
-                f"SUMMARY {path}: {len(offline_errors)} offline error(s)"
-                + (
-                    f", {len(gh_errors)} live GFM HTML error(s) across {math_nodes} <math-renderer> node(s)"
-                    if args.gh_api
-                    else ""
-                ),
+                f"SUMMARY {path}: {len(offline_errors)} offline error(s){gh_summary}",
                 file=sys.stderr,
             )
             total_errors += len(file_errors)
