@@ -39,6 +39,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Check Markdown math formatting
+        run: python3 scripts/check_markdown_math.py english-proof.md README.md
+
       # Install elan, clone the dependencies, and fetch the Mathlib cache so
       # the build cache below can be restored into the package checkouts.
       - name: Fetch dependencies and the Mathlib cache
