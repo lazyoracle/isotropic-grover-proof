@@ -10,7 +10,6 @@ import QuantumComputation.Circuits.Basic
 import QuantumComputation.Circuits.ResourceCounting
 import QuantumComputation.Primitives.Measure
 import IsotropicGroverProof.Sequential
-import IsotropicGroverProof.GroverCircuit
 
 /-!
 # Bridge to `QuantumInfo` Channels and `QuantumComputation` Circuits
@@ -29,9 +28,12 @@ Main results:
   averaging the rank-1 density matrix `pureDensityMatrix` over isotropic sphere errors yields
   `depolarizingChannel` (`ρ ↦ σ² ρ + (1 - σ²) MState.uniform`) entrywise.
 - `depolarizingChannel_comm_ofUnitary`, `depolarizingChannel_compose`, `noisyCircuitChannel_eq`,
-  and `noisyCircuit_bornProb`: gate-by-gate depolarizing noise across any `c : Circuit n`
-  commutes and composes into `depolarizingChannel n (σ ^ c.size) _ ∘ₘ CPTPMap.ofUnitary c.eval`,
-  deriving the gate count `G = c.size` directly from circuit syntax.
+  `noisyCircuit_trajectory_eq_channel`, `noisyCircuit_trajectory_succProb_eq_measure`,
+  `noisyCircuit_bornProb`, and `noisyCircuit_bornProb_pure`: gate-by-gate depolarizing noise
+  across any `c : Circuit n` equates the microscopic real-sphere Markov trajectory of
+  `circuitUnitaries c` with `noisyCircuitChannel σ hσ c` and composes into
+  `depolarizingChannel n (σ ^ c.size) _ ∘ₘ CPTPMap.ofUnitary c.eval`, deriving the gate count
+  `G = c.size` directly from circuit syntax.
 -/
 
 namespace IsotropicGrover
@@ -50,17 +52,6 @@ lemma pow_mem_Icc_zero_one {σ : ℝ} (hσ : σ ∈ Set.Icc 0 1) (k : ℕ) :
   ⟨pow_nonneg hσ.1 k, pow_le_one₀ hσ.1 hσ.2⟩
 
 /-! ## Complex ↔ Real Hilbert space bridge -/
-
-lemma succProbIdx1_inj {n : ℕ} {x y : Fin (2 ^ n)}
-    (h : succProbIdx1 n x = succProbIdx1 n y) : x = y := by
-  ext
-  have hval : (succProbIdx1 n x).val = (succProbIdx1 n y).val := by rw [h]
-  dsimp [succProbIdx1] at hval
-  omega
-
-private lemma inner_stdBasisVec_eq_apply {n : ℕ} (v : E n) (i : Fin (d n)) :
-    ⟪v, stdBasisVec n i⟫_ℝ = v i := by
-  simp [stdBasisVec, ← EuclideanSpace.basisFun_apply]
 
 /-- Map a complex `n`-qubit amplitude vector `Fin (2 ^ n) → ℂ` into the real Euclidean space
     `E n = EuclideanSpace ℝ (Fin (2 * 2 ^ n))` by placing real parts at even indices `2x` and
@@ -245,6 +236,12 @@ lemma applyUnitaryKet_one {n : ℕ} (ψ : Ket (Fin (2 ^ n))) :
   exact congr_fun (Matrix.one_mulVec ψ.vec) x
 
 @[simp]
+lemma applyUnitaryKet_mul {n : ℕ} (U₂ U₁ : 𝐔[Fin (2 ^ n)]) (ψ : Ket (Fin (2 ^ n))) :
+    applyUnitaryKet (U₂ * U₁) ψ = applyUnitaryKet U₂ (applyUnitaryKet U₁ ψ) := by
+  ext x
+  exact congr_fun (Matrix.mulVec_mulVec ψ.vec U₂.val U₁.val).symm x
+
+@[simp]
 lemma ofUnitary_apply_m {n : ℕ} (U : 𝐔[Fin (2 ^ n)]) (ρ : MState (Fin (2 ^ n))) :
     (CPTPMap.ofUnitary U ρ).m = U.val * ρ.m * U.valᴴ := rfl
 
@@ -259,6 +256,23 @@ lemma ofUnitary_pure {n : ℕ} (U : 𝐔[Fin (2 ^ n)]) (ψ : Ket (Fin (2 ^ n))) 
 noncomputable def idealUnitaryTrajectory {n : ℕ} (us : List 𝐔[Fin (2 ^ n)])
     (ψ₀ : Ket (Fin (2 ^ n))) : Ket (Fin (2 ^ n)) :=
   us.foldl (fun ψ U => applyUnitaryKet U ψ) ψ₀
+
+@[simp]
+lemma idealUnitaryTrajectory_nil {n : ℕ} (ψ₀ : Ket (Fin (2 ^ n))) :
+    idealUnitaryTrajectory ([] : List 𝐔[Fin (2 ^ n)]) ψ₀ = ψ₀ := rfl
+
+@[simp]
+lemma idealUnitaryTrajectory_cons {n : ℕ} (U : 𝐔[Fin (2 ^ n)]) (rest : List 𝐔[Fin (2 ^ n)])
+    (ψ₀ : Ket (Fin (2 ^ n))) :
+    idealUnitaryTrajectory (U :: rest) ψ₀ =
+    idealUnitaryTrajectory rest (applyUnitaryKet U ψ₀) := rfl
+
+@[simp]
+lemma idealUnitaryTrajectory_append {n : ℕ} (us₁ us₂ : List 𝐔[Fin (2 ^ n)])
+    (ψ₀ : Ket (Fin (2 ^ n))) :
+    idealUnitaryTrajectory (us₁ ++ us₂) ψ₀ =
+    idealUnitaryTrajectory us₂ (idealUnitaryTrajectory us₁ ψ₀) :=
+  List.foldl_append
 
 @[simp]
 lemma ketToReal_idealUnitaryTrajectory {n : ℕ} (us : List 𝐔[Fin (2 ^ n)])
@@ -522,7 +536,7 @@ private lemma integral_mk_complex {α : Type*} [MeasurableSpace α] {μ : Measur
     for any observable `f : E n → ℂ` continuous on the unit sphere. -/
 theorem noisyTrajectoryExpectationℂ_eq_re_im_of_continuousOn {n : ℕ} (σ : ℝ)
     (hσ : σ ∈ Set.Icc 0 1) (gates : List (E n ≃ₗᵢ[ℝ] E n)) (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1)
-    {f : E n → ℂ} (hf : ContinuousOn f (Metric.sphere (0 : E n) 1)) :
+    {f : E n → ℂ} (hf : ContinuousOn f (unitSphere n)) :
     noisyTrajectoryExpectationℂ n σ gates Φ₀ f =
     ⟨noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => (f Ψ).re),
      noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => (f Ψ).im)⟩ := by
@@ -677,9 +691,9 @@ theorem depolarizingChannel_comm_ofUnitary (n : ℕ) (σ : ℝ) (hσ : σ ∈ Se
 /-- Sequential composition of depolarizing channels multiplies their fidelity parameters:
     `D(σ₁) ∘ₘ D(σ₂) = D(σ₁ * σ₂)`. -/
 theorem depolarizingChannel_compose (n : ℕ) (σ₁ : ℝ) (hσ₁ : σ₁ ∈ Set.Icc 0 1)
-    (σ₂ : ℝ) (hσ₂ : σ₂ ∈ Set.Icc 0 1) (hσ₁₂ : σ₁ * σ₂ ∈ Set.Icc 0 1) :
+    (σ₂ : ℝ) (hσ₂ : σ₂ ∈ Set.Icc 0 1) :
     depolarizingChannel n σ₁ hσ₁ ∘ₘ depolarizingChannel n σ₂ hσ₂ =
-    depolarizingChannel n (σ₁ * σ₂) hσ₁₂ := by
+    depolarizingChannel n (σ₁ * σ₂) (mul_mem_Icc_zero_one hσ₁ hσ₂) := by
   apply CPTPMap.funext
   intro ρ
   apply MState.ext_m
@@ -688,6 +702,43 @@ theorem depolarizingChannel_compose (n : ℕ) (σ₁ : ℝ) (hσ₁ : σ₁ ∈ 
     smul_eq_mul]
   push_cast
   ring
+
+/-- Left-to-right list of whole-system primitive gate unitaries executed by a syntactic
+    circuit `c : Circuit n`. -/
+noncomputable def circuitUnitaries {n : ℕ} : Circuit n → List 𝐔[Fin (2 ^ n)]
+  | .identity => []
+  | .gate g r => [r.embedUnitary g.eval]
+  | .seq c₁ c₂ => circuitUnitaries c₁ ++ circuitUnitaries c₂
+
+@[simp]
+lemma circuitUnitaries_identity {n : ℕ} :
+    circuitUnitaries (.identity : Circuit n) = [] := rfl
+
+@[simp]
+lemma circuitUnitaries_gate {n k : ℕ} (g : PrimitiveGate k) (r : QRegister k n) :
+    circuitUnitaries (.gate g r : Circuit n) = [r.embedUnitary g.eval] := rfl
+
+@[simp]
+lemma circuitUnitaries_seq {n : ℕ} (c₁ c₂ : Circuit n) :
+    circuitUnitaries (.seq c₁ c₂) = circuitUnitaries c₁ ++ circuitUnitaries c₂ := rfl
+
+@[simp]
+lemma length_circuitUnitaries {n : ℕ} (c : Circuit n) :
+    (circuitUnitaries c).length = c.size := by
+  induction c with
+  | identity => rfl
+  | gate _ _ => rfl
+  | seq _ _ ih₁ ih₂ => simp [ih₁, ih₂]
+
+@[simp]
+theorem idealUnitaryTrajectory_circuitUnitaries {n : ℕ} (c : Circuit n)
+    (ψ₀ : Ket (Fin (2 ^ n))) :
+    idealUnitaryTrajectory (circuitUnitaries c) ψ₀ = applyUnitaryKet c.eval ψ₀ := by
+  induction c generalizing ψ₀ with
+  | identity => simp
+  | gate _ _ => rfl
+  | seq c₁ c₂ ih₁ ih₂ =>
+    simp [ih₁, ih₂]
 
 /-- Noisy quantum channel associated with a syntactic circuit `c : Circuit n`, applying
     `depolarizingChannel n σ hσ` after every primitive gate `.gate g r` while `.identity` is
@@ -731,21 +782,52 @@ theorem noisyCircuitChannel_eq {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1) (
         ← depolarizingChannel_comm_ofUnitary,
         CPTPMap.compose_assoc (depolarizingChannel n (σ ^ c₁.size) _),
         ← CPTPMap.compose_assoc (depolarizingChannel n (σ ^ c₂.size) _),
-        depolarizingChannel_compose n (σ ^ c₂.size) _ (σ ^ c₁.size) _
-          (mul_mem_Icc_zero_one (pow_mem_Icc_zero_one hσ c₂.size)
-            (pow_mem_Icc_zero_one hσ c₁.size)),
+        depolarizingChannel_compose,
         ← ofUnitary_mul]
     congr 2
     rw [← pow_add, add_comm]
 
+/-- **End-to-end density-matrix bridge for syntactic circuits:** Averaging `pureDensityMatrix`
+    along the microscopic pure-state Markov trajectory of `circuitUnitaries c` yields the exact
+    output density matrix of `noisyCircuitChannel σ hσ c (MState.pure ψ₀)` entrywise. -/
+theorem noisyCircuit_trajectory_eq_channel {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
+    (c : Circuit n) (ψ₀ : Ket (Fin (2 ^ n))) (x y : Fin (2 ^ n)) :
+    noisyTrajectoryExpectationℂ n σ ((circuitUnitaries c).map unitaryToRealIso) (ketToReal ψ₀)
+      (fun Ψ => pureDensityMatrix n Ψ x y) =
+    (noisyCircuitChannel σ hσ c (MState.pure ψ₀)).m x y := by
+  rw [noisyTrajectory_eq_depolarizingChannel σ hσ, length_circuitUnitaries,
+      idealUnitaryTrajectory_circuitUnitaries, ← ofUnitary_pure,
+      ← CPTPMap.compose_eq, ← noisyCircuitChannel_eq]
+
+/-- **End-to-end measurement-probability bridge for syntactic circuits:** Expected `succProb`
+    along the microscopic pure-state Markov trajectory of `circuitUnitaries c` coincides with
+    the `computationalPOVM` Born-rule probability of
+    `noisyCircuitChannel σ hσ c (MState.pure ψ₀)`. -/
+theorem noisyCircuit_trajectory_succProb_eq_measure {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
+    (c : Circuit n) (ψ₀ : Ket (Fin (2 ^ n))) (w : Fin (2 ^ n)) :
+    noisyTrajectoryExpectation n σ ((circuitUnitaries c).map unitaryToRealIso) (ketToReal ψ₀)
+      (fun Ψ => succProb n Ψ w) =
+    ((computationalPOVM n).measure (noisyCircuitChannel σ hσ c (MState.pure ψ₀)) w : ℝ) := by
+  have hdiag : (fun Ψ : E n => succProb n Ψ w) =
+      (fun Ψ => (pureDensityMatrix n Ψ w w).re) := by
+    ext Ψ
+    rw [pureDensityMatrix_re_eq]
+    simp [succProb, sq]
+  rw [hdiag, ← noisyTrajectoryExpectationℂ_re σ hσ _ _ (norm_ketToReal ψ₀)
+        (continuous_pureDensityMatrix_apply w w),
+      noisyCircuit_trajectory_eq_channel σ hσ c ψ₀ w w,
+      computationalPOVM_measure_eq_exp_val, exp_val_compProjObs_eq_re_diag]
+
 /-- **Born-rule probability under noisy circuit execution:** Measuring outcome `w : Fin (2 ^ n)`
-    with `computationalPOVM n` after running `noisyCircuitChannel σ hσ c` on `MState.pure ψ₀`
-    yields `σ ^ (2 * c.size) * p_ideal + (1 - σ ^ (2 * c.size)) / 2^n`, where the gate count
-    `c.size` is computed directly from the circuit syntax. -/
+    with `computationalPOVM n` after running `noisyCircuitChannel σ hσ c` on any mixed state
+    `ρ₀ : MState (Fin (2 ^ n))` yields
+    `σ ^ (2 * c.size) * (CPTPMap.ofUnitary c.eval ρ₀).exp_val (compProjObs w).1 +
+      (1 - σ ^ (2 * c.size)) / 2^n`, where the gate count `c.size` is computed directly from
+    the circuit syntax. -/
 theorem noisyCircuit_bornProb {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1) (c : Circuit n)
-    (ψ₀ : Ket (Fin (2 ^ n))) (w : Fin (2 ^ n)) :
-    ((computationalPOVM n).measure (noisyCircuitChannel σ hσ c (MState.pure ψ₀)) w : ℝ) =
-    σ ^ (2 * c.size) * (CPTPMap.ofUnitary c.eval (MState.pure ψ₀)).exp_val (compProjObs w).1 +
+    (ρ₀ : MState (Fin (2 ^ n))) (w : Fin (2 ^ n)) :
+    ((computationalPOVM n).measure (noisyCircuitChannel σ hσ c ρ₀) w : ℝ) =
+    σ ^ (2 * c.size) * (CPTPMap.ofUnitary c.eval ρ₀).exp_val (compProjObs w).1 +
       (1 - σ ^ (2 * c.size)) / (2 ^ n : ℝ) := by
   rw [noisyCircuitChannel_eq, CPTPMap.compose_eq, computationalPOVM_measure_eq_exp_val,
       exp_val_compProjObs_eq_re_diag, exp_val_compProjObs_eq_re_diag,
@@ -754,6 +836,21 @@ theorem noisyCircuit_bornProb {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1) (c
   simp only [smul_eq_mul, Complex.add_re, Complex.mul_re, Complex.ofReal_re, Complex.ofReal_im,
     zero_mul, sub_zero, ← pow_mul, mul_comm c.size 2]
   ring
+
+/-- Pure-state specialization of `noisyCircuit_bornProb`: for an initial ket `ψ₀`, the ideal
+    expectation simplifies directly to the squared evolved amplitude `‖(c.evolve ψ₀.vec) w‖ ^ 2`. -/
+theorem noisyCircuit_bornProb_pure {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1) (c : Circuit n)
+    (ψ₀ : Ket (Fin (2 ^ n))) (w : Fin (2 ^ n)) :
+    ((computationalPOVM n).measure (noisyCircuitChannel σ hσ c (MState.pure ψ₀)) w : ℝ) =
+    σ ^ (2 * c.size) * ‖(c.evolve ψ₀.vec) w‖ ^ 2 +
+      (1 - σ ^ (2 * c.size)) / (2 ^ n : ℝ) := by
+  have hideal :
+      (CPTPMap.ofUnitary c.eval (MState.pure ψ₀)).exp_val (compProjObs w).1 =
+      ‖(c.evolve ψ₀.vec) w‖ ^ 2 := by
+    have hborn := succProb_ketToReal_eq_born (applyUnitaryKet c.eval ψ₀) w
+    rw [ofUnitary_pure, ← hborn.2.2.1, hborn.1]
+    rfl
+  rw [noisyCircuit_bornProb, hideal]
 
 /-! ## Verification checks -/
 
@@ -773,9 +870,13 @@ theorem noisyCircuit_bornProb {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1) (c
 #check @depolarizingChannel_comm_ofUnitary
 #check @depolarizingChannel_compose
 #check @ofUnitary_mul
+#check @circuitUnitaries
 #check @noisyCircuitChannel
 #check @noisyCircuitChannel_eq
+#check @noisyCircuit_trajectory_eq_channel
+#check @noisyCircuit_trajectory_succProb_eq_measure
 #check @noisyCircuit_bornProb
+#check @noisyCircuit_bornProb_pure
 
 /--
 info: 'IsotropicGrover.succProb_ketToReal_eq_born' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -802,9 +903,27 @@ info: 'IsotropicGrover.noisyCircuitChannel_eq' depends on axioms: [propext, Clas
 #print axioms noisyCircuitChannel_eq
 
 /--
+info: 'IsotropicGrover.noisyCircuit_trajectory_eq_channel' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyCircuit_trajectory_eq_channel
+
+/--
+info: 'IsotropicGrover.noisyCircuit_trajectory_succProb_eq_measure' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyCircuit_trajectory_succProb_eq_measure
+
+/--
 info: 'IsotropicGrover.noisyCircuit_bornProb' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
 #print axioms noisyCircuit_bornProb
+
+/--
+info: 'IsotropicGrover.noisyCircuit_bornProb_pure' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyCircuit_bornProb_pure
 
 end IsotropicGrover

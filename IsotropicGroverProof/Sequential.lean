@@ -212,7 +212,7 @@ theorem noisyTrajectory_congr_unitSphere (σ : ℝ)
 
 /-! ### Continuity and linearity helpers on the unit sphere -/
 
-/-- Radial-bump extension of a function on `Metric.sphere (0 : E n) 1` to a globally
+/-- Radial-bump extension of a function on `unitSphere n` to a globally
     continuous, globally bounded function on `E n` agreeing with `g` on the unit sphere. -/
 private noncomputable def extendFromSphere (g : E n → ℝ) (x : E n) : ℝ :=
   max 0 (min 1 (2 * ‖x‖ - 1)) * g (‖x‖⁻¹ • x)
@@ -228,7 +228,7 @@ private lemma extendFromSphere_zero_of_norm_le (g : E n → ℝ) {x : E n} (hx :
   simp [extendFromSphere, max_eq_left hle]
 
 private lemma extendFromSphere_continuous {g : E n → ℝ}
-    (hg : ContinuousOn g (Metric.sphere (0 : E n) 1)) :
+    (hg : ContinuousOn g (unitSphere n)) :
     Continuous (extendFromSphere g) := by
   rw [continuous_iff_continuousAt]
   intro x
@@ -245,7 +245,7 @@ private lemma extendFromSphere_continuous {g : E n → ℝ}
         ContinuousOn.inv₀ continuous_norm.continuousOn (fun y hy => norm_ne_zero_iff.mpr hy)
       exact hinv.smul continuousOn_id
     have hproj_maps : Set.MapsTo (fun y : E n => ‖y‖⁻¹ • y)
-        {y : E n | y ≠ 0} (Metric.sphere (0 : E n) 1) := by
+        {y : E n | y ≠ 0} (unitSphere n) := by
       intro y hy
       rw [mem_sphere_zero_iff_norm, norm_smul, Real.norm_eq_abs,
           abs_of_nonneg (inv_nonneg.mpr (norm_nonneg y)),
@@ -257,7 +257,7 @@ private lemma extendFromSphere_continuous {g : E n → ℝ}
     exact hcontOn.continuousAt (hopen.mem_nhds hx)
 
 private lemma extendFromSphere_bounded {g : E n → ℝ}
-    (hg : ContinuousOn g (Metric.sphere (0 : E n) 1)) :
+    (hg : ContinuousOn g (unitSphere n)) :
     ∃ C : ℝ, 0 ≤ C ∧ ∀ x : E n, ‖extendFromSphere g x‖ ≤ C := by
   obtain ⟨M, hM⟩ := (isCompact_sphere (0 : E n) 1).exists_bound_of_continuousOn hg
   refine ⟨max 0 M, le_max_left 0 M, fun x => ?_⟩
@@ -265,7 +265,7 @@ private lemma extendFromSphere_bounded {g : E n → ℝ}
   · subst hx
     rw [extendFromSphere_zero_of_norm_le g (by norm_num), norm_zero]
     exact le_max_left 0 M
-  · have hmem : ‖x‖⁻¹ • x ∈ Metric.sphere (0 : E n) 1 := by
+  · have hmem : ‖x‖⁻¹ • x ∈ unitSphere n := by
       rw [mem_sphere_zero_iff_norm, norm_smul, Real.norm_eq_abs,
           abs_of_nonneg (inv_nonneg.mpr (norm_nonneg x)),
           inv_mul_cancel₀ (norm_ne_zero_iff.mpr hx)]
@@ -334,8 +334,16 @@ lemma ae_isotropicError_mem_sphere {Ψ : E n} (hΨ : ‖Ψ‖ = 1) (θ : ℝ) :
   filter_upwards [perpSphereMeasure_norm_ae Ψ] with e₂ ⟨he₂_perp, he₂_norm⟩
   exact isotropicError_norm Ψ e₂ θ hΨ he₂_norm ((mem_V_perp_iff Ψ e₂).mp he₂_perp)
 
+private lemma integral_perpSphere_extendFromSphere {Ψ : E n} (hΨ : ‖Ψ‖ = 1)
+    (g : E n → ℝ) (θ : ℝ) :
+    ∫ e₂, g (isotropicError Ψ e₂ θ) ∂(perpSphereMeasure Ψ) =
+    ∫ e₂, extendFromSphere g (isotropicError Ψ e₂ θ) ∂(perpSphereMeasure Ψ) := by
+  apply integral_congr_ae
+  filter_upwards [ae_isotropicError_mem_sphere hΨ θ] with e₂ he₂
+  exact (extendFromSphere_eq_on_sphere g he₂).symm
+
 lemma integrable_perpSphere_of_continuousOn {Ψ : E n} (hΨ : ‖Ψ‖ = 1) (θ : ℝ)
-    {g : E n → ℝ} (hg : ContinuousOn g (Metric.sphere (0 : E n) 1)) :
+    {g : E n → ℝ} (hg : ContinuousOn g (unitSphere n)) :
     Integrable (fun e₂ => g (isotropicError Ψ e₂ θ)) (perpSphereMeasure Ψ) := by
   obtain ⟨C, _, hC⟩ := extendFromSphere_bounded hg
   have hg_cont : Continuous (fun e₂ => extendFromSphere g (isotropicError Ψ e₂ θ)) :=
@@ -349,16 +357,11 @@ lemma integrable_perpSphere_of_continuousOn {Ψ : E n} (hΨ : ‖Ψ‖ = 1) (θ 
   exact extendFromSphere_eq_on_sphere g he₂
 
 private lemma continuous_inner_integral_of_continuousOn {Ψ : E n} (hΨ : ‖Ψ‖ = 1)
-    {g : E n → ℝ} (hg : ContinuousOn g (Metric.sphere (0 : E n) 1)) :
+    {g : E n → ℝ} (hg : ContinuousOn g (unitSphere n)) :
     Continuous (fun θ => ∫ e₂, g (isotropicError Ψ e₂ θ) ∂(perpSphereMeasure Ψ)) := by
   obtain ⟨C, _, hC⟩ := extendFromSphere_bounded hg
-  have heq : (fun θ => ∫ e₂, g (isotropicError Ψ e₂ θ) ∂(perpSphereMeasure Ψ)) =
-      (fun θ => ∫ e₂, extendFromSphere g (isotropicError Ψ e₂ θ) ∂(perpSphereMeasure Ψ)) := by
-    ext θ
-    apply integral_congr_ae
-    filter_upwards [ae_isotropicError_mem_sphere hΨ θ] with e₂ he₂
-    exact (extendFromSphere_eq_on_sphere g he₂).symm
-  rw [heq, continuous_iff_continuousAt]
+  simp_rw [integral_perpSphere_extendFromSphere hΨ g]
+  rw [continuous_iff_continuousAt]
   intro θ₀
   have hcont_θ : ∀ e₂ : E n,
       Continuous (fun θ => extendFromSphere g (isotropicError Ψ e₂ θ)) := fun e₂ =>
@@ -375,12 +378,7 @@ private lemma norm_inner_integral_le_of_continuousOn {Ψ : E n} (hΨ : ‖Ψ‖ 
     {g : E n → ℝ} {C : ℝ}
     (hC : ∀ x : E n, ‖extendFromSphere g x‖ ≤ C) (θ : ℝ) :
     ‖∫ e₂, g (isotropicError Ψ e₂ θ) ∂(perpSphereMeasure Ψ)‖ ≤ C := by
-  have heq : ∫ e₂, g (isotropicError Ψ e₂ θ) ∂(perpSphereMeasure Ψ) =
-      ∫ e₂, extendFromSphere g (isotropicError Ψ e₂ θ) ∂(perpSphereMeasure Ψ) := by
-    apply integral_congr_ae
-    filter_upwards [ae_isotropicError_mem_sphere hΨ θ] with e₂ he₂
-    exact (extendFromSphere_eq_on_sphere g he₂).symm
-  rw [heq]
+  rw [integral_perpSphere_extendFromSphere hΨ g θ]
   calc ‖∫ e₂, extendFromSphere g (isotropicError Ψ e₂ θ) ∂(perpSphereMeasure Ψ)‖
       ≤ C * (perpSphereMeasure Ψ).real Set.univ :=
         norm_integral_le_of_norm_le_const (ae_of_all _ fun e₂ => hC _)
@@ -388,7 +386,7 @@ private lemma norm_inner_integral_le_of_continuousOn {Ψ : E n} (hΨ : ‖Ψ‖ 
 
 lemma integrable_outer_integral_of_continuousOn (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
     {Ψ : E n} (hΨ : ‖Ψ‖ = 1) {g : E n → ℝ}
-    (hg : ContinuousOn g (Metric.sphere (0 : E n) 1)) :
+    (hg : ContinuousOn g (unitSphere n)) :
     Integrable (fun θ => ∫ e₂, g (isotropicError Ψ e₂ θ) ∂(perpSphereMeasure Ψ))
       (poissonAngleMeasure (d n) σ) := by
   have := poissonAngleMeasure_d_isProbMeasure n σ hσ
@@ -411,11 +409,11 @@ private lemma continuousAt_isotropicError_rotTo {Ψ₀ : E n} (hsum_ne : Ψ₀ +
   fun_prop
 
 private lemma continuousOn_oneStep_unitSphere (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
-    {g : E n → ℝ} (hg : ContinuousOn g (Metric.sphere (0 : E n) 1)) :
+    {g : E n → ℝ} (hg : ContinuousOn g (unitSphere n)) :
     ContinuousOn
       (fun Ψ => ∫ θ, ∫ e₂, g (isotropicError Ψ e₂ θ)
         ∂(perpSphereMeasure Ψ) ∂(poissonAngleMeasure (d n) σ))
-      (Metric.sphere (0 : E n) 1) := by
+      (unitSphere n) := by
   have := poissonAngleMeasure_d_isProbMeasure n σ hσ
   obtain ⟨C, _, hC⟩ := extendFromSphere_bounded hg
   have hg_ext_cont : Continuous (extendFromSphere g) := extendFromSphere_continuous hg
@@ -426,9 +424,9 @@ private lemma continuousOn_oneStep_unitSphere (σ : ℝ) (hσ : σ ∈ Set.Icc 0
     have : ‖Ψ₀ + Ψ₀‖ = 0 := by rw [h0, norm_zero]
     rw [← two_smul ℝ Ψ₀, norm_smul, Real.norm_ofNat, hΨ₀, mul_one] at this
     norm_num at this
-  have hev_sphere : ∀ᶠ Ψ in 𝓝[Metric.sphere (0 : E n) 1] Ψ₀,
-      Ψ ∈ Metric.sphere (0 : E n) 1 := self_mem_nhdsWithin
-  have hev_ne : ∀ᶠ Ψ in 𝓝[Metric.sphere (0 : E n) 1] Ψ₀, Ψ₀ + Ψ ≠ 0 := by
+  have hev_sphere : ∀ᶠ Ψ in 𝓝[unitSphere n] Ψ₀,
+      Ψ ∈ unitSphere n := self_mem_nhdsWithin
+  have hev_ne : ∀ᶠ Ψ in 𝓝[unitSphere n] Ψ₀, Ψ₀ + Ψ ≠ 0 := by
     have hcont_add : Continuous (fun Ψ : E n => Ψ₀ + Ψ) := continuous_const.add continuous_id
     exact (hcont_add.continuousAt.eventually
       (isOpen_ne.mem_nhds hsum_ne)).filter_mono nhdsWithin_le_nhds
@@ -438,28 +436,24 @@ private lemma continuousOn_oneStep_unitSphere (σ : ℝ) (hσ : σ ∈ Set.Icc 0
       ∫ e₂, extendFromSphere g (isotropicError Ψ (rotTo (Ψ₀ + Ψ) e₂) θ)
         ∂(perpSphereMeasure Ψ₀) := by
     intro Ψ hΨ hw θ
-    have hext : ∫ e₂, g (isotropicError Ψ e₂ θ) ∂(perpSphereMeasure Ψ) =
-        ∫ e₂, extendFromSphere g (isotropicError Ψ e₂ θ) ∂(perpSphereMeasure Ψ) := by
-      apply integral_congr_ae
-      filter_upwards [ae_isotropicError_mem_sphere hΨ θ] with e₂ he₂
-      exact (extendFromSphere_eq_on_sphere g he₂).symm
     let L := rotToEquiv (Ψ₀ + Ψ) hw
     have hLΨ₀ : L Ψ₀ = Ψ := rotTo_unit_sum hΨ₀ hΨ hw
     have hmap : perpSphereMeasure Ψ = Measure.map L (perpSphereMeasure Ψ₀) := by
       rw [← hLΨ₀, perpSphereMeasure_map_isometry Ψ₀ L]
     have hcont_e₂ : Continuous (fun e₂ => extendFromSphere g (isotropicError Ψ e₂ θ)) :=
       hg_ext_cont.comp (by unfold isotropicError; fun_prop)
-    rw [hext, hmap, integral_map L.continuous.aemeasurable hcont_e₂.aestronglyMeasurable]
+    rw [integral_perpSphere_extendFromSphere hΨ g θ, hmap,
+        integral_map L.continuous.aemeasurable hcont_e₂.aestronglyMeasurable]
     rfl
   -- Pointwise convergence in `θ` of the inner integral as `Ψ → Ψ₀` on the sphere
   have hinner_tendsto : ∀ θ : ℝ,
       Tendsto (fun Ψ => ∫ e₂, g (isotropicError Ψ e₂ θ) ∂(perpSphereMeasure Ψ))
-        (𝓝[Metric.sphere (0 : E n) 1] Ψ₀)
+        (𝓝[unitSphere n] Ψ₀)
         (𝓝 (∫ e₂, g (isotropicError Ψ₀ e₂ θ) ∂(perpSphereMeasure Ψ₀))) := by
     intro θ
     rw [hinner_rot hΨ₀ hsum_ne θ]
     have hev_eq : (fun Ψ => ∫ e₂, g (isotropicError Ψ e₂ θ) ∂(perpSphereMeasure Ψ))
-        =ᶠ[𝓝[Metric.sphere (0 : E n) 1] Ψ₀]
+        =ᶠ[𝓝[unitSphere n] Ψ₀]
         (fun Ψ => ∫ e₂, extendFromSphere g (isotropicError Ψ (rotTo (Ψ₀ + Ψ) e₂) θ)
           ∂(perpSphereMeasure Ψ₀)) := by
       filter_upwards [hev_sphere, hev_ne] with Ψ hΨ_mem hw
@@ -484,19 +478,19 @@ private lemma continuousOn_oneStep_unitSphere (σ : ℝ) (hσ : σ ∈ Set.Icc 0
       norm_inner_integral_le_of_continuousOn
         (mem_sphere_zero_iff_norm.mp hΨ_mem) hC θ
 
-/-- `noisyTrajectoryExpectation` preserves `ContinuousOn` on the unit sphere
-    `Metric.sphere (0 : E n) 1` for any gate list and `σ ∈ [0, 1]`. -/
+/-- `noisyTrajectoryExpectation` preserves `ContinuousOn` on `unitSphere n`
+    for any gate list and `σ ∈ [0, 1]`. -/
 theorem noisyTrajectoryExpectation_continuousOn_unitSphere (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
     (gates : List (E n ≃ₗᵢ[ℝ] E n)) {f : E n → ℝ}
-    (hf : ContinuousOn f (Metric.sphere (0 : E n) 1)) :
+    (hf : ContinuousOn f (unitSphere n)) :
     ContinuousOn (fun Φ₀ => noisyTrajectoryExpectation n σ gates Φ₀ f)
-      (Metric.sphere (0 : E n) 1) := by
+      (unitSphere n) := by
   induction gates with
   | nil => exact hf
   | cons U rest ih =>
     have hstep := continuousOn_oneStep_unitSphere σ hσ ih
     have hU_maps : Set.MapsTo (U : E n → E n)
-        (Metric.sphere (0 : E n) 1) (Metric.sphere (0 : E n) 1) := by
+        (unitSphere n) (unitSphere n) := by
       intro x hx
       rw [mem_sphere_zero_iff_norm] at hx ⊢
       rw [U.norm_map, hx]
@@ -538,8 +532,8 @@ theorem noisyTrajectoryExpectation_neg (σ : ℝ)
 theorem noisyTrajectoryExpectation_add_of_continuousOn (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
     (gates : List (E n ≃ₗᵢ[ℝ] E n)) (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1)
     {f g : E n → ℝ}
-    (hf : ContinuousOn f (Metric.sphere (0 : E n) 1))
-    (hg : ContinuousOn g (Metric.sphere (0 : E n) 1)) :
+    (hf : ContinuousOn f (unitSphere n))
+    (hg : ContinuousOn g (unitSphere n)) :
     noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => f Ψ + g Ψ) =
     noisyTrajectoryExpectation n σ gates Φ₀ f +
     noisyTrajectoryExpectation n σ gates Φ₀ g := by
@@ -619,7 +613,7 @@ theorem noisyTrajectory_bilinear (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
       intro x y
       rw [← idealGateIso_apply, ← W.symm.inner_map_map (W x) y, W.symm_apply_apply]
     have hquad_cont : ContinuousOn (fun Ψ : E n => ⟪Ψ, W.symm u⟫_ℝ * ⟪Ψ, W.symm v⟫_ℝ)
-        (Metric.sphere (0 : E n) 1) :=
+        (unitSphere n) :=
       ((continuous_id.inner continuous_const).mul
         (continuous_id.inner continuous_const)).continuousOn
     have hinner_eq : ∀ θ : ℝ,
