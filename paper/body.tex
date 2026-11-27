@@ -1,0 +1,396 @@
+\title{Exact measurement statistics and complexity of quantum circuits and Grover's algorithm under isotropic gate errors}
+\input{metadata}
+\date{\today}
+
+\begin{abstract}
+Isotropic pure-state gate errors on the Hilbert-space unit sphere resist conventional quantum error correction because their rotational symmetry prevents distinguishable error syndromes. While recent numerical simulations of Grover's search up to thirteen qubits uncovered an empirical zero-free-parameter fidelity-mixture law, exact analytical expressions and asymptotic scaling laws remained open. Here we prove that across any sequence of unitary gates interleaved with heterogeneous isotropic perturbations, all finite-dimensional sphere factors cancel algebraically in expectation. By combining one-dimensional Poisson-kernel antiderivative recurrences with ambient equatorial reflections, we establish exact single-copy equivalence to the complex depolarizing channel for arbitrary observables and multi-target search. From this closed-form expression, we derive the noise-shifted optimal iteration count and prove that fixed per-gate error rates induce a quadratic-to-linear query-complexity crossover. We determine heterogeneous single- and two-qubit gate-infidelity budgets through sixty qubits and accompany all core theorems with a zero-axiom formalization in the Supplemental Material.
+\end{abstract}
+
+\maketitle
+
+\section{Introduction}
+\label{sec:intro}
+
+Contemporary quantum processors experience physical gate error rates between $0.01\%$ and $1\%$ per operation, whereas utility-scale quantum algorithms require logical error rates well below $10^{-4}$ across deep circuits. Fault-tolerant quantum error correction (QEC) addresses local hardware noise by encoding logical states redundantly and extracting discrete error syndromes~\cite{NielsenChuang2010,Fowler2012}. Recent experiments across superconducting and neutral-atom architectures have demonstrated syndrome-based error suppression and below-threshold logical memory~\cite{Krinner2022,Bluvstein2024,GoogleQuantumAI2025}. However, these fault-tolerance thresholds rely on noise models whose dominant Kraus operators act locally on small subsets of physical qubits. When perturbations instead act with global rotational invariance around the statevector, standard syndrome partitions fail.
+
+Pure-state isotropic gate errors provide a canonical geometric formulation of such rotationally symmetric noise~\cite{FonsecaDeOliveira2017,LacallePozoCoronado2019,Lacalle2021,Lacalle2026}. After each $n$-qubit gate, the ideal state on the real unit sphere $S^{2^{n+1}-1} \subset \mathbb{R}^{2^{n+1}}$ undergoes a random great-circle rotation whose polar angle follows the spherical Poisson kernel of spread parameter $\sigma \in [0, 1]$ and whose tangent direction is uniform on the orthogonal equator. Lacalle \emph{et al.}~\cite{Lacalle2021} proved that quantum error-correcting codes cannot correct such isotropic perturbations regardless of code distance or encoding map. While noisy Grover search has been studied extensively under unitary gate perturbations, faulty phase oracles, and Pauli or depolarizing channels~\cite{Shapira2003,Shenvi2003,Salas2008,Cohn2016}, its behavior under microscopic pure-state isotropic errors was investigated only recently through Monte Carlo statevector simulations~\cite{SahaRoyLacalle2026}. Because explicitly sampling $S^{2^{n+1}-1}$ requires building an orthonormal tangent basis of size $2^{n+1} - 1$ and inverting high-dimensional angular distributions via numerical quadrature, direct simulation in Ref.~\cite{SahaRoyLacalle2026} was limited to $n \le 13$ qubits, uniform per-gate fidelity $\sigma$, and a single marked item ($M = 1$). Across those simulations, Ref.~\cite{SahaRoyLacalle2026} observed that an empirical zero-free-parameter mixture formula, $p_e(n) = \sigma^{2G(n)} p_{\mathrm{ideal}}(n) + (1 - \sigma^{2G(n)})/2^n$ for circuit gate count $G(n)$, tracked all sampled averages while leaving heterogeneous gate fidelities, multi-target search, asymptotic scaling, and analytical proof as open problems.
+
+Resolving this empirical observation connects four distinct themes in quantum science and applied mathematics. From a quantum-information perspective, deriving the exact ensemble average clarifies when a random pure-state Markov trajectory on $S^{2^{n+1}-1}$ is operationally indistinguishable from a mixed-state completely positive trace-preserving (CPTP) channel, and where nonlinear multi-copy statistics separate them. From an applied-mathematics perspective, evaluating spherical Poisson moments in exponentially large dimension $d = 2^{n+1}$ ordinarily invokes Gegenbauer expansions or Laplace--Beltrami partial differential equations~\cite{Axler2001}, yet reduces here to elementary one-dimensional calculus and ambient hyperplane reflections~\cite{Muirhead1982,MardiaJupp2000}. From a complexity-theoretic perspective, an exact finite-$n$ success formula determines optimal early-stopping schedules and locates the crossover from quadratic $O(\sqrt{N/M})$ speedup to classical $\Omega(N/M)$ scaling~\cite{Grover1996,Grover1997,Boyer1998,Zalka1999}. From a resource-estimation perspective, gate-type factorization enables exact single- and two-qubit fidelity budgeting at utility scale ($n = 50$--$60$) without statevector sampling.
+
+To establish these results in a self-contained manner, Sec.~\ref{sec:model} formulates the real Euclidean sphere embedding $\mathbb{C}^N \cong \mathbb{R}^{2N}$ ($N = 2^n$), the closed-interval spherical Poisson kernel across $\sigma \in [0, 1]$, and heterogeneous multi-gate pure-state Markov trajectories. Our main mathematical results appear in Sec.~\ref{sec:theorems}, where Theorems~\ref{thm:poisson-moments}--\ref{thm:channel-duality} prove exact Poisson cosine moments for all $d \ge 2$, demonstrate exact single-step cancellation of all $(2N - 1)$ equatorial factors, and establish emergence of the complex depolarizing channel together with primitive-gate count factorization. In Sec.~\ref{sec:grover}, Corollary~\ref{cor:multi-grover} and Proposition~\ref{prop:optimal-k} specialize this framework to $M$-target Grover search, proving exactness of the empirical law of Ref.~\cite{SahaRoyLacalle2026} and deriving the closed-form noise-shifted optimal iteration count $K^*$. Section~\ref{sec:complexity-resources} analyzes the repeat-until-success query crossover, the multi-target repetition growth base $b(\sigma, M)$, and heterogeneous single--two-qubit fidelity budgets up to $n = 60$ qubits, followed by physical limitations and future directions in Sec.~\ref{sec:discussion}. Every algebraic, measure-theoretic, channel, heterogeneous-gate, and multi-target Grover theorem in Secs.~\ref{sec:model}--\ref{sec:grover} has been machine-checked with zero custom axioms in the Lean~4 theorem prover~\cite{MouraUllrich2021,Mathlib2020}, as documented in the \suppRef.
+
+\section{Isotropic Pure-State Error Model on \texorpdfstring{$\mathbb{C}^N \cong \mathbb{R}^{2N}$}{C\^N = R\^(2N)}}
+\label{sec:model}
+
+Before evaluating circuit expectations, we formulate the geometry of isotropic pure-state perturbations on an $n$-qubit Hilbert space of complex dimension $N = 2^n$. Embedding complex statevectors into a real Euclidean space of dimension $d = 2N = 2^{n+1}$ places real and imaginary amplitude perturbations on an equal geometric footing while turning computational-basis Born probabilities into rank-2 orthogonal projections.
+
+\subsection{Real Euclidean Embedding, Unitary Isometries, and Born Projections}
+\label{sec:realification}
+
+Expand an arbitrary complex vector $\ket{\psi} = \sum_{x=0}^{N-1} \psi_x \ket{x} \in \mathbb{C}^N$ in the computational basis by separating real and imaginary components $\psi_x = \alpha_{2x} + i\alpha_{2x+1}$ for each $x \in \{0, 1, \dots, N - 1\}$. The realification map $\iota : \mathbb{C}^N \to \mathbb{R}^d$ with ambient real dimension $d = 2N = 2^{n+1}$ is defined by
+\begin{equation}
+\iota(\ket{\psi}) = (\alpha_0, \alpha_1, \alpha_2, \alpha_3, \dots, \alpha_{d-2}, \alpha_{d-1})^\top \in \mathbb{R}^d,
+\label{eq:realification}
+\end{equation}
+where $\alpha_{2x} = \operatorname{Re}\psi_x$ and $\alpha_{2x+1} = \operatorname{Im}\psi_x$ occupy paired even and odd coordinates along the standard orthonormal basis $\{\hat{\mathbf{e}}_0, \dots, \hat{\mathbf{e}}_{d-1}\}$ of $\mathbb{R}^d$. Because $\abs{\psi_x}^2 = \alpha_{2x}^2 + \alpha_{2x+1}^2$, the map $\iota$ preserves Euclidean norm, i.e., $\norm{\iota(\ket{\psi})}_{\mathbb{R}^d}^2 = \braket{\psi | \psi} = 1$, identifying normalized $n$-qubit pure states bijectively with points $\Psi = \iota(\ket{\psi})$ on the $(d - 1)$-dimensional unit sphere $S^{d-1} \subset \mathbb{R}^d$. Note that Refs.~\cite{LacallePozoCoronado2019,SahaRoyLacalle2026} denote the sphere dimension itself by $d_{\mathrm{sph}} = 2^{n+1} - 1$; throughout this paper, $d = 2N = 2^{n+1} \ge 2$ denotes the ambient Euclidean dimension so that the unit sphere is written $S^{d-1}$.
+
+Every $n$-qubit unitary gate $U \in \mathrm{U}(N)$ preserves $\braket{\psi | \psi}$ and therefore lifts via $\widetilde{U} = \iota \circ U \circ \iota^{-1}$ to an orthogonal linear isometry $\widetilde{U} \in \mathrm{O}(d)$ satisfying $\widetilde{U}^{-1} = \widetilde{U}^\top = \widetilde{U^\dagger}$. Geometrically, $\mathrm{U}(N)$ embeds into $\mathrm{O}(d)$ as the subgroup of orthogonal transformations commuting with the skew-symmetric complex-structure operator $J(\alpha_{2x}, \alpha_{2x+1}) = (-\alpha_{2x+1}, \alpha_{2x})$, whereas our sphere-averaging theorems hold for arbitrary real linear isometries in $\mathrm{O}(d)$. Under $\iota$, the Born probability of measuring computational-basis outcome $w \in \{0, \dots, N - 1\}$ on state $\Psi = \iota(\ket{\psi})$ evaluates to the rank-2 coordinate sum
+\begin{equation}
+p(w \mid \Psi) = \ip{\Psi}{\hat{\mathbf{e}}_{2w}}^2 + \ip{\Psi}{\hat{\mathbf{e}}_{2w+1}}^2 = \abs{\braket{w | \psi}}^2,
+\label{eq:born-real}
+\end{equation}
+where $\ip{\cdot}{\cdot}$ denotes the standard inner product on $\mathbb{R}^d$. Summing Eq.~\eqref{eq:born-real} over all $N$ basis outcomes recovers Parseval's normalization $\sum_{w=0}^{N-1} p(w \mid \Psi) = \norm{\Psi}^2 = 1$. The pairing of two orthogonal real axes ($\hat{\mathbf{e}}_{2w}$ and $\hat{\mathbf{e}}_{2w+1}$) inside an ambient space of $d = 2N$ real coordinates sets the uniform decoherent scale $2/d = 1/N$.
+
+\subsection{Tangent-Sphere Perturbation and Spherical Poisson Kernel}
+\label{sec:poisson-model}
+
+Given an ideal post-gate state $\Psi \in S^{d-1}$, a single isotropic pure-state error with fidelity parameter $\sigma \in [0, 1]$ maps $\Psi$ to a perturbed unit vector $\Psi' \in S^{d-1}$ along a random great circle~\cite{LacallePozoCoronado2019,SahaRoyLacalle2026}:
+\begin{equation}
+\Psi' = (\cos\theta)\Psi + (\sin\theta)\mathbf{e}_2,
+\label{eq:isotropic-step}
+\end{equation}
+where the equatorial direction $\mathbf{e}_2$ and polar rotation angle $\theta \in [0, \pi]$ are statistically independent. Here $\mathbf{e}_2$ is distributed according to the normalized rotation-invariant Haar probability measure $\mu_\perp(\Psi)$ on the $(d - 2)$-dimensional unit equator $S(V_\perp(\Psi)) = \{\mathbf{v} \in S^{d-1} : \ip{\Psi}{\mathbf{v}} = 0\}$ of the orthogonal tangent hyperplane $V_\perp(\Psi)$, which has real dimension $\dim_{\mathbb{R}} V_\perp(\Psi) = d - 1 \ge 1$. Because $\norm{\Psi} = \norm{\mathbf{e}_2} = 1$ and $\ip{\Psi}{\mathbf{e}_2} = 0$, every realization satisfies $\norm{\Psi'}^2 = \cos^2\theta + \sin^2\theta = 1$ identically.
+
+For $\sigma \in [0, 1)$, the polar angle $\theta \in [0, \pi]$ is governed by the spherical Poisson kernel on the unit ball $B^d \subset \mathbb{R}^d$ evaluated at interior point $\sigma\Psi$~\cite{LacallePozoCoronado2019,Axler2001}. Integrating the surface Poisson kernel $(1 - \sigma^2)/\norm{\sigma\Psi - \xi}^d$ over the $(d - 2)$-dimensional latitude sphere $\{\xi \in S^{d-1} : \ip{\Psi}{\xi} = \cos\theta\}$ of radius $\sin\theta$ yields the unnormalized polar density
+\begin{equation}
+g_d(\theta; \sigma) = \frac{(1 - \sigma^2)\sin^{d-2}\theta}{D(\sigma, \theta)^{d/2}}, \quad D(\sigma, \theta) = 1 + \sigma^2 - 2\sigma\cos\theta,
+\label{eq:poisson-density}
+\end{equation}
+where $D(\sigma, \theta) = \norm{\sigma\Psi - \xi}^2 \ge (1 - \sigma)^2 > 0$ is strictly positive across $\theta \in [0, \pi]$. Normalizing by $Z_d(\sigma) = \int_0^\pi g_d(\theta; \sigma)\,d\theta > 0$ and extending continuously to the noiseless endpoint $\sigma = 1$ defines the closed-interval angle probability measure $\nu_{d,\sigma}$ on $[0, \pi]$ via
+\begin{equation}
+d\nu_{d,\sigma}(\theta) =
+\begin{cases}
+Z_d(\sigma)^{-1} g_d(\theta; \sigma)\,d\theta, & \sigma \in [0, 1), \\[3pt]
+d\delta_0(\theta), & \sigma = 1
+\end{cases},
+\label{eq:poisson-measure}
+\end{equation}
+where $\delta_0$ is the Dirac point mass at $\theta = 0$. The two boundary values capture opposite physical limits: as $\sigma \to 1$, the denominator $D(\sigma, 0) = (1 - \sigma)^2$ concentrates all mass at $\theta = 0$, i.e., $\Psi' = \Psi$ without error; conversely, at $\sigma = 0$, Eq.~\eqref{eq:poisson-density} simplifies to $g_d(\theta; 0) = \sin^{d-2}\theta$, which is the exact polar-angle marginal of the uniform Haar measure on $S^{d-1}$, erasing all memory of $\Psi$. For hardware context, near $\sigma \to 1$ we show below that $1 - \sigma$ acts directly as a single-gate amplitude-overlap infidelity, so $\sigma = 0.999$ corresponds to a gate error scale of $10^{-3}$.
+
+\input{figures/fig1_sphere_duality}
+
+\subsection{Heterogeneous Multi-Gate Pure-State Markov Trajectories}
+\label{sec:markov-model}
+
+Physical quantum processors exhibit substantially different error rates across single-qubit rotations and multi-qubit entangling gates. Consider an $n$-qubit circuit decomposed into $G \ge 0$ sequential gate stages $((U_1, \sigma_1), \dots, (U_G, \sigma_G))$ with $U_g \in \mathrm{U}(N)$ and gate-specific fidelity parameters $\sigma_g \in [0, 1]$. Starting from an initial unit state $\Psi_0 = \Phi_0 = \iota(\ket{\psi_0}) \in S^{d-1}$, the ideal noiseless trajectory evolves deterministically to $\Phi_G = \widetilde{U}_G \cdots \widetilde{U}_1 \Phi_0$, whereas the microscopic noisy pure-state Markov chain evolves recursively for $g = 1, \dots, G$ according to
+\begin{equation}
+\Psi_g = (\cos\theta_g)(\widetilde{U}_g \Psi_{g-1}) + (\sin\theta_g)\mathbf{e}_{2,g},
+\label{eq:markov-chain}
+\end{equation}
+where $\theta_g \sim \nu_{d,\sigma_g}$ and $\mathbf{e}_{2,g} \sim \mu_\perp(\widetilde{U}_g \Psi_{g-1})$ are drawn conditional on $\Psi_{g-1}$. Unlike post-circuit noise models that perturb only $\Phi_G$, the tangent hyperplane $V_\perp(\widetilde{U}_g \Psi_{g-1})$ in Eq.~\eqref{eq:markov-chain} tilts randomly at every gate stage because it depends on the already-perturbed state $\Psi_{g-1}$. Figure~\ref{fig:sphere-duality} illustrates this single-step tangent-sphere geometry alongside its emergent mixed-state channel representation established in Sec.~\ref{sec:theorems}.
+
+\section{Exact Spherical Moments and Microscopic-to-Channel Duality}
+\label{sec:theorems}
+
+Evaluating the multi-gate expectation of Eq.~\eqref{eq:markov-chain} directly in spherical coordinates appears formidable at first sight because $d = 2^{n+1}$ grows exponentially with register size and the equatorial measure $\mu_\perp(\widetilde{U}_g \Psi_{g-1})$ varies stochastically from gate to gate. In this section, we show that one-dimensional antiderivative recurrences and coordinate-free orthogonal reflections eliminate all intermediate $(2N - 1)$ dimension factors at the single-gate bilinear level, collapsing the $G$-step pure-state Markov chain onto the complex $n$-qubit depolarizing channel without invoking spherical convolution on $\mathrm{SO}(d)$.
+
+\subsection{Spherical Poisson Moments via One-Dimensional Calculus}
+\label{sec:poisson-moments}
+
+Every second-moment observable of the perturbation in Eq.~\eqref{eq:isotropic-step} depends on $\theta$ solely through $\E[\cos\theta]$ and $\E[\cos^2\theta]$. We establish both moments across all dimensions $d \ge 2$ and all $\sigma \in [0, 1]$ using elementary one-dimensional calculus.
+
+\begin{theorem}[Spherical Poisson cosine moments]
+\label{thm:poisson-moments}
+For every integer $d \ge 2$ and fidelity parameter $\sigma \in [0, 1]$, the measure $\nu_{d,\sigma}$ in Eq.~\eqref{eq:poisson-measure} is a well-defined probability measure on $[0, \pi]$ with exact first and second cosine moments
+\begin{equation}
+\E_{\theta \sim \nu_{d,\sigma}}[\cos\theta] = \sigma, \qquad \E_{\theta \sim \nu_{d,\sigma}}[\cos^2\theta] = \frac{(d - 1)\sigma^2 + 1}{d}.
+\label{eq:poisson-moments}
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+At $\sigma = 1$, $\nu_{d,1} = \delta_0$ gives $\E[\cos\theta] = \cos 0 = 1$ and $\E[\cos^2\theta] = \cos^2 0 = 1$, matching Eq.~\eqref{eq:poisson-moments}. Fix $\sigma \in [0, 1)$ and define the unnormalized moments $I_k(d) = \int_0^\pi g_d(\theta; \sigma)\cos^k\theta\,d\theta$ for $k \in \{0, 1, 2\}$, where $I_0(d) = Z_d(\sigma) > 0$. From Eq.~\eqref{eq:poisson-density}, $g_{d+2}(\theta; \sigma) D(\sigma, \theta) = g_d(\theta; \sigma)\sin^2\theta$ and $\partial_\theta D(\sigma, \theta) = 2\sigma\sin\theta$. Define three continuously differentiable auxiliary functions on $[0, \pi]$:
+\begin{align}
+\tilde{G}_0(\theta) &= g_d(\theta; \sigma)\sin\theta, \nonumber \\
+\tilde{F}_0(\theta) &= D(\sigma, \theta)\tilde{G}_0(\theta), \nonumber \\
+\tilde{G}_1(\theta) &= \cos\theta\,\tilde{G}_0(\theta).
+\label{eq:three-antiderivs}
+\end{align}
+Because $d \ge 2$ implies $d - 1 \ge 1$, the factor $\sin^{d-1}\theta$ inside $\tilde{G}_0(\theta)$ vanishes at both endpoints $\theta = 0$ and $\theta = \pi$, so $\tilde{G}_0$, $\tilde{F}_0$, and $\tilde{G}_1$ all evaluate to zero at $0$ and $\pi$. Differentiating each function with respect to $\theta$ via the product rule and substituting $\sin^2\theta = 1 - \cos^2\theta$ together with $g_{d+2} D = g_d\sin^2\theta$ yields pointwise identities whose definite integrals over $[0, \pi]$ vanish by the Fundamental Theorem of Calculus:
+\begin{align}
+d\sigma\,I_0(d + 2) &= (d - 1)I_1(d), \label{eq:rec-I} \\
+d\sigma\,I_2(d) &= (d - 1)(1 + \sigma^2)I_1(d) - (d - 2)\sigma\,I_0(d), \label{eq:rec-II} \\
+d\sigma\,I_1(d + 2) &= d\,I_2(d) - I_0(d). \label{eq:rec-III}
+\end{align}
+At $\sigma = 0$, Eq.~\eqref{eq:rec-I} gives $(d - 1)I_1(d) = 0 \implies I_1(d) = 0$, while Eq.~\eqref{eq:rec-III} gives $d\,I_2(d) = I_0(d) \implies I_2(d)/I_0(d) = 1/d$, proving Eq.~\eqref{eq:poisson-moments} at $\sigma = 0$.
+
+Now take $\sigma \in (0, 1)$. Forming $\sigma\,\text{Eq.~\eqref{eq:rec-III}} + \text{Eq.~\eqref{eq:rec-II}} - \sigma^2\,\text{Eq.~\eqref{eq:rec-I}}$ eliminates $I_2(d)$; if $I_1(d) = \sigma I_0(d)$ holds at dimension $d$, the right-hand side reduces to $[(d - 1)(1 + \sigma^2)\sigma - (d - 2)\sigma - \sigma - (d - 1)\sigma^3]I_0(d) = 0$, whence dividing by $d\sigma^2 \ne 0$ yields $I_1(d + 2) = \sigma I_0(d + 2)$. Thus the first-moment relation propagates by two-step parity induction $d \mapsto d + 2$ once verified at $d = 2$ and $d = 3$. At $d = 2$, $g_2(\theta; \sigma) = (1 - \sigma^2)/(1 + \sigma^2 - 2\sigma\cos\theta)$ is the classical two-dimensional disc Poisson kernel; folding $[0, 2\pi]$ onto $[0, \pi]$ by evenness of $\cos\theta$ evaluates $I_0(2) = \pi$ and $I_1(2) = \pi\sigma = \sigma I_0(2)$ (equivalently via the tangent half-angle substitution $t = \tan(\theta/2)$). At $d = 3$, consider the explicit antiderivative
+\begin{equation}
+\tilde{H}_3(\theta) = -\frac{1 - \sigma^2}{2\sigma^2}\Bigl[(1 - \sigma^2)D(\sigma, \theta)^{-1/2} + D(\sigma, \theta)^{1/2}\Bigr].
+\label{eq:antideriv-d3}
+\end{equation}
+Differentiating Eq.~\eqref{eq:antideriv-d3} gives $\tilde{H}_3'(\theta) = g_3(\theta; \sigma)(\cos\theta - \sigma)$. Since $\sqrt{D(\sigma, 0)} = 1 - \sigma$ and $\sqrt{D(\sigma, \pi)} = 1 + \sigma$ for $\sigma \in (0, 1)$, the bracketed sum equals $(1 + \sigma) + (1 - \sigma) = 2$ at both $\theta = 0$ and $\theta = \pi$, giving $I_1(3) - \sigma I_0(3) = \tilde{H}_3(\pi) - \tilde{H}_3(0) = 0$. Two-step induction therefore establishes $I_1(d) = \sigma I_0(d)$ for all $d \ge 2$. Substituting $I_1(d) = \sigma I_0(d)$ back into Eq.~\eqref{eq:rec-II} and canceling $\sigma \ne 0$ gives $d\,I_2(d) = [(d - 1)\sigma^2 + 1]I_0(d)$. Dividing by $I_0(d)$ completes the proof.
+\end{proof}
+
+Physically, $\E[\cos\theta] = \sigma$ identifies $\sigma = \E[\ip{\Psi'}{\Psi}]$ as the mean real statevector overlap per gate, while the strictly positive variance $\Var(\cos\theta) = \E[\cos^2\theta] - \sigma^2 = (1 - \sigma^2)/d$ for $\sigma < 1$ quantifies the irreducible geometric spread across $d$ real dimensions. From a harmonic-analysis viewpoint~\cite{Axler2001}, the polynomial $H_2(\mathbf{x}) = \ip{\mathbf{x}}{\Psi}^2 - \norm{\mathbf{x}}^2/d + 1/d$ is harmonic on $\mathbb{R}^d$ ($\Delta H_2 = 2 - 2d/d = 0$) and coincides with $\ip{\xi}{\Psi}^2 = \cos^2\theta$ on $S^{d-1}$, so evaluating $H_2(\sigma\Psi) = \sigma^2 - \sigma^2/d + 1/d$ recovers Eq.~\eqref{eq:poisson-moments} geometrically; the one-dimensional proof above achieves the same result without multivariable surface-measure disintegration.
+
+\subsection{Equatorial Reflection Symmetry and Single-Step \texorpdfstring{$(2N - 1)$}{(2N - 1)} Cancellation}
+\label{sec:reflection-cancellation}
+
+Rather than expanding individual basis probabilities in hyperspherical angles $\theta_1, \dots, \theta_{d-2}$ as in Algorithm~1 of Ref.~\cite{SahaRoyLacalle2026}, we evaluate the expectation of the general real bilinear form $\ip{\Psi'}{\mathbf{u}}\ip{\Psi'}{\mathbf{v}}$ for arbitrary test vectors $\mathbf{u}, \mathbf{v} \in \mathbb{R}^d$ using orthogonal reflections that leave $\Psi$ fixed~\cite{Muirhead1982,MardiaJupp2000}.
+
+\begin{theorem}[Equatorial moments and bilinear cancellation]
+\label{thm:bilinear}
+Let $\Psi \in S^{d-1} \subset \mathbb{R}^d$ ($d = 2N \ge 2$), $\sigma \in [0, 1]$, and $\Psi' = (\cos\theta)\Psi + (\sin\theta)\mathbf{e}_2$ with independent $\theta \sim \nu_{d,\sigma}$ and $\mathbf{e}_2 \sim \mu_\perp(\Psi)$. Let $P_\perp \mathbf{u} = \mathbf{u} - \ip{\Psi}{\mathbf{u}}\Psi$ denote orthogonal projection onto $V_\perp(\Psi)$. For all $\mathbf{u}, \mathbf{v} \in \mathbb{R}^d$:
+\begin{enumerate}
+\item The equatorial moments satisfy
+\begin{equation}
+\E_{\mathbf{e}_2}[\ip{\mathbf{e}_2}{\mathbf{u}}] = 0, \quad \E_{\mathbf{e}_2}[\ip{\mathbf{e}_2}{\mathbf{u}}\ip{\mathbf{e}_2}{\mathbf{v}}] = \frac{\ip{P_\perp \mathbf{u}}{P_\perp \mathbf{v}}}{d - 1}.
+\label{eq:equatorial-moments}
+\end{equation}
+\item Averaging jointly over $(\theta, \mathbf{e}_2)$ cancels $d - 1$ identically, yielding
+\begin{equation}
+\E_{\theta, \mathbf{e}_2}\bigl[\ip{\Psi'}{\mathbf{u}}\ip{\Psi'}{\mathbf{v}}\bigr] = \sigma^2 \ip{\Psi}{\mathbf{u}}\ip{\Psi}{\mathbf{v}} + \frac{1 - \sigma^2}{d}\ip{\mathbf{u}}{\mathbf{v}}.
+\label{eq:bilinear-onestep}
+\end{equation}
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+Every orthogonal transformation of $\mathbb{R}^d$ that fixes $\Psi$ restricts to a linear isometry of $V_\perp(\Psi)$ and therefore preserves the normalized Haar sphere measure $\mu_\perp(\Psi)$. Negation $\mathbf{e}_2 \mapsto -\mathbf{e}_2$ on $V_\perp(\Psi)$ gives $\E[\ip{\mathbf{e}_2}{\mathbf{u}}] = -\E[\ip{\mathbf{e}_2}{\mathbf{u}}] = 0$. Next, choose an orthonormal basis $\{\mathbf{b}_1, \dots, \mathbf{b}_{d-1}\}$ of $V_\perp(\Psi)$. For $i \ne j$, ambient reflection $R_i$ across the hyperplane $(\mathbb{R}\mathbf{b}_i)^\perp$ fixes $\Psi$ and $\mathbf{b}_j$ while mapping $\mathbf{b}_i \mapsto -\mathbf{b}_i$ [Fig.~\ref{fig:sphere-duality}(a)], so invariance of $\mu_\perp(\Psi)$ gives $\E[\ip{\mathbf{e}_2}{\mathbf{b}_i}\ip{\mathbf{e}_2}{\mathbf{b}_j}] = -\E[\ip{\mathbf{e}_2}{\mathbf{b}_i}\ip{\mathbf{e}_2}{\mathbf{b}_j}] = 0$. Similarly, the Householder reflection across $(\mathbb{R}(\mathbf{b}_i - \mathbf{b}_j))^\perp$ fixes $\Psi$ and exchanges $\mathbf{b}_i \leftrightarrow \mathbf{b}_j$, forcing all $d - 1$ diagonal expectations $\E[\ip{\mathbf{e}_2}{\mathbf{b}_i}^2]$ to share a common value $c$. Summing over $i = 1, \dots, d - 1$ uses $\norm{\mathbf{e}_2}^2 = 1$ on $S(V_\perp(\Psi))$ to give $(d - 1)c = 1$, i.e., $c = 1/(d - 1)$. Expanding $P_\perp \mathbf{u}$ and $P_\perp \mathbf{v}$ in $\{\mathbf{b}_i\}$ yields Eq.~\eqref{eq:equatorial-moments}.
+
+Expanding $\ip{\Psi'}{\mathbf{u}}\ip{\Psi'}{\mathbf{v}}$ via Eq.~\eqref{eq:isotropic-step} and taking expectations over $\mathbf{e}_2$ kills both $\cos\theta\sin\theta$ cross terms by $\E[\ip{\mathbf{e}_2}{\cdot}] = 0$. Using $\ip{P_\perp \mathbf{u}}{P_\perp \mathbf{v}} = \ip{\mathbf{u}}{\mathbf{v}} - \ip{\Psi}{\mathbf{u}}\ip{\Psi}{\mathbf{v}}$ and Theorem~\ref{thm:poisson-moments}, which implies $\E[\sin^2\theta] = 1 - \E[\cos^2\theta] = (d - 1)(1 - \sigma^2)/d$, we obtain
+\begin{align}
+\MoveEqLeft[1.5] \E\bigl[\ip{\Psi'}{\mathbf{u}}\ip{\Psi'}{\mathbf{v}}\bigr] \nonumber \\
+&= \frac{(d - 1)\sigma^2 + 1}{d}\ip{\Psi}{\mathbf{u}}\ip{\Psi}{\mathbf{v}} \nonumber \\
+&\quad + \frac{(d - 1)(1 - \sigma^2)}{d}\frac{\ip{\mathbf{u}}{\mathbf{v}} - \ip{\Psi}{\mathbf{u}}\ip{\Psi}{\mathbf{v}}}{d - 1} \nonumber \\
+&= \sigma^2 \ip{\Psi}{\mathbf{u}}\ip{\Psi}{\mathbf{v}} + \frac{1 - \sigma^2}{d}\ip{\mathbf{u}}{\mathbf{v}},
+\label{eq:d-minus-1-cancel}
+\end{align}
+which establishes Eq.~\eqref{eq:bilinear-onestep}.
+\end{proof}
+
+Equation~\eqref{eq:d-minus-1-cancel} reveals the exact geometric origin of the cancellation: polar fluctuations divert a fraction $(d - 1)(1 - \sigma^2)/d$ of squared norm into $V_\perp(\Psi)$ because $d - 1$ of the $d$ ambient real axes are orthogonal to $\Psi$, and uniform equatorial spreading divides that energy equally across those same $d - 1$ axes.
+
+\subsection{Emergence of the Complex Depolarizing Channel and Heterogeneous Composition}
+\label{sec:channel-emergence}
+
+Because individual realizations $\Psi'$ rotate across real subspaces that mix real and imaginary coordinates without preserving complex phases, one might ask whether averaging the complex outer product $\ket{\psi'}\bra{\psi'} \in \mathbb{C}^{N \times N}$ introduces anomalous phase-dependent or off-diagonal terms. Theorem~\ref{thm:channel-duality} shows that even--odd coordinate orthogonality eliminates all imaginary noise floors identically, yielding exact emergence of the complex depolarizing channel and multiplicative composition across arbitrary heterogeneous circuits.
+
+\begin{theorem}[Depolarizing channel emergence and heterogeneous circuit composition]
+\label{thm:channel-duality}
+Let $N = 2^n$ ($n \ge 0$) and $\ket{\psi'} = \iota^{-1}(\Psi')$ for a single isotropic step~\eqref{eq:isotropic-step} on $\Psi = \iota(\ket{\psi})$ with $\sigma \in [0, 1]$.
+\begin{enumerate}
+\item The single-step complex density-matrix expectation equals the $n$-qubit depolarizing CPTP map $\Lambda_\sigma(\rho) = \sigma^2\rho + (1 - \sigma^2)I_N/N$:
+\begin{equation}
+\E_{\theta, \mathbf{e}_2}\bigl[\ket{\psi'}\bra{\psi'}\bigr] = \sigma^2 \ket{\psi}\bra{\psi} + (1 - \sigma^2)\frac{I_N}{N}.
+\label{eq:channel-onestep}
+\end{equation}
+\item Across any $G$-stage heterogeneous schedule $((U_1, \sigma_1), \dots, (U_G, \sigma_G))$ in Eq.~\eqref{eq:markov-chain} with $\sigma_g \in [0, 1]$, initial state $\ket{\psi_0}$, ideal unitary $U_{\mathrm{tot}} = U_G \cdots U_1$, ideal output $\rho_{\mathrm{ideal}} = U_{\mathrm{tot}}\ket{\psi_0}\bra{\psi_0}U_{\mathrm{tot}}^\dagger$, cumulative fidelity $\sigma_{\mathrm{eff}} = \prod_{g=1}^G \sigma_g$, and any positive operator-valued measure (POVM) $\{E_m\}$, the $G$-fold pure-state Markov expectation of $\ket{\psi_G} = \iota^{-1}(\Psi_G)$ satisfies
+\begin{align}
+\MoveEqLeft[1.4] \E\bigl[\Tr(E_m \ket{\psi_G}\bra{\psi_G})\bigr] \nonumber \\
+&= \sigma_{\mathrm{eff}}^2 \Tr(E_m \rho_{\mathrm{ideal}}) + (1 - \sigma_{\mathrm{eff}}^2)\frac{\Tr(E_m)}{N}.
+\label{eq:heterogeneous-povm}
+\end{align}
+When the circuit is assembled from a finite primitive gate set $\mathcal{G}$ with gate-type parameters $\{\sigma_\gamma\}_{\gamma \in \mathcal{G}}$ and occurrence counts $\{G_\gamma\}_{\gamma \in \mathcal{G}}$ ($\sum_{\gamma \in \mathcal{G}} G_\gamma = G$), the cumulative fidelity factorizes as
+\begin{equation}
+\sigma_{\mathrm{eff}} = \prod_{\gamma \in \mathcal{G}} \sigma_\gamma^{G_\gamma}.
+\label{eq:gate-count-prod}
+\end{equation}
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+For matrix indices $x, y \in \{0, \dots, N - 1\}$, write $\Pi(\Psi)_{x,y} = (\ket{\psi}\bra{\psi})_{x,y} = (\Psi_{2x} + i\Psi_{2x+1})(\Psi_{2y} - i\Psi_{2y+1})$. Separating real and imaginary parts expresses $\Pi(\Psi')_{x,y}$ as four real bilinear products:
+\begin{align}
+\operatorname{Re}\Pi(\Psi')_{x,y} &= \Psi'_{2x}\Psi'_{2y} + \Psi'_{2x+1}\Psi'_{2y+1}, \nonumber \\
+\operatorname{Im}\Pi(\Psi')_{x,y} &= \Psi'_{2x+1}\Psi'_{2y} - \Psi'_{2x}\Psi'_{2y+1},
+\label{eq:re-im-decomp}
+\end{align}
+where $\Psi'_j = \ip{\Psi'}{\hat{\mathbf{e}}_j}$.
+Applying Theorem~\ref{thm:bilinear} to $\operatorname{Re}\Pi(\Psi')_{x,y}$ pairs indices of matching parity ($\ip{\hat{\mathbf{e}}_{2x}}{\hat{\mathbf{e}}_{2y}} = \ip{\hat{\mathbf{e}}_{2x+1}}{\hat{\mathbf{e}}_{2y+1}} = \delta_{x,y}$), adding two identical noise floors $(1 - \sigma^2)\delta_{x,y}/d + (1 - \sigma^2)\delta_{x,y}/d = (1 - \sigma^2)\delta_{x,y}/N$ because $d = 2N$. Conversely, in $\operatorname{Im}\Pi(\Psi')_{x,y}$ every inner product pairs an even coordinate $2y$ with an odd coordinate $2x + 1$ (or $2x$ with $2y + 1$); because $2x \ne 2y + 1$ for all integers $x, y$---including on the diagonal $x = y$---both isotropic floor terms vanish identically, leaving $\E[\operatorname{Im}\Pi(\Psi')_{x,y}] = \sigma^2 \operatorname{Im}\Pi(\Psi)_{x,y}$ and proving Eq.~\eqref{eq:channel-onestep}.
+
+For a $G$-step trajectory~\eqref{eq:markov-chain}, we first verify by backward induction on $G$ that for any $\mathbf{u}, \mathbf{v} \in \mathbb{R}^d$,
+\begin{align}
+\MoveEqLeft[1.4] \E\bigl[\ip{\Psi_G}{\mathbf{u}}\ip{\Psi_G}{\mathbf{v}}\bigr] \nonumber \\
+&= \sigma_{\mathrm{eff}}^2 \ip{\Phi_G}{\mathbf{u}}\ip{\Phi_G}{\mathbf{v}} + \frac{1 - \sigma_{\mathrm{eff}}^2}{d}\ip{\mathbf{u}}{\mathbf{v}}.
+\label{eq:markov-bilinear}
+\end{align}
+Note that for any continuous function $f$ on $S^{d-1}$, transporting $\mu_\perp(\Psi_0)$ to $\mu_\perp(\Psi)$ via the local Householder reflection $R_{\Psi_0 + \Psi}(\mathbf{z}) = 2\ip{\Psi_0 + \Psi}{\mathbf{z}}\norm{\Psi_0 + \Psi}^{-2}(\Psi_0 + \Psi) - \mathbf{z}$ for $\Psi$ near $\Psi_0$ shows by dominated convergence that the single-step expectation preserves continuity and boundedness on $S^{d-1}$, ensuring well-defined iterated expectations and linearity at every stage. For $G = 0$, $\sigma_{\mathrm{eff}} = 1$ and Eq.~\eqref{eq:markov-bilinear} holds trivially. For $G = 1 + m$ with first stage $(U_1, \sigma_1)$ and remaining composite ideal isometry $W = \widetilde{U}_G \cdots \widetilde{U}_2 \in \mathrm{O}(d)$, writing $\ip{W\Psi_1}{\mathbf{u}} = \ip{\Psi_1}{W^{-1}\mathbf{u}}$ and applying the $m$-step induction hypothesis conditional on $\Psi_1$ gives $\sigma_{\mathrm{rest}}^2 \ip{\Psi_1}{W^{-1}\mathbf{u}}\ip{\Psi_1}{W^{-1}\mathbf{v}} + (1 - \sigma_{\mathrm{rest}}^2)\ip{\mathbf{u}}{\mathbf{v}}/d$, where $\sigma_{\mathrm{rest}} = \prod_{g=2}^G \sigma_g$. Averaging over $(\theta_1, \mathbf{e}_{2,1})$ via Eq.~\eqref{eq:bilinear-onestep} and using $\ip{W^{-1}\mathbf{u}}{W^{-1}\mathbf{v}} = \ip{\mathbf{u}}{\mathbf{v}}$ together with $\sigma_{\mathrm{rest}}^2(1 - \sigma_1^2) + (1 - \sigma_{\mathrm{rest}}^2) = 1 - (\sigma_1\sigma_{\mathrm{rest}})^2$ closes the induction for Eq.~\eqref{eq:markov-bilinear}. Repeating the real--imaginary pairing of Eq.~\eqref{eq:re-im-decomp} yields $\E[\ket{\psi_G}\bra{\psi_G}] = \Lambda_{\sigma_{\mathrm{eff}}}(\rho_{\mathrm{ideal}})$, and taking the Hilbert--Schmidt trace against $E_m$ yields Eq.~\eqref{eq:heterogeneous-povm}. Grouping equal factors $\sigma_g$ across gate types $\gamma \in \mathcal{G}$ immediately gives Eq.~\eqref{eq:gate-count-prod}.
+\end{proof}
+
+In the density-operator picture [Fig.~\ref{fig:sphere-duality}(b)], Theorem~\ref{thm:channel-duality} reflects two algebraic properties of $\Lambda_\sigma$: because $U(I_N/N)U^\dagger = I_N/N$, every unitary channel $\mathcal{U}_U(\rho) = U\rho U^\dagger$ commutes with $\Lambda_\sigma$ ($\Lambda_\sigma \circ \mathcal{U}_U = \mathcal{U}_U \circ \Lambda_\sigma$), and composing two depolarizing maps multiplies their fidelity weights ($\Lambda_{\sigma_1} \circ \Lambda_{\sigma_2} = \Lambda_{\sigma_1\sigma_2}$). The factor $2$ in the exponent $\sigma_{\mathrm{eff}}^2 = \prod_{g=1}^G \sigma_g^2$ arises directly from the quadratic dependence of density matrices and Born probabilities on statevector amplitudes. When gates are grouped by arity into $G_{1\mathrm{q}}$ single-qubit, $G_{2\mathrm{q}}$ two-qubit, and $G_{3\mathrm{q}}$ three-qubit operations ($G_{1\mathrm{q}} + G_{2\mathrm{q}} + G_{3\mathrm{q}} = G$), Eq.~\eqref{eq:gate-count-prod} reduces to $\sigma_{\mathrm{eff}} = \sigma_{1\mathrm{q}}^{G_{1\mathrm{q}}}\sigma_{2\mathrm{q}}^{G_{2\mathrm{q}}}\sigma_{3\mathrm{q}}^{G_{3\mathrm{q}}}$.
+
+\subsection{Single-Copy Equivalence, Trajectory Variance, and Error-Correction No-Go}
+\label{sec:duality-physics}
+
+Theorem~\ref{thm:channel-duality} sharpens both the operational meaning and the physical boundaries of the pure-state isotropic model. For any single-copy linear observable $O$ or POVM $\{E_m\}$---and in standard hardware execution where an independent noise trajectory occurs on each experimental shot, making each single-shot outcome a Bernoulli draw of mean $\E[\Tr(E_m \ket{\psi_G}\bra{\psi_G})]$---the pure-state sphere process and the depolarizing channel $\Lambda_{\sigma_{\mathrm{eff}}}(\rho_{\mathrm{ideal}})$ produce identical measurement statistics. For traceless Pauli observables $P \ne I_N$, $\Tr(P) = 0$ yields pure exponential damping $\E[\bra{\psi_G} P \ket{\psi_G}] = \sigma_{\mathrm{eff}}^2 \Tr(P \rho_{\mathrm{ideal}})$.
+
+In contrast, nonlinear or multi-copy functionals distinguish the two ensembles sharply. Every trajectory realization $\ket{\psi_G}$ remains unit-purity ($\Tr(\ket{\psi_G}\bra{\psi_G}^2) = 1$), whereas $\Lambda_{\sigma_{\mathrm{eff}}}(\rho_{\mathrm{ideal}})$ has purity $\sigma_{\mathrm{eff}}^4 + (1 - \sigma_{\mathrm{eff}}^4)/N < 1$ for $\sigma_{\mathrm{eff}} < 1$. Suppose a fixed random perturbation realization is prepared repeatedly (quasistatic trajectory sampling) so that the random conditional Born probability $P_w = \abs{\braket{w | \psi_G}}^2$ is estimated per realization. At complete decoherence ($\sigma_{\mathrm{eff}} = 0$, $G \ge 1$), the mixed state $\Lambda_0(\rho_{\mathrm{ideal}}) = I_N/N$ has deterministic outcome probability $1/N$ with zero state-to-state variance, whereas $\Psi_G$ is Haar-uniform on $S^{2N-1}$. Because $P_w = \Psi_{G,2w}^2 + \Psi_{G,2w+1}^2$ is the squared norm of two coordinates out of $2N$ on $S^{2N-1}$, $P_w$ follows a $\mathrm{Beta}(1, N - 1)$ distribution with density $(N - 1)(1 - p)^{N-2}$ on $[0, 1]$ and strictly positive trajectory variance
+\begin{equation}
+\Var_{\sigma_{\mathrm{eff}}=0}(P_w) = \frac{N - 1}{N^2(N + 1)},
+\label{eq:porter-thomas}
+\end{equation}
+recovering the exponential Porter--Thomas fluctuation scale $\Var(P_w) \sim 1/N^2$ for $N \gg 1$~\cite{Boixo2018}.
+
+Theorem~\ref{thm:channel-duality} also makes the QEC no-go theorem of Lacalle \emph{et al.}~\cite{Lacalle2021} transparent at the channel level, while contrasting global pure-state isotropy against standard spatially local depolarizing noise $\mathcal{D}_p^{\otimes n}$ with single-qubit map $\mathcal{D}_p(\varrho) = (1 - p)\varrho + p I_2/2$. Expanding $\mathcal{D}_p^{\otimes n}(\rho)$ produces a binomial hierarchy of $w$-qubit Pauli errors weighted by $(1 - p)^{n-w}(p/3)^w$; for $p \ll 1$, low-weight errors ($w = 1, 2$) dominate and map a stabilizer code subspace $\mathcal{C} \subset \mathbb{C}^N$ into orthogonal, correctable syndrome sectors~\cite{NielsenChuang2010,Fowler2012}. Conversely, global $S^{2N-1}$ isotropy jumps directly to $I_N/N$ in a single step: for any $k$-qubit code subspace $\mathcal{C}$ of dimension $K_{\mathcal{C}} = 2^k$ with orthogonal syndrome projectors $\{\Pi_s\}$, $\Pi_s \Lambda_\sigma(\rho_{\mathcal{C}})\Pi_s = \sigma^2 \delta_{s,0}\rho_{\mathcal{C}} + (1 - \sigma^2)\Pi_s/N$. Every recovery unitary $R_s$ mapping $\operatorname{im}\Pi_s$ back to $\mathcal{C}$ leaves the maximally mixed component invariant within $\mathcal{C}$, yielding post-recovery logical state $\sigma^2\rho_{\mathcal{C}} + (1 - \sigma^2)I_{K_{\mathcal{C}}}/K_{\mathcal{C}}$ with unmitigated logical error $(1 - \sigma^2)(1 - 2^{-k})$.
+
+\section{Exact Noisy Grover Search (\texorpdfstring{$M \ge 1$}{M >= 1} Targets) and Optimal Stopping}
+\label{sec:grover}
+
+Having established exact circuit-level channel duality, we specialize Theorem~\ref{thm:channel-duality} to unstructured search over $N = 2^n$ items containing $M$ marked targets ($0 < M < N$)~\cite{Grover1996,Boyer1998}. This specialization resolves the empirical mixture model of Ref.~\cite{SahaRoyLacalle2026} as an exact finite-$n$ theorem and yields an analytical formula for the noise-shifted optimal iteration count.
+
+\subsection{Multi-Target Search-Plane Dynamics and Exact Mixture Formula}
+\label{sec:multi-grover}
+
+Let $S \subset \{0, 1, \dots, N - 1\}$ denote a nonempty proper subset of marked basis indices of cardinality $M = \abs{S}$ ($1 \le M \le N - 1$). Define the orthonormal marked and unmarked uniform superpositions $\ket{S} = M^{-1/2}\sum_{w \in S}\ket{w}$ and $\ket{S^\perp} = (N - M)^{-1/2}\sum_{x \notin S}\ket{x}$. Preparing $\ket{s} = H^{\otimes n}\ket{0^n} = N^{-1/2}\sum_{x=0}^{N-1}\ket{x}$ places the register in $\Span\{\ket{S}, \ket{S^\perp}\}$ at initial half-angle $\theta = \arcsin\sqrt{M/N} \in (0, \pi/2)$:
+\begin{equation}
+\ket{s} = \sin\theta\,\ket{S} + \cos\theta\,\ket{S^\perp}.
+\label{eq:initial-search-plane}
+\end{equation}
+Each Grover iteration applies the multi-target phase oracle $O_S = I_N - 2\sum_{w \in S}\ket{w}\bra{w}$ followed by the diffusion reflection $D = 2\ket{s}\bra{s} - I_N$, rotating the state by $2\theta$ toward $\ket{S}$ so that after $K \in \mathbb{N}$ iterations $\ket{\psi_K} = (DO_S)^K\ket{s} = \sin((2K + 1)\theta)\ket{S} + \cos((2K + 1)\theta)\ket{S^\perp}$ achieves noiseless cumulative target probability $p_{\mathrm{ideal}}(n, M, K) = \sin^2((2K + 1)\theta)$~\cite{Boyer1998}.
+
+\begin{corollary}[Exact heterogeneous multi-target noisy Grover probability]
+\label{cor:multi-grover}
+For any $n \ge 1$, target set $S \subset \{0, \dots, 2^n - 1\}$ of size $M = \abs{S}$ ($0 < M < N = 2^n$), iteration count $K \in \mathbb{N}$, and primitive-gate circuit implementing $K$-step Grover search from $\ket{0^n}$ with gate-specific isotropic parameters $\sigma_g \in [0, 1]$ and cumulative fidelity $\sigma_{\mathrm{eff}}(K) = \prod_{g=1}^{G(K)} \sigma_g$, the expected probability of measuring a marked item $w \in S$ is
+\begin{align}
+p_e(n, M, K) &= \E\Biggl[\sum_{w \in S} \abs{\braket{w | \psi_{\mathrm{noisy}}}}^2\Biggr] \nonumber \\
+&= \sigma_{\mathrm{eff}}(K)^2 \sin^2\bigl((2K + 1)\theta\bigr) \nonumber \\
+&\quad + \bigl[1 - \sigma_{\mathrm{eff}}(K)^2\bigr]\frac{M}{N},
+\label{eq:multi-grover-exact}
+\end{align}
+where $\theta = \arcsin\sqrt{M/N}$.
+\end{corollary}
+
+\begin{proof}
+Apply Theorem~\ref{thm:channel-duality} to the two-outcome computational-basis POVM $\{E_S, I_N - E_S\}$ with cumulative target projector $E_S = \sum_{w \in S}\ket{w}\bra{w}$, using $\Tr(E_S) = M$ and $\Tr(E_S \ket{\psi_K}\bra{\psi_K}) = \sin^2((2K + 1)\theta)$.
+\end{proof}
+
+Corollary~\ref{cor:multi-grover} satisfies three immediate physical consistency checks. In the noiseless limit $\sigma_{\mathrm{eff}}(K) \to 1$, Eq.~\eqref{eq:multi-grover-exact} recovers $\sin^2((2K + 1)\theta)$, whereas in the strongly decoherent limit $\sigma_{\mathrm{eff}}(K) \to 0$ ($G(K) \ge 1$), it approaches classical random sampling $M/N$. Furthermore, at $K = 0$ (prior to any oracle call), $\sin^2\theta = M/N$ already coincides with the depolarizing fixed point, so $p_e(n, M, 0) = M/N$ independently of preparation fidelity $\sigma_{\mathrm{init}}$. Setting $M = 1$ and uniform $\sigma_g = \sigma$ ($\sigma_{\mathrm{eff}} = \sigma^{G(n)}$) recovers Eq.~(19) of Ref.~\cite{SahaRoyLacalle2026} as an exact theorem for all $n \ge 1$ rather than a phenomenological approximation. As an explicit finite-circuit witness, consider $n = 2$ ($N = 4$, $M = 1$, $\theta = \pi/6$), where $K = 1$ achieves unit ideal probability $\sin^2(\pi/2) = 1$: synthesizing $H^{\otimes 2}$, controlled-$Z$ ($H_1\,\mathrm{CNOT}_{0,1}\,H_1$), and the two-qubit diffuser requires $14$ primitive gates ($10$ Hadamard, $2$ Pauli-$Z$, and $2$ $\mathrm{CNOT}$ gates), yielding the exact polynomial $p_e = \sigma_{\mathrm{H}}^{20}\sigma_{\mathrm{Z}}^4\sigma_{\mathrm{CNOT}}^4 + (1 - \sigma_{\mathrm{H}}^{20}\sigma_{\mathrm{Z}}^4\sigma_{\mathrm{CNOT}}^4)/4$, which reduces to $(3\sigma^{28} + 1)/4$ at uniform $\sigma$.
+
+\input{figures/fig2_grover_oscillations}
+
+\subsection{Noise-Shifted Optimal Iteration Count}
+\label{sec:optimal-stopping}
+
+Because every Grover iteration executes the identical oracle--diffuser block, the cumulative fidelity after $K$ iterations has the exact exponential structure $\sigma_{\mathrm{eff}}(K) = \sigma_{\mathrm{init}}\gamma^K$, where $\sigma_{\mathrm{init}} \in (0, 1]$ is the state-preparation fidelity and $\gamma \in (0, 1]$ is the composite single-iteration fidelity ($\gamma = \sigma_{1\mathrm{q}}^{g_{1\mathrm{q}}}\sigma_{2\mathrm{q}}^{g_{2\mathrm{q}}}\sigma_{3\mathrm{q}}^{g_{3\mathrm{q}}}$ in primitive-gate circuits, or $\gamma = \sigma^2$ when counting oracle and diffuser as macro-gates with $G(K) = 2K + 1$). Using $\sin^2\theta = M/N$, Eq.~\eqref{eq:multi-grover-exact} rewrites cleanly as excess probability above random guessing:
+\begin{equation}
+p_e(K) = \sin^2\theta + \sigma_{\mathrm{init}}^2 \gamma^{2K}\bigl[\sin^2\bigl((2K + 1)\theta\bigr) - \sin^2\theta\bigr].
+\label{eq:pe-excess}
+\end{equation}
+Continuing all the way to the noiseless peak $K_{\mathrm{ideal}} = \pi/(4\theta) - 1/2$ becomes suboptimal once exponential damping $\gamma^{2K}$ outweighs marginal coherent rotation near $\pi/2$.
+
+\begin{proposition}[Exact noise-shifted optimal iteration count]
+\label{prop:optimal-k}
+Let $0 < M < N = 2^n$, $\theta = \arcsin\sqrt{M/N} \in (0, \pi/2)$, $\sigma_{\mathrm{init}} \in (0, 1]$, and $\gamma \in (0, 1]$. Define the dimensionless noise-to-rotation ratio and damping phase
+\begin{equation}
+\kappa = \frac{-\ln\gamma}{2\theta} \ge 0, \qquad \phi = \arctan\kappa \in \bigl[0, \tfrac{\pi}{2}\bigr).
+\label{eq:kappa-def}
+\end{equation}
+Viewed as a continuous function of $K \ge 0$, $p_e(K)$ in Eq.~\eqref{eq:pe-excess} attains its unique global maximum at $K^*(\gamma, n, M)$ given by
+\begin{equation}
+(2K^* + 1)\theta = \frac{\pi - \phi - \arcsin\bigl(\sin\phi\cos(2\theta)\bigr)}{2},
+\label{eq:optimal-k-exact}
+\end{equation}
+satisfying $0 \le K^*(\gamma, n, M) \le K_{\mathrm{ideal}}$, with equality $K^* = K_{\mathrm{ideal}}$ if and only if $\gamma = 1$.
+\end{proposition}
+
+\begin{proof}
+For $\gamma = 1$, $\kappa = \phi = 0$ and Eq.~\eqref{eq:optimal-k-exact} gives $(2K^* + 1)\theta = \pi/2$. For $\gamma \in (0, 1)$, write $\alpha(K) = (2K + 1)\theta \ge \theta$ and $h(K) = \gamma^{2K}(\sin^2\alpha - \sin^2\theta) = \frac{1}{2}e^{-2\kappa(\alpha - \theta)}[\cos(2\theta) - \cos(2\alpha)]$. Differentiating with respect to $\alpha$ gives
+\begin{equation}
+e^{2\kappa(\alpha - \theta)} \frac{dh}{d\alpha} = \sin(2\alpha) + \kappa\cos(2\alpha) - \kappa\cos(2\theta).
+\label{eq:dh-dalpha}
+\end{equation}
+Dividing Eq.~\eqref{eq:dh-dalpha} by $\sqrt{1 + \kappa^2} = \sec\phi$ converts the stationary condition $dh/d\alpha = 0$ into $\sin(2\alpha + \phi) = \sin\phi\cos(2\theta)$. On the first lobe $\alpha \in [\theta, \pi - \theta]$, $2\alpha + \phi$ spans $[2\theta + \phi, 2\pi - 2\theta + \phi]$. Because $\abs{\sin\phi\cos(2\theta)} < \sin\phi = \sin(\pi - \phi)$ and $\sin(2\theta + \phi) > \sin\phi\cos(2\theta)$ (as $\sin(2\theta)\cos\phi > 0$ and $\sin\phi[\cos(2\theta) - \cos(2\theta)] = 0$), $dh/d\alpha$ starts strictly positive at $\alpha = \theta$ for $\theta < \pi/4$, crosses zero uniquely from above to below at $2\alpha^* + \phi = \pi - \arcsin(\sin\phi\cos(2\theta))$, and remains negative to $\alpha = \pi/2$ and across the descending side where $\sin(2\alpha) \le 0$ (while for $\theta \ge \pi/4$, $\cos(2\theta) \le 0$ similarly keeps $\alpha^* > \theta$ with $2\alpha^* \le \pi$). Finally, for any higher lobe $\alpha + m\pi$ ($m \ge 1$), $h(\alpha + m\pi) = e^{-2\kappa m\pi}h(\alpha) < h(\alpha)$ whenever $h(\alpha) > 0$, proving that $\alpha^*$ in Eq.~\eqref{eq:optimal-k-exact} is the unique global maximizer over all $K \ge 0$. Since $\phi + \arcsin(\sin\phi\cos(2\theta)) > \phi - \phi = 0$ for $\phi > 0$ and $\theta \in (0, \pi/2)$ ($\abs{\cos(2\theta)} < 1$), we have $(2K^* + 1)\theta < \pi/2$, whence $K^* < K_{\mathrm{ideal}}$.
+\end{proof}
+
+Three limiting regimes of Proposition~\ref{prop:optimal-k} illuminate how circuit depth competes with coherent rotation. First, for sparse search ($M \ll N$), $\cos(2\theta) = 1 - 2M/N \to 1$ implies $\arcsin(\sin\phi\cos(2\theta)) \to \phi$, simplifying Eq.~\eqref{eq:optimal-k-exact} to the universal scaling curve $(2K^* + 1)\theta \to \pi/2 - \phi = \operatorname{arccot}\kappa$, i.e., $K^* / K_{\mathrm{ideal}} \approx (2/\pi)\operatorname{arccot}\kappa$. Second, in the intermediate overdamped regime where per-iteration loss is small ($-\ln\gamma \ll 1$) yet cumulative circuit depth makes $\kappa = (-\ln\gamma)/(2\theta) \gg 1$ (so $2\theta \ll -\ln\gamma \ll 1$), both $\pi/2 - \phi \approx 1/\kappa$ and $\arccos(\sin\phi\cos(2\theta)) \approx 1/\kappa$, causing $K^*$ to saturate at an $N$-independent ceiling:
+\begin{equation}
+K^*(\gamma, n, M) \approx \frac{1}{-\ln\gamma} - \frac{1}{2} \qquad (2\theta \ll -\ln\gamma \ll 1).
+\label{eq:kstar-ceiling}
+\end{equation}
+Beyond roughly $1/(-\ln\gamma)$ iterations, depolarization erases previously amplified target amplitude faster than $DO_S$ replenishes it. Third, among discrete counts $K \in \mathbb{N}$, using $\sin(3\theta) = \sin\theta(3 - 4\sin^2\theta)$ in Eq.~\eqref{eq:pe-excess} gives the exact one-step gain
+\begin{equation}
+p_e(1) - p_e(0) = 8\sigma_{\mathrm{init}}^2\gamma^2 \frac{M}{N}\Bigl(1 - \frac{M}{N}\Bigr)\Bigl(1 - \frac{2M}{N}\Bigr),
+\label{eq:k1-beats-k0}
+\end{equation}
+which is strictly positive whenever $0 < M < N/2$ and $\sigma_{\mathrm{init}}, \gamma > 0$: because $\ket{s}$ already sits at the uniform floor $M/N$, one Grover step always yields $p_e(1) > M/N$, even when repeating $K = 1$ vs.\ classical sampling becomes query-inefficient.
+
+Figure~\ref{fig:grover-oscillations} illustrates Corollary~\ref{cor:multi-grover} and Proposition~\ref{prop:optimal-k} across $n \in \{6, 10, 14, 20\}$ for $M = 1$ under the macro-gate schedule $G(K) = 2K + 1$ ($\gamma = \sigma^2$). At small register size $n = 6$ [$K_{\mathrm{ideal}} \approx 5.77$, Fig.~\ref{fig:grover-oscillations}(a)], high-fidelity curves ($\sigma = 0.9999$ and $0.999$) track the noiseless sinusoid through multiple oscillations, while $\sigma = 0.99$ attenuates the first peak to $p_e(K^*) \approx 0.786$ at $K^*/K_{\mathrm{ideal}} \approx 0.946$. As $n$ increases to $10$ and $14$ [Figs.~\ref{fig:grover-oscillations}(b) and \ref{fig:grover-oscillations}(c)], growing depth $G \propto 2^{n/2}$ amplifies $\kappa$: at $n = 14$ ($K_{\mathrm{ideal}} \approx 100.03$), $\sigma = 0.999$ drops to $p_e(K^*) \approx 0.680$ at $K^* \approx 91.9$, whereas $\sigma = 0.99$ peaks early at $K^* \approx 41.8$ ($K^*/K_{\mathrm{ideal}} \approx 0.418$) with $p_e(K^*) \approx 0.069$. By $n = 20$ [$N = 1\,048\,576$, $K_{\mathrm{ideal}} \approx 803.75$, Fig.~\ref{fig:grover-oscillations}(d)], even $\sigma = 0.9999$ shifts visibly to $K^*/K_{\mathrm{ideal}} \approx 0.935$ ($p_e(K^*) \approx 0.733$), $\sigma = 0.999$ peaks near half the noiseless iteration count ($K^*/K_{\mathrm{ideal}} \approx 0.492$, $p_e(K^*) \approx 0.100$), and $\sigma = 0.99$ hits the $N$-independent ceiling of Eq.~\eqref{eq:kstar-ceiling} at $K^* \approx 49.10$ (matching $1/(-2\ln 0.99) - 1/2 \approx 49.25$, or $K^*/K_{\mathrm{ideal}} \approx 0.061$). Across all sixteen curves, the filled orange diamonds from Eq.~\eqref{eq:optimal-k-exact} sit exactly atop every first-lobe maximum.
+
+\section{Complexity Phase Transition and Utility-Scale Resource Estimation}
+\label{sec:complexity-resources}
+
+Exact finite-$n$ success probabilities allow us to determine both asymptotic query complexity and concrete hardware gate-fidelity budgets far beyond the $n \le 13$ statevector simulation horizon of Ref.~\cite{SahaRoyLacalle2026}. We examine two operational metrics under primitive-gate synthesis: the expected oracle queries until first marked-item detection, $Q(n, M, K) = K / p_e(n, M, K)$, in a repeat-until-success protocol, and the target-confidence repetition overhead $k(n, M, K)$ required to match the noiseless failure probability at $K = K_{\mathrm{ideal}}$.
+
+\input{figures/fig3_complexity_crossover}
+
+\subsection{Repeat-Until-Success Query Complexity Crossover}
+\label{sec:query-crossover}
+
+To connect iteration count $K$ to primitive gate count $G(n, K)$, we adopt a representative linear-$n$ ancilla-assisted multi-controlled Toffoli decomposition~\cite{Barenco1995,Maslov2016} in which state preparation applies $n$ Hadamard gates and each Grover iteration executes $g_{1\mathrm{q}}(n) = 16n - 20$ single-qubit Clifford+$T$ gates and $g_{2\mathrm{q}}(n) = 12n - 18$ two-qubit $\mathrm{CNOT}$ gates (including the oracle and diffuser basis-change layers), giving cumulative gate counts
+\begin{align}
+G_{1\mathrm{q}}(n, K) &= n + K(16n - 20), \nonumber \\
+G_{2\mathrm{q}}(n, K) &= K(12n - 18), \nonumber \\
+G(n, K) &= n + K(28n - 38),
+\label{eq:linear-gate-counts}
+\end{align}
+where $G(n, K) = G_{1\mathrm{q}}(n, K) + G_{2\mathrm{q}}(n, K)$. Any alternative linear-$n$ synthesis merely rescales the numerical prefactors in Eq.~\eqref{eq:linear-gate-counts} without altering the asymptotic scaling exponents below.
+
+When each noisy circuit run executes $K \ge 1$ Grover iterations and the measured candidate bitstring is checked against the oracle, the number of runs until first success is geometric with mean $1/p_e(n, M, K)$, consuming an expected oracle query count
+\begin{equation}
+Q(n, M, K) = \frac{K}{p_e(n, M, K)}.
+\label{eq:query-functional}
+\end{equation}
+At $\sigma = 1$ ($M \ll N$), minimizing $K / \sin^2((2K + 1)\theta)$ over $1 \le K \le K_{\mathrm{ideal}}$ recovers the noiseless Zalka--Boyer--Brassard--H{\o}yer--Tapp (BBHT) repeat-until-success optimum~\cite{Boyer1998,Zalka1999} near $(2K + 1)\theta \approx 1.1656$, yielding $Q_{\mathrm{ideal}}(n, M) \approx 0.690\sqrt{N/M}$, slightly below the single-shot peak ratio $K_{\mathrm{ideal}} / p_{\mathrm{ideal}}(K_{\mathrm{ideal}}) \approx (\pi/4)\sqrt{N/M} \approx 0.785\sqrt{N/M}$.
+
+For any fixed per-gate fidelity $\sigma < 1$, however, the per-iteration fidelity $\gamma(n) = \sigma^{28n - 38}$ decays exponentially with $n$, driving $\kappa(n) = -(28n - 38)\ln\sigma / (2\theta) \propto n\sqrt{N/M}(-\ln\sigma)$ across unity near a crossover database size $N_{\mathrm{cross}}(\sigma, M)$ satisfying $n_{\mathrm{cross}}\sqrt{N_{\mathrm{cross}}/M} \sim (28(-\ln\sigma))^{-1}$. Beyond $N_{\mathrm{cross}}$ ($\kappa(n) \gg 1$), stopping strategy determines the asymptotic exponent:
+\begin{enumerate}
+\item \emph{Naive $K_{\mathrm{ideal}}$ stopping:} Executing all $K_{\mathrm{ideal}} = \Theta(\sqrt{N/M})$ iterations drives $\sigma_{\mathrm{eff}}(K_{\mathrm{ideal}})^2 \to 0$ and $p_e(n, M, K_{\mathrm{ideal}}) \to M/N$, inflating Eq.~\eqref{eq:query-functional} to $Q_{\mathrm{naive}}(n, M) \sim (\pi/4)(N/M)^{3/2}$, which scales strictly worse than classical search.
+\item \emph{Optimal early stopping:} Minimizing Eq.~\eqref{eq:query-functional} over $1 \le K \le K_{\mathrm{ideal}}$ tracks $K^*$ downward until $K_{\mathrm{opt}} = 1$ once $\gamma(n)^2 \ll 1$, where Eq.~\eqref{eq:k1-beats-k0} gives $p_e(n, M, 1) \to M/N$ and $Q_{\mathrm{opt}}(n, M) \to N/M = \Omega(N/M)$, reverting cleanly to classical random-sampling complexity~\cite{Shenvi2003,Salas2008,Cohn2016}.
+\end{enumerate}
+Preserving Grover's quadratic $O(\sqrt{N/M})$ query scaling as $n \to \infty$ requires maintaining $\kappa(n) = O(1)$, which demands per-gate infidelity scaling inversely with total circuit gate count:
+\begin{equation}
+1 - \sigma = O\biggl(\frac{1}{G(n, K_{\mathrm{ideal}})}\biggr) = O\biggl(\frac{1}{n\sqrt{N/M}}\biggr).
+\label{eq:fidelity-scaling-law}
+\end{equation}
+
+Figure~\ref{fig:complexity-crossover}(a) displays this phase transition for $M = 1$ across $n \in [4, 50]$. At low register sizes where $\kappa(n) \ll 1$, each optimal curve $Q_{\mathrm{opt}}(n)$ (solid) hugs the slope-$1/2$ noiseless baseline $Q_{\mathrm{ideal}}(n) \approx 0.690 \cdot 2^{n/2}$ (for example, up to $n \approx 11$ at $\sigma = 0.99999$). Passing through the crossover knee $\kappa(n) \sim 1$---located near $n \approx 7$ for $\sigma = 0.999$, $n \approx 11$ for $\sigma = 0.9999$, and $n \approx 16$ for $\sigma = 0.99999$---the solid $Q_{\mathrm{opt}}(n)$ curves bend upward to slope $1$ ($\propto N$, parallel to classical search $2^n$), while the naive $K_{\mathrm{ideal}}$ curves (dashed) shoot past $2^n$ with asymptotic slope $3/2$ ($\propto N^{3/2}$), reaching $2.97 \times 10^{22}$ queries by $n = 50$ compared with $1.13 \times 10^{15}$ for classical search.
+
+\subsection{Target-Confidence Repetition Overhead and Multi-Target Growth Rate \texorpdfstring{$b(\sigma, M)$}{b(sigma, M)}}
+\label{sec:repetition-overhead}
+
+A complementary benchmark introduced in Eq.~(18) of Ref.~\cite{SahaRoyLacalle2026} asks how many independent runs $k(n, M)$ of the noisy circuit at $K = K_{\mathrm{ideal}}(n, M)$ are needed so that the cumulative failure probability $(1 - p_e)^{k(n,M)}$ matches the single-run noiseless failure probability $1 - p_{\mathrm{ideal}}$:
+\begin{equation}
+k(n, M) = \frac{\ln\bigl[1 - p_{\mathrm{ideal}}(n, M, K_{\mathrm{ideal}})\bigr]}{\ln\bigl[1 - p_e(n, M, K_{\mathrm{ideal}})\bigr]}.
+\label{eq:repetition-overhead}
+\end{equation}
+In the noiseless limit $\sigma \to 1$, $p_e \to p_{\mathrm{ideal}}$ gives $k(n, M) = 1$, whereas in the strongly decoherent limit $\sigma_{\mathrm{eff}}(K_{\mathrm{ideal}})^2 \to 0$, $\ln(1 - p_e) \to \ln(1 - M/N) \approx -M/N$ yields $k(n, M) \approx (N/M)\abs{\ln[1 - p_{\mathrm{ideal}}(n, M, K_{\mathrm{ideal}})]}$.
+
+Equation~\eqref{eq:repetition-overhead} explains two structural features observed numerically in Figs.~4 and 5 of Ref.~\cite{SahaRoyLacalle2026}. First, because $K_{\mathrm{ideal}} = \operatorname{round}[\pi/(4\theta) - 1/2]$ must be an integer, the angle residual $\delta_{n,M} = \abs{(2K_{\mathrm{ideal}} + 1)\theta - \pi/2} \le \theta$ varies non-monotonically with $n$; whenever $(2K_{\mathrm{ideal}} + 1)\theta$ lands unusually close to $\pi/2$ (such as $n = 8, 11, 14, 22$, and $25$ at $M = 1$), $1 - p_{\mathrm{ideal}} = \sin^2\delta_{n,M}$ becomes several orders of magnitude smaller than its typical $O(M/N)$ scale, producing localized upward spikes in $\abs{\ln(1 - p_{\mathrm{ideal}})}$ and hence in $k(n, M)$.
+
+Second, following Ref.~\cite{SahaRoyLacalle2026}, fitting $k(n, M) = a\,b^n + c$ across three equidistant register sizes $n_0, n_0 + \Delta n, n_0 + 2\Delta n$ extracts the per-qubit exponential growth base $b(\sigma, M) = \{[k(n_0 + 2\Delta n, M) - k(n_0 + \Delta n, M)] / [k(n_0 + \Delta n, M) - k(n_0, M)]\}^{1/\Delta n}$. Figure~\ref{fig:complexity-crossover}(b) plots this analytical growth base across $1 - \sigma \in [10^{-6}, 2 \times 10^{-1}]$ using anchors $n \in \{7, 10, 13\}$ ($\Delta n = 3$) for $M \in \{1, 4, 16\}$ under Eq.~\eqref{eq:linear-gate-counts}. At ultra-low infidelities ($1 - \sigma \lesssim 10^{-5}$), the circuit remains largely coherent across $n \le 13$, keeping $b \approx 1.23$--$1.69$. Across intermediate infidelities ($1 - \sigma \sim 10^{-4}$--$10^{-3}$), $n = 7$ remains partially coherent while $n = 13$ collapses toward $M/2^{13}$, creating a sharp transition peak ($b_{\max} \approx 8.47$ at $1 - \sigma \approx 2.19 \times 10^{-4}$ for $M = 1$). Increasing target multiplicity to $M = 4$ and $M = 16$ shortens circuit depth by $K_{\mathrm{ideal}} \propto M^{-1/2}$, shifting the transition peak rightward toward larger infidelities ($4.0 \times 10^{-4}$ and $6.7 \times 10^{-4}$) and lowering its height ($b_{\max} \approx 6.33$ and $4.54$). Finally, for $1 - \sigma \gtrsim 5 \times 10^{-3}$, all three anchor sizes lie in the decoherent regime $k(n, M) \propto 2^n$, so all three multi-target curves converge onto the universal plateau $b \approx 2.14$--$2.17$ (reflecting the factor-of-$2$ Hilbert-space doubling per added qubit, perturbed slightly above $2$ by the linear growth of $\abs{\ln(1 - p_{\mathrm{ideal}})} \sim n\ln 2$).
+
+\input{figures/fig4_resource_estimation}
+
+\begin{table*}[t]
+\caption{Heterogeneous gate counts and maximum tolerable two-qubit entangling-gate infidelities $1 - \sigma_{2\mathrm{q}}$ for single-target Grover search ($M = 1$, $K = K_{\mathrm{ideal}}(n)$) across $n \in \{10, 20, 30, 40, 50, 60\}$ qubits under linear-$n$ decomposition~\eqref{eq:linear-gate-counts} and single-to-two-qubit infidelity ratio $1 - \sigma_{1\mathrm{q}} = \alpha(1 - \sigma_{2\mathrm{q}})$. Associated single-qubit budgets follow via $1 - \sigma_{1\mathrm{q}} = \alpha(1 - \sigma_{2\mathrm{q}})$.}
+\label{tab:resource-budgets}
+\begin{ruledtabular}
+\begin{tabular}{cccccccc}
+ & & & & \multicolumn{2}{c}{Max.\ $1 - \sigma_{2\mathrm{q}}$ for $k(n) \le 2$} & \multicolumn{2}{c}{Max.\ $1 - \sigma_{2\mathrm{q}}$ for $k(n) \le 10$} \\
+\cmidrule(lr){5-6} \cmidrule(lr){7-8}
+$n$ & $K_{\mathrm{ideal}}$ & $G_{1\mathrm{q}}(n)$ & $G_{2\mathrm{q}}(n)$ & $\alpha = 0.1$ & $\alpha = 0.01$ & $\alpha = 0.1$ & $\alpha = 0.01$ \\
+\midrule
+\input{data/table1_rows}
+\end{tabular}
+\end{ruledtabular}
+\end{table*}
+
+\subsection{Utility-Scale Heterogeneous Gate-Fidelity Budgets (\texorpdfstring{$n = 10$--$60$}{n = 10--60})}
+\label{sec:resource-budgets}
+
+On superconducting, trapped-ion, and neutral-atom processors, single-qubit rotations routinely achieve infidelities one to two orders of magnitude smaller than two-qubit entangling operations. Applying Theorem~\ref{thm:channel-duality} [Eq.~\eqref{eq:gate-count-prod}] to Eq.~\eqref{eq:linear-gate-counts} gives $\sigma_{\mathrm{eff}}(n) = \sigma_{1\mathrm{q}}^{G_{1\mathrm{q}}(n)}\sigma_{2\mathrm{q}}^{G_{2\mathrm{q}}(n)}$. Parameterizing single-qubit error relative to two-qubit error as $1 - \sigma_{1\mathrm{q}} = \alpha(1 - \sigma_{2\mathrm{q}})$ with $\alpha \in \{0.1, 0.01\}$, we invert Eq.~\eqref{eq:repetition-overhead} numerically in cancellation-free logarithmic precision to determine the maximum tolerable entangling infidelity $1 - \sigma_{2\mathrm{q}}$ keeping $k(n, 1) \le k_{\mathrm{max}}$ for $k_{\mathrm{max}} \in \{2, 10\}$ through $n = 60$ qubits ($N = 2^{60} \approx 1.15 \times 10^{18}$).
+
+Figure~\ref{fig:resource-budgets} and Table~\ref{tab:resource-budgets} summarize the resulting single- and two-qubit fidelity budgets. Because $\ln\sigma_{\mathrm{eff}} \approx -[G_{2\mathrm{q}}(n) + \alpha G_{1\mathrm{q}}(n)](1 - \sigma_{2\mathrm{q}})$ and $G_{1\mathrm{q}}/G_{2\mathrm{q}} \to 16/12 = 4/3$, reducing single-qubit error tenfold from $\alpha = 0.1$ to $\alpha = 0.01$ relaxes the two-qubit threshold $1 - \sigma_{2\mathrm{q}}$ by a nearly constant factor $(1 + 4/30)/(1 + 4/300) \approx 1.12$ [Fig.~\ref{fig:resource-budgets}(a)], demonstrating that entangling gates bottleneck total error budgets whenever $\alpha \le 0.1$, while shifting the required single-qubit budget $1 - \sigma_{1\mathrm{q}}$ by a full decade [Fig.~\ref{fig:resource-budgets}(b)]. Notice also that the $k \le 2$ curves exhibit sharper downward cusps than $k \le 10$ (for example at $n = 14, 22, 25, 39, 52$, and $60$): when $(2K_{\mathrm{ideal}} + 1)\theta$ lands exceptionally close to $\pi/2$ (at $n = 60$, $1 - p_{\mathrm{ideal}} \approx 3.69 \times 10^{-21}$, below the generic $2^{-60} \approx 8.67 \times 10^{-19}$ scale), demanding $(1 - p_e)^2 \le 1 - p_{\mathrm{ideal}}$ forces $1 - \sigma_{\mathrm{eff}}^2 \lesssim \sqrt{1 - p_{\mathrm{ideal}}}$, tightening the $k \le 2$ infidelity ceiling more strongly than $(1 - p_{\mathrm{ideal}})^{1/10}$ at $k \le 10$.
+
+Quantitatively, Table~\ref{tab:resource-budgets} shows that physical NISQ devices ($1 - \sigma_{2\mathrm{q}} \sim 10^{-3}$ to $10^{-4}$) can sustain $k(n) \le 10$ only up to $n \approx 10$ qubits ($K_{\mathrm{ideal}} = 25$, $G_{2\mathrm{q}} = 2.55 \times 10^3$, requiring $1 - \sigma_{2\mathrm{q}} \le 1.10 \times 10^{-4}$ at $\alpha = 0.1$). Reaching $n = 20$ ($G_{2\mathrm{q}} = 1.78 \times 10^5$) already requires $1 - \sigma_{2\mathrm{q}} \le 6.07 \times 10^{-7}$ for $k \le 10$ and $1.22 \times 10^{-9}$ for $k \le 2$. At classically intractable utility scales $n = 50$ ($G_{2\mathrm{q}} = 1.53 \times 10^{10}$) and $n = 60$ ($G_{2\mathrm{q}} = 5.92 \times 10^{11}$), keeping $k \le 10$ demands effective entangling infidelities of $7.82 \times 10^{-13}$ and $6.77 \times 10^{-15}$ (and $4.53 \times 10^{-23}$ for $k \le 2$ at $n = 60$). Because encoded QEC blocks cannot suppress isotropic errors that act uniformly on the logical sphere~\cite{Lacalle2021}, these thresholds define direct upper bounds on residual logical-level isotropic drift across deep fault-tolerant search compilations.
+
+\section{Discussion and Conclusion}
+\label{sec:discussion}
+
+The exact cancellation proved in Theorems~\ref{thm:poisson-moments}--\ref{thm:channel-duality} bridges microscopic pure-state error geometry on $S^{2^{n+1}-1}$ and macroscopic quantum circuit complexity. By proving that one-step polar variance $(2N - 1)(1 - \sigma^2)/(2N)$ cancels the $(2N - 1)$-dimensional equatorial trace normalization identically---and that even--odd basis orthogonality eliminates all imaginary floor terms---we resolve the empirical mixture formula of Ref.~\cite{SahaRoyLacalle2026} as an exact theorem across all $n, G \in \mathbb{N}$ and $\sigma_g \in [0, 1]$, without invoking spherical-angle convolution assumptions or large-$N$ asymptotics. Combined with the Lean~4 formalization in the \suppRef, this framework provides both analytical transparency and machine-checked certainty from real sphere integrals up to concrete primitive-gate Grover circuits.
+
+Some limitations of this study warrant mention. First, the isotropic model assumes perturbations distributed with full $\mathrm{O}(2N - 1)$ rotational symmetry around the instantaneous $n$-qubit statevector on $S^{2N-1}$; physical hardware noise is predominantly generated by spatially local one- and two-qubit Lindblad jump operators, coherent control miscalibrations, and spectator crosstalk, which acquire global isotropy only approximately after deep scrambling or randomized compiling~\cite{FonsecaDeOliveira2017}. Second, Theorem~\ref{thm:channel-duality} and Corollary~\ref{cor:multi-grover} characterize exact ensemble-averaged Born probabilities, which govern independent per-shot error realizations; if hardware drift is instead quasistatic across batches of measurement shots, post-circuit probabilities exhibit nonzero shot-to-shot trajectory fluctuations governed at strong noise by the $\mathrm{Beta}(1, N - 1)$ variance of Eq.~\eqref{eq:porter-thomas}. Third, our circuit resource formulas treat $\ket{0^n}$ initialization and final computational-basis readout as ideal; incorporating symmetric single-qubit readout assignment error $e_{\mathrm{meas}}$ multiplies the coherent contrast in Eq.~\eqref{eq:multi-grover-exact} by an additional state-preparation-and-measurement (SPAM) factor $(1 - e_{\mathrm{meas}})^n$ on single-target outcomes while redistributing false-positive background terms across Hamming neighbors.
+
+Together, our exact channel-duality theorems, optimal-stopping angle formula, and $60$-qubit heterogeneous fidelity budgets establish quantitative benchmarks for quantum algorithms operating in the presence of uncorrectable isotropic drift. Because Theorem~\ref{thm:channel-duality} holds for arbitrary unitary circuits and POVMs, the same gate-count factorization applies directly to quantum amplitude estimation~\cite{Brassard2002}, quantum Fourier transform subroutines, Trotterized Hamiltonian simulation, and variational circuits. Extending the moment-and-reflection technique to partially isotropic noise models parameterized by the isotropic index~\cite{FonsecaDeOliveira2017}---where local correctable Pauli channels coexist with a residual global isotropic floor---offers a natural path to bounding logical performance when fault-tolerant syndrome extraction removes local errors while leaving global sphere rotations intact. Experimental randomized-benchmarking and small-register Grover experiments on superconducting and neutral-atom processors can likewise test how closely compiled multi-qubit gate sequences approach the isotropic mixture law in practice.

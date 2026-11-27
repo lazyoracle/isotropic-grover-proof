@@ -1,0 +1,65 @@
+% Shared preamble for Physical Review A manuscript, Supplemental Material, and unified arXiv build
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{bm}
+\usepackage{braket}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,calc,positioning,decorations.pathreplacing,backgrounds}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+% Colorblind-safe Okabe-Ito palette
+\definecolor{oiBlack}{RGB}{0,0,0}
+\definecolor{oiOrange}{RGB}{230,159,0}
+\definecolor{oiSky}{RGB}{86,180,233}
+\definecolor{oiGreen}{RGB}{0,158,115}
+\definecolor{oiBlue}{RGB}{0,114,178}
+\definecolor{oiVermilion}{RGB}{213,94,0}
+\definecolor{oiPurple}{RGB}{204,121,167}
+\definecolor{oiGray}{RGB}{110,110,110}
+
+% Custom pgfplots row filter for multi-panel peak overlays
+\pgfplotsset{
+  discard if not/.style 2 args={
+    x filter/.code={
+      \edef\tempa{\thisrow{#1}}
+      \edef\tempb{#2}
+      \ifx\tempa\tempb
+      \else
+        \def\pgfmathresult{inf}
+      \fi
+    }
+  }
+}
+
+% Paired delimiters and mathematical operators
+\DeclarePairedDelimiter{\norm}{\lVert}{\rVert}
+\DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
+\DeclarePairedDelimiterX{\ip}[2]{\langle}{\rangle}{#1, #2}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\operatorname{Var}}
+\newcommand{\Tr}{\operatorname{Tr}}
+\newcommand{\Span}{\operatorname{span}}
+
+% Theorem environments compatible with revtex4-2
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{proposition}{Proposition}
+\newtheorem{corollary}{Corollary}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+
+% Dual APS / unified-arXiv cross-reference hook for Supplemental Material
+\newif\ifarXivunified
+\newcommand{\suppRef}{%
+  \ifarXivunified
+    \hyperref[sec:supp-overview]{Supplemental Material}%
+  \else
+    Supplemental Material~\cite{SupplementalMaterial}%
+  \fi
+}
+
+\usepackage[colorlinks=true,allcolors=blue]{hyperref}
