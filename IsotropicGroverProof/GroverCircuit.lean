@@ -18,9 +18,10 @@
 --    (`noisyCircuitChannel`, `c.size`), with concrete 1-qubit (`K = 0`) and 2-qubit (`K = 1`)
 --    primitive-gate circuit witnesses.
 -- 7. Subset measurement probabilities (`subsetSuccProb`) across arbitrary target subsets `S`
---    (including `∅` and `Finset.univ`) and end-to-end heterogeneous multi-target (`M = S.card`)
+--    (including `∅` and `Finset.univ`), end-to-end heterogeneous multi-target (`M = S.card`)
 --    Grover search (`multiOracleUnitary`, `multiGroverStep`, `multiGrover_ideal_subsetSuccProb`,
---    `noisyMultiGroverHet_succProb`).
+--    `noisyMultiGroverHet_succProb`, `noisyMultiGroverHet_circuit_bornProb`), and the concrete
+--    heterogeneous 2-qubit Grover polynomial (`noisyGroverHet_circuit_grover2_bornProb`).
 
 import QuantumComputation.Algorithms.Grover.Amplitude
 import IsotropicGroverProof.MainTheorem
@@ -36,7 +37,8 @@ and 2D Grover search plane, bridges `QuantumInfo` ket trajectories and unitary p
 Grover trajectory and `CPTPMap` / `computationalPOVM` Born-probability theorems across arbitrary
 unitary gate lists (`List 𝐔[Fin (2 ^ n)]`), canonical Grover sequences (`groverIterGates`,
 `groverFullGates`), syntactic `Circuit n` (`c.size`, `circuitFidelity`), and multi-target
-(`M = S.card`) search (`noisyMultiGroverHet_succProb`).
+(`M = S.card`) search (`noisyMultiGroverHet_succProb`, `noisyMultiGroverHet_circuit_bornProb`,
+`noisyGroverHet_circuit_grover2_bornProb`).
 -/
 
 namespace IsotropicGrover
@@ -1367,6 +1369,62 @@ theorem noisyMultiGroverHet_succProb {n : ℕ} (S : Finset (Fin (2 ^ n)))
       fidelityProd_map_fst, hideal,
       multiGrover_ideal_subsetSuccProb S hS_pos hS_lt K]
 
+/-- **Syntactic `Circuit n` corollary for heterogeneous `M`-target Grover search:** Any circuit
+    `c : Circuit n` with `c.eval = (multiGroverStep S) ^ K * hadamardUnitary` (`0 < S.card < 2 ^ n`)
+    achieves cumulative marked-subset Born probability
+    `(circuitFidelity σGate c) ^ 2 * multiGroverPSucc K n S.card +
+      (1 - (circuitFidelity σGate c) ^ 2) * S.card / 2 ^ n`
+    starting from `Ket.basis 0`. -/
+theorem noisyMultiGroverHet_circuit_bornProb {n : ℕ}
+    (σGate : ∀ {k}, PrimitiveGate k → ℝ)
+    (hσ : ∀ {k} (g : PrimitiveGate k), σGate g ∈ Set.Icc 0 1)
+    (c : Circuit n) (S : Finset (Fin (2 ^ n)))
+    (hS_pos : 0 < S.card) (hS_lt : S.card < 2 ^ n) (K : ℕ)
+    (hc : c.eval = (multiGroverStep S) ^ K * hadamardUnitary) :
+    ∑ w ∈ S, ((computationalPOVM n).measure
+      (noisyCircuitChannelHet σGate hσ c (MState.pure (Ket.basis (0 : Fin (2 ^ n))))) w : ℝ) =
+    (circuitFidelity σGate c) ^ 2 * multiGroverPSucc K n S.card +
+      (1 - (circuitFidelity σGate c) ^ 2) * (S.card : ℝ) / (2 ^ n : ℝ) := by
+  rw [noisyCircuitHet_subsetBornProb σGate hσ c _ S, hc, ofUnitary_pure,
+      ← (subsetSuccProb_ketToReal_eq_born _ S).2,
+      multiGrover_ideal_subsetSuccProb S hS_pos hS_lt K]
+
+/-- Exact gate-type factorization of `circuitFidelity` on `grover2QubitCircuit`
+    (`10` Hadamard, `2` Pauli-`Z`, and `2` `CNOT` gates). -/
+lemma circuitFidelity_grover2QubitCircuit (σGate : ∀ {k}, PrimitiveGate k → ℝ) :
+    circuitFidelity σGate grover2QubitCircuit =
+    σGate .h ^ 10 * σGate .z ^ 2 * σGate .cnot ^ 2 := by
+  simp only [grover2QubitCircuit, layerH2, oracle2Circuit, diffuser2Circuit,
+    Circuit.H, Circuit.Z, Circuit.CNOT, Circuit.single,
+    PrimitiveGate.H, PrimitiveGate.Z, PrimitiveGate.CNOT,
+    circuitFidelity_seq, circuitFidelity_gate]
+  ring
+
+/-- **Concrete heterogeneous `Circuit 2` witness (`K = 1`, `10` `H` + `2` `Z` + `2` `CNOT`):**
+    Instantiating `noisyMultiGroverHet_circuit_bornProb` on `grover2QubitCircuit` (`S = {3}`) yields
+    exact noisy Born probability
+    `σGate .h ^ 20 * σGate .z ^ 4 * σGate .cnot ^ 4 +
+      (1 - σGate .h ^ 20 * σGate .z ^ 4 * σGate .cnot ^ 4) / 4`. -/
+theorem noisyGroverHet_circuit_grover2_bornProb
+    (σGate : ∀ {k}, PrimitiveGate k → ℝ)
+    (hσ : ∀ {k} (g : PrimitiveGate k), σGate g ∈ Set.Icc 0 1) :
+    ((computationalPOVM 2).measure
+      (noisyCircuitChannelHet σGate hσ grover2QubitCircuit
+        (MState.pure (Ket.basis (0 : Fin (2 ^ 2))))) (3 : Fin (2 ^ 2)) : ℝ) =
+    σGate .h ^ 20 * σGate .z ^ 4 * σGate .cnot ^ 4 +
+      (1 - σGate .h ^ 20 * σGate .z ^ 4 * σGate .cnot ^ 4) / 4 := by
+  have heval : grover2QubitCircuit.eval =
+      (multiGroverStep {(3 : Fin (2 ^ 2))}) ^ 1 * hadamardUnitary := by
+    rw [grover2QubitCircuit, Circuit.eval_seq, Circuit.eval_seq,
+        layerH2_eval, oracle2Circuit_eval, diffuser2_eval,
+        pow_one, multiGroverStep, multiOracleUnitary_singleton, mul_assoc]
+  have h := noisyMultiGroverHet_circuit_bornProb σGate hσ grover2QubitCircuit
+    {(3 : Fin (2 ^ 2))} (by simp) (by simp) 1 heval
+  rw [Finset.sum_singleton, Finset.card_singleton, multiGroverPSucc_one_eq_p_succ,
+      show Grover.p_succ 1 (2 ^ 2) = 1 from p_succ_one_four,
+      circuitFidelity_grover2QubitCircuit] at h
+  linarith [h]
+
 /-! ## Verification checks -/
 
 /-- info: 14 -/
@@ -1447,6 +1505,9 @@ example {n : ℕ} (σGate : ∀ {k}, PrimitiveGate k → ℝ)
 #check @multiGroverPSucc
 #check @multiGrover_ideal_subsetSuccProb
 #check @noisyMultiGroverHet_succProb
+#check @noisyMultiGroverHet_circuit_bornProb
+#check @circuitFidelity_grover2QubitCircuit
+#check @noisyGroverHet_circuit_grover2_bornProb
 
 /--
 info: 'IsotropicGrover.isotropicGrover_uniformSuperposition' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -1609,5 +1670,17 @@ info: 'IsotropicGrover.noisyMultiGroverHet_succProb' depends on axioms: [propext
 -/
 #guard_msgs in
 #print axioms noisyMultiGroverHet_succProb
+
+/--
+info: 'IsotropicGrover.noisyMultiGroverHet_circuit_bornProb' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyMultiGroverHet_circuit_bornProb
+
+/--
+info: 'IsotropicGrover.noisyGroverHet_circuit_grover2_bornProb' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyGroverHet_circuit_grover2_bornProb
 
 end IsotropicGrover

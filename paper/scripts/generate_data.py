@@ -256,10 +256,9 @@ def repetition_overhead(
         return 1.0
 
     p_id, q_id = exact_ideal_prob_and_complement(n, M, K)
-    # Degenerate exact p_ideal == 1 (e.g. n = 2, M = 1, K = 1): float64 epsilon fallback
+    # Exact unit ideal probability (4*M == 2^n at K = 1) with sigma_eff < 1: (1 - p_e)^k = 0 -> +inf
     if q_id == 0.0:
-        q_id = math.ldexp(1.0, -53)
-        p_id = 1.0 - q_id
+        return math.inf
 
     r = math.ldexp(float(M), -n)
     if ln_sigma_eff is not None:

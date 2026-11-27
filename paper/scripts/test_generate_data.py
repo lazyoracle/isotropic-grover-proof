@@ -86,10 +86,16 @@ class GenerateDataTests(unittest.TestCase):
         self.assertGreater(k_mid, k_high)
         self.assertGreater(k_high, k_unit)
 
-        # Also check degenerate p_ideal == 1 at n = 2, M = 1, K = 1
-        self.assertEqual(gd.repetition_overhead(2, 1, 1, 1.0), 1.0)
-        k_n2_noisy = gd.repetition_overhead(2, 1, 1, 0.9)
-        self.assertGreater(k_n2_noisy, 1.0)
+        # Degenerate exact p_ideal == 1 (4*M == 2^n at K = 1): 1.0 when noiseless, +inf when noisy
+        for n_deg, m_deg in ((2, 1), (6, 16)):
+            self.assertEqual(gd.repetition_overhead(n_deg, m_deg, 1, 1.0), 1.0)
+            for s_noisy in (0.9, 0.5, 0.0):
+                k_deg = gd.repetition_overhead(n_deg, m_deg, 1, s_noisy)
+                self.assertTrue(math.isinf(k_deg) and k_deg > 0.0)
+            k_sub_eps = gd.repetition_overhead(
+                n_deg, m_deg, 1, 1.0, ln_sigma_eff=-1e-25
+            )
+            self.assertTrue(math.isinf(k_sub_eps) and k_sub_eps > 0.0)
 
     def test_resource_budget_solver_recovers_target_overhead_up_to_n60(self) -> None:
         for n in (10, 20, 40, 60):

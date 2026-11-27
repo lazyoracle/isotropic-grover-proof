@@ -1357,7 +1357,7 @@ def check_files(paths: list[Path], lean_dir: Path | None = None) -> list[str]:
         labels, refs = _collect_labels_and_refs(display_path, stripped, offsets)
 
         for key, line_no in labels:
-            if key in defined_labels and rp in explicit_resolved:
+            if key in defined_labels:
                 prev_path, prev_line = defined_labels[key]
                 errors.append(
                     f"{display_path}:{line_no}: duplicate label '{key}' "

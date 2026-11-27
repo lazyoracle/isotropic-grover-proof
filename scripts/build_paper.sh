@@ -126,6 +126,7 @@ for target in "${TARGETS[@]}"; do
 done
 
 python3 -B - "${TARGETS[@]}" <<'PY'
+import os
 import re
 import shutil
 import subprocess
@@ -136,6 +137,11 @@ targets = sys.argv[1:]
 build_dir = Path("paper/build")
 errors: list[str] = []
 pdffonts_bin = shutil.which("pdffonts")
+if pdffonts_bin is None:
+    if os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true":
+        errors.append("pdffonts binary not found in CI; install poppler-utils")
+    else:
+        print("WARNING: pdffonts not found; skipping Type 3 font audit", file=sys.stderr)
 
 undef_ref_re = re.compile(r"LaTeX Warning: Reference `[^']*' on page .* undefined")
 undef_cit_re = re.compile(r"LaTeX Warning: Citation `[^']*' on page .* undefined")
@@ -160,23 +166,68 @@ for target in targets:
         continue
 
     raw_log = log_path.read_text(encoding="latin-1")
-    # Join hard-wrapped 79-column TeX log lines for reliable pattern matching where needed
+    # Join hard-wrapped 79-column TeX log lines only when nxt itself does not match
     lines = raw_log.splitlines()
     for idx, line in enumerate(lines, start=1):
         nxt = lines[idx] if idx < len(lines) else ""
-        candidates = (line + (" " + nxt if nxt else ""), line + nxt)
+        joined = (line + " " + nxt, line + nxt) if nxt else ()
         for rx in (undef_ref_re, undef_cit_re, mult_label_re):
-            if any(rx.search(w) for w in candidates):
+            if rx.search(line) or (nxt and not rx.search(nxt) and any(rx.search(w) for w in joined)):
                 errors.append(f"{log_path}:{idx}: {line.strip()}")
         if there_undef_re.search(line):
             errors.append(f"{log_path}:{idx}: {line.strip()}")
-        if any(dup_dest_re.search(w) for w in candidates):
+        if dup_dest_re.search(line) or (
+            nxt and not dup_dest_re.search(nxt) and any(dup_dest_re.search(w) for w in joined)
+        ):
             errors.append(f"{log_path}:{idx}: duplicate hyperref destination: {line.strip()}")
         m_over = overfull_re.search(line)
         if m_over:
             pt = float(m_over.group(1))
             if pt > 4.0:
                 errors.append(f"{log_path}:{idx}: Overfull \\hbox ({pt:.2f}pt > 4.0pt): {line.strip()}")
+
+# Cross-check hardcoded Main-Text display numbers in \mref{<key>}{<text>} against main.aux
+main_aux_path = build_dir / "main.aux"
+supp_body_path = Path("paper/supplement_body.tex")
+if not main_aux_path.is_file():
+    errors.append(f"{main_aux_path}: expected main.aux missing for \\mref cross-check")
+elif supp_body_path.is_file():
+    aux_labels: dict[str, str] = {}
+    newlabel_re = re.compile(r"\\newlabel\{([^{}]+)\}\{\{((?:[^{}]|\{[^{}]*\})*)\}")
+    for m_lbl in newlabel_re.finditer(main_aux_path.read_text(encoding="utf-8")):
+        aux_labels[m_lbl.group(1)] = m_lbl.group(2)
+
+    mref_re = re.compile(r"\\mref\{([^{}]+)\}\{([^{}]+)\}")
+    for line_no, raw_line in enumerate(supp_body_path.read_text(encoding="utf-8").splitlines(), start=1):
+        clean_line = re.sub(r"(?<!\\)%.*$", "", raw_line)
+        for m_ref in mref_re.finditer(clean_line):
+            key, disp = m_ref.group(1), m_ref.group(2)
+            if key not in aux_labels:
+                errors.append(
+                    f"{supp_body_path}:{line_no}: \\mref{{{key}}}{{{disp}}} key missing from {main_aux_path}"
+                )
+                continue
+            expected_num = aux_labels[key]
+            extracted = disp.strip()
+            if key.startswith("eq:"):
+                extracted = re.sub(r"^(?:Eqs?\.|Equations?)~", "", extracted)
+                if extracted.startswith("(") and extracted.endswith(")"):
+                    extracted = extracted[1:-1]
+            elif key.startswith(("thm:", "cor:", "prop:", "lem:")):
+                extracted = re.sub(
+                    r"^(?:Theorems?|Corollar(?:y|ies)|Propositions?|Lemmas?)~", "", extracted
+                )
+                extracted = re.sub(r"\(\d+\)$", "", extracted)
+            elif key.startswith("sec:"):
+                extracted = re.sub(r"^(?:Secs?\.|Sections?)~", "", extracted)
+            elif key.startswith(("fig:", "tab:")):
+                extracted = re.sub(r"^(?:Figs?\.|Figures?|Tables?)~", "", extracted)
+                extracted = re.sub(r"\([a-z]\)$", "", extracted)
+            if extracted != expected_num:
+                errors.append(
+                    f"{supp_body_path}:{line_no}: \\mref{{{key}}}{{{disp}}} display number "
+                    f"'{extracted}' != {main_aux_path} label '{expected_num}'"
+                )
 
 if errors:
     for err in errors:

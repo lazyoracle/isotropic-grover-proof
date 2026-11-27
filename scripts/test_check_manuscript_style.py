@@ -325,6 +325,49 @@ class CheckManuscriptStyleTests(unittest.TestCase):
             self._check_tex(input_files, entry_files=["entry.tex"]), []
         )
 
+        # Duplicate \label inside \input-expanded child files must be caught
+        dup_same_child = {
+            "entry.tex": "See Eq.~\\eqref{eq:dup}.\n\\input{child}\n",
+            "child.tex": (
+                "First:\n\\begin{equation}\na = b.\\label{eq:dup}\n\\end{equation}\n"
+                "Second:\n\\begin{equation}\nc = d.\\label{eq:dup}\n\\end{equation}\n"
+            ),
+        }
+        dup_same_errs = self._check_tex(dup_same_child, entry_files=["entry.tex"])
+        self.assertTrue(
+            any("duplicate label 'eq:dup'" in e for e in dup_same_errs),
+            dup_same_errs,
+        )
+
+        dup_across_children = {
+            "entry.tex": "See Eq.~\\eqref{eq:shared}.\n\\input{c1}\n\\input{c2}\n",
+            "c1.tex": "First:\n\\begin{equation}\na = b.\\label{eq:shared}\n\\end{equation}\n",
+            "c2.tex": "Second:\n\\begin{equation}\nc = d.\\label{eq:shared}\n\\end{equation}\n",
+        }
+        dup_across_errs = self._check_tex(
+            dup_across_children, entry_files=["entry.tex"]
+        )
+        self.assertTrue(
+            any("duplicate label 'eq:shared'" in e for e in dup_across_errs),
+            dup_across_errs,
+        )
+
+        dup_entry_and_child = {
+            "entry.tex": (
+                "\\section{Intro}\\label{sec:dup}\n"
+                "Lead-in prose citing Sec.~\\ref{sec:dup}.\n"
+                "\\input{sub}\n"
+            ),
+            "sub.tex": "\\section{Second}\\label{sec:dup}\nMore prose.\n",
+        }
+        dup_ec_errs = self._check_tex(
+            dup_entry_and_child, entry_files=["entry.tex"]
+        )
+        self.assertTrue(
+            any("duplicate label 'sec:dup'" in e for e in dup_ec_errs),
+            dup_ec_errs,
+        )
+
         # Naked \section followed directly by \subsection without lead-in prose
         naked = (
             "\\section{Complexity Analysis}\\label{sec:comp}\n\n"
