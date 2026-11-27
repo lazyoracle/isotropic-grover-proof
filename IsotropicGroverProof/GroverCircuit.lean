@@ -1101,6 +1101,16 @@ theorem multiGroverPSucc_one_eq_p_succ (K n : ℕ) :
   rw [multiGroverPSucc, multiGroverHalfAngle, Grover.p_succ_eq_sin_sq,
       Nat.cast_one, Nat.cast_pow, Nat.cast_ofNat, Real.sqrt_div zero_le_one, Real.sqrt_one]
 
+private lemma card_univ_sdiff_cast {n : ℕ} (S : Finset (Fin (2 ^ n))) :
+    ((Finset.univ \ S).card : ℝ) = (2 ^ n : ℝ) - (S.card : ℝ) := by
+  have hle : S.card ≤ 2 ^ n := by simpa using S.card_le_univ
+  rw [Finset.card_sdiff_of_subset (Finset.subset_univ S), Finset.card_univ, Fintype.card_fin,
+      Nat.cast_sub hle, Nat.cast_pow, Nat.cast_ofNat]
+
+private lemma multiNonTargetState_eq {n : ℕ} (S : Finset (Fin (2 ^ n))) :
+    multiNonTargetState S = multiTargetState (Finset.univ \ S) := by
+  rw [multiNonTargetState, multiTargetState, card_univ_sdiff_cast]
+
 private lemma realToVec_multiTargetState {n : ℕ} (S : Finset (Fin (2 ^ n))) (y : Fin (2 ^ n)) :
     realToVec (multiTargetState S) y =
     if y ∈ S then ((1 / Real.sqrt (S.card : ℝ) : ℝ) : ℂ) else 0 := by
@@ -1115,10 +1125,7 @@ private lemma realToVec_multiNonTargetState {n : ℕ} (S : Finset (Fin (2 ^ n)))
     realToVec (multiNonTargetState S) y =
     if y ∈ S then 0 else ((1 / Real.sqrt ((2 ^ n : ℝ) - (S.card : ℝ)) : ℝ) : ℂ) := by
   classical
-  unfold multiNonTargetState
-  rw [realToVec_smul, Pi.smul_apply, realToVec_sum]
-  simp_rw [realToVec_stdBasisVec_idx0]
-  rw [Finset.sum_ite_eq']
+  rw [multiNonTargetState_eq, realToVec_multiTargetState, card_univ_sdiff_cast]
   by_cases hy : y ∈ S <;> simp [hy]
 
 lemma norm_multiTargetState {n : ℕ} (S : Finset (Fin (2 ^ n))) (hS_pos : 0 < S.card) :
@@ -1141,26 +1148,10 @@ lemma norm_multiTargetState {n : ℕ} (S : Finset (Fin (2 ^ n))) (hS_pos : 0 < S
 
 lemma norm_multiNonTargetState {n : ℕ} (S : Finset (Fin (2 ^ n))) (hS_lt : S.card < 2 ^ n) :
     ‖multiNonTargetState S‖ = 1 := by
-  classical
-  have hlt : (S.card : ℝ) < (2 ^ n : ℝ) := by exact_mod_cast hS_lt
-  have hNM_pos : 0 < (2 ^ n : ℝ) - (S.card : ℝ) := sub_pos.mpr hlt
-  have hsq : ‖multiNonTargetState S‖ ^ 2 = 1 := by
-    rw [← sum_norm_sq_realToVec]
-    have hterm : ∀ y : Fin (2 ^ n),
-        ‖realToVec (multiNonTargetState S) y‖ ^ 2 =
-        if y ∈ Finset.univ \ S then 1 / ((2 ^ n : ℝ) - (S.card : ℝ)) else 0 := by
-      intro y
-      rw [realToVec_multiNonTargetState]
-      by_cases hy : y ∈ S
-      · simp [hy]
-      · simp [hy, Complex.norm_real, Real.norm_eq_abs, sq_abs, Real.sq_sqrt hNM_pos.le]
-    simp_rw [hterm]
-    have hcard : ((Finset.univ \ S).card : ℝ) = (2 ^ n : ℝ) - (S.card : ℝ) := by
-      rw [Finset.card_sdiff_of_subset (Finset.subset_univ S), Finset.card_univ, Fintype.card_fin,
-          Nat.cast_sub (le_of_lt hS_lt), Nat.cast_pow, Nat.cast_ofNat]
-    rw [Finset.sum_ite_mem, Finset.univ_inter, Finset.sum_const, nsmul_eq_mul, hcard,
-        mul_one_div_cancel hNM_pos.ne']
-  nlinarith [norm_nonneg (multiNonTargetState S)]
+  have hcard : (Finset.univ \ S).card = 2 ^ n - S.card := by
+    rw [Finset.card_sdiff_of_subset (Finset.subset_univ S), Finset.card_univ, Fintype.card_fin]
+  rw [multiNonTargetState_eq]
+  exact norm_multiTargetState (Finset.univ \ S) (by omega)
 
 private lemma sin_multiGroverHalfAngle {n M : ℕ} (hM_le : M ≤ 2 ^ n) :
     Real.sin (multiGroverHalfAngle n M) = Real.sqrt (M : ℝ) / Real.sqrt (2 ^ n : ℝ) := by
@@ -1247,53 +1238,33 @@ private lemma multiGrover_vec_apply {n : ℕ} (S : Finset (Fin (2 ^ n)))
       rw [← Finset.sum_sdiff (Finset.subset_univ S)]
       have hs1 : ∑ j ∈ Finset.univ \ S, (multiOracleMatrix S *ᵥ vk) j =
           ((Real.sqrt (N - M) * bk : ℝ) : ℂ) := by
-        have hcongr : ∑ j ∈ Finset.univ \ S, (multiOracleMatrix S *ᵥ vk) j =
-            ∑ _j ∈ Finset.univ \ S, ((bk / Real.sqrt (N - M) : ℝ) : ℂ) := by
-          refine Finset.sum_congr rfl fun j hj => ?_
-          rw [hwk j, ite_eq_right (Finset.mem_sdiff.mp hj).2]
-        have hcard : (Finset.univ \ S).card = 2 ^ n - S.card := by
-          rw [Finset.card_sdiff_of_subset (Finset.subset_univ S), Finset.card_univ,
-              Fintype.card_fin]
-        have hsub_cast : (((2 ^ n - S.card : ℕ) : ℝ) : ℂ) = ((N - M : ℝ) : ℂ) := by
-          rw [Nat.cast_sub (le_of_lt hS_lt), hN_nat]
-        rw [hcongr, Finset.sum_const, hcard, nsmul_eq_mul, ← Complex.ofReal_natCast, hsub_cast,
+        rw [Finset.sum_congr rfl fun j hj => by rw [hwk j, ite_eq_right (Finset.mem_sdiff.mp hj).2],
+            Finset.sum_const, nsmul_eq_mul, ← Complex.ofReal_natCast, card_univ_sdiff_cast S,
             ← Complex.ofReal_mul]
-        refine congrArg Complex.ofReal ?_
-        calc (N - M) * (bk / Real.sqrt (N - M))
-            = Real.sqrt (N - M) ^ 2 * (bk / Real.sqrt (N - M)) := by
-                rw [Real.sq_sqrt hNM_pos.le]
-          _ = Real.sqrt (N - M) * bk := by field_simp [hsqrtNM_ne]
+        exact congrArg Complex.ofReal
+          (by field_simp [hsqrtNM_ne]; rw [Real.sq_sqrt hNM_pos.le]; dsimp [N, M]; ring)
       have hs2 : ∑ j ∈ S, (multiOracleMatrix S *ᵥ vk) j =
           ((-Real.sqrt M * ak : ℝ) : ℂ) := by
-        have hcongr : ∑ j ∈ S, (multiOracleMatrix S *ᵥ vk) j =
-            ∑ _j ∈ S, ((-ak / Real.sqrt M : ℝ) : ℂ) := by
-          refine Finset.sum_congr rfl fun j hj => ?_
-          rw [hwk j, ite_eq_left hj]
-        rw [hcongr, Finset.sum_const, nsmul_eq_mul, ← Complex.ofReal_natCast,
+        rw [Finset.sum_congr rfl fun j hj => by rw [hwk j, ite_eq_left hj],
+            Finset.sum_const, nsmul_eq_mul, ← Complex.ofReal_natCast,
             show ((S.card : ℝ) : ℂ) = (M : ℂ) from rfl, ← Complex.ofReal_mul]
-        refine congrArg Complex.ofReal ?_
-        calc M * (-ak / Real.sqrt M)
-            = Real.sqrt M ^ 2 * (-ak / Real.sqrt M) := by rw [Real.sq_sqrt hM_pos.le]
-          _ = -Real.sqrt M * ak := by field_simp [hsqrtM_ne]
+        exact congrArg Complex.ofReal
+          (by field_simp [hsqrtM_ne]; rw [Real.sq_sqrt hM_pos.le]; ring)
       rw [hs1, hs2, ← Complex.ofReal_add]
       refine congrArg Complex.ofReal ?_
-      have hadd : (2 * (k : ℝ) + 2) * θ = (2 * (k : ℝ) + 1) * θ + θ := by ring
-      rw [hadd, Real.cos_add, hcosθ, hsinθ]
+      rw [show (2 * (k : ℝ) + 2) * θ = (2 * (k : ℝ) + 1) * θ + θ by ring,
+          Real.cos_add, hcosθ, hsinθ]
       field_simp [hsqrtN_ne]
       ring
     rw [hstep_vec, Grover.diffuserMatrix_mulVec, hsum_wk, hwk i]
     have hdivN : (2 : ℂ) / (2 ^ n : ℂ) *
         ((Real.sqrt N * Real.cos ((2 * (k : ℝ) + 2) * θ) : ℝ) : ℂ) =
         ((2 / Real.sqrt N * Real.cos ((2 * (k : ℝ) + 2) * θ) : ℝ) : ℂ) := by
-      have h2N : (2 : ℂ) / (2 ^ n : ℂ) = ((2 / N : ℝ) : ℂ) := by
-        dsimp [N]; push_cast; rfl
-      rw [h2N, ← Complex.ofReal_mul]
-      refine congrArg Complex.ofReal ?_
-      calc 2 / N * (Real.sqrt N * Real.cos ((2 * (k : ℝ) + 2) * θ))
-          = 2 / Real.sqrt N ^ 2 * (Real.sqrt N * Real.cos ((2 * (k : ℝ) + 2) * θ)) := by
-              rw [Real.sq_sqrt (by positivity : 0 ≤ N)]
-        _ = 2 / Real.sqrt N * Real.cos ((2 * (k : ℝ) + 2) * θ) := by
-              field_simp [hsqrtN_ne]
+      rw [show (2 : ℂ) / (2 ^ n : ℂ) = ((2 / N : ℝ) : ℂ) by dsimp [N]; push_cast; rfl,
+          ← Complex.ofReal_mul]
+      exact congrArg Complex.ofReal (by
+        have hN_ne : N ≠ 0 := by positivity
+        field_simp [hN_ne, hsqrtN_ne]; rw [Real.sq_sqrt (by positivity : 0 ≤ N)])
     rw [hdivN]
     have hang3 : (2 * ((k + 1 : ℕ) : ℝ) + 1) * θ = (2 * (k : ℝ) + 2) * θ + θ := by
       push_cast; ring
@@ -1301,16 +1272,14 @@ private lemma multiGrover_vec_apply {n : ℕ} (S : Finset (Fin (2 ^ n)))
     by_cases hi : i ∈ S
     · simp only [hi, ↓reduceIte, ← Complex.ofReal_sub]
       refine congrArg Complex.ofReal ?_
-      rw [hang3, Real.sin_add]
-      have hsin1 : ak = Real.sin ((2 * (k : ℝ) + 2) * θ - θ) := by dsimp [ak]; rw [hang1]
-      rw [hsin1, Real.sin_sub, hsinθ]
+      dsimp only [ak]
+      rw [hang3, hang1, Real.sin_add, Real.sin_sub, hsinθ]
       field_simp [hsqrtM_ne, hsqrtN_ne]
       ring
     · simp only [hi, ↓reduceIte, ← Complex.ofReal_sub]
       refine congrArg Complex.ofReal ?_
-      rw [hang3, Real.cos_add]
-      have hcos1 : bk = Real.cos ((2 * (k : ℝ) + 2) * θ - θ) := by dsimp [bk]; rw [hang1]
-      rw [hcos1, Real.cos_sub, hcosθ]
+      dsimp only [bk]
+      rw [hang3, hang1, Real.cos_add, Real.cos_sub, hcosθ]
       field_simp [hsqrtNM_ne, hsqrtN_ne]
       ring
 
@@ -1385,19 +1354,16 @@ theorem noisyMultiGroverHet_succProb {n : ℕ} (S : Finset (Fin (2 ^ n)))
       (fun Ψ => subsetSuccProb n Ψ S) =
     (fidelityProd steps) ^ 2 * multiGroverPSucc K n S.card +
       (1 - (fidelityProd steps) ^ 2) * (S.card : ℝ) / (2 ^ n : ℝ) := by
-  have hrsteps : ∀ q ∈ steps.map (Prod.map unitaryToRealIso id), q.2 ∈ Set.Icc 0 1 := by
-    intro q hq
-    rcases List.mem_map.mp hq with ⟨p, hp, rfl⟩
-    exact hsteps p hp
   have hideal :
       idealGateTrajectoryHet (steps.map (Prod.map unitaryToRealIso id))
         (ketToReal (Ket.basis (0 : Fin (2 ^ n)))) =
       ketToReal (applyUnitaryKet ((multiGroverStep S) ^ K * hadamardUnitary)
         (Ket.basis (0 : Fin (2 ^ n)))) := by
-    rw [ ← hprod, ← idealUnitaryTrajectory_eq_applyUnitaryKet_prod,
-         ketToReal_idealUnitaryTrajectory, idealGateTrajectoryHet, List.map_map, List.map_map]
+    rw [← hprod, ← idealUnitaryTrajectory_eq_applyUnitaryKet_prod,
+        ketToReal_idealUnitaryTrajectory, idealGateTrajectoryHet, List.map_map, List.map_map]
     rfl
-  rw [noisyTrajectoryHet_subsetSuccProb _ hrsteps _ (norm_ketToReal _),
+  rw [noisyTrajectoryHet_subsetSuccProb _ (mem_map_fst_Icc unitaryToRealIso hsteps) _
+        (norm_ketToReal _),
       fidelityProd_map_fst, hideal,
       multiGrover_ideal_subsetSuccProb S hS_pos hS_lt K]
 

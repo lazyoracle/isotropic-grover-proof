@@ -410,6 +410,11 @@ lemma depolarizingChannel_one (n : ℕ) (h1 : (1 : ℝ) ∈ Set.Icc 0 1) :
   apply MState.ext_m
   simp [depolarizingChannel_apply_m]
 
+private lemma depolarizingChannel_congr {n : ℕ} {σ₁ σ₂ : ℝ}
+    {h₁ : σ₁ ∈ Set.Icc 0 1} {h₂ : σ₂ ∈ Set.Icc 0 1} (h : σ₁ = σ₂) :
+    depolarizingChannel n σ₁ h₁ = depolarizingChannel n σ₂ h₂ := by
+  subst h; rfl
+
 /-! ## Emergence of `depolarizingChannel` from isotropic sphere errors -/
 
 private lemma pureDensityMatrix_re_eq {n : ℕ} (Ψ : E n) (x y : Fin (2 ^ n)) :
@@ -428,11 +433,13 @@ private lemma pureDensityMatrix_im_eq {n : ℕ} (Ψ : E n) (x y : Fin (2 ^ n)) :
     realToVec_re, realToVec_im, inner_stdBasisVec_eq_apply]
   ring
 
-theorem noisyTrajectory_pureDensityMatrix_re {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
-    (gates : List (E n ≃ₗᵢ[ℝ] E n)) (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1) (x y : Fin (2 ^ n)) :
-    noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => (pureDensityMatrix n Ψ x y).re) =
-    σ ^ (2 * gates.length) * (pureDensityMatrix n (idealGateTrajectory gates Φ₀) x y).re +
-      (1 - σ ^ (2 * gates.length)) * (if x = y then 1 / (2 ^ n : ℝ) else 0) := by
+theorem noisyTrajectoryHet_pureDensityMatrix_re {n : ℕ}
+    (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ))
+    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
+    (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1) (x y : Fin (2 ^ n)) :
+    noisyTrajectoryExpectationHet n steps Φ₀ (fun Ψ => (pureDensityMatrix n Ψ x y).re) =
+    (fidelityProd steps) ^ 2 * (pureDensityMatrix n (idealGateTrajectoryHet steps Φ₀) x y).re +
+      (1 - (fidelityProd steps) ^ 2) * (if x = y then 1 / (2 ^ n : ℝ) else 0) := by
   let e0x := stdBasisVec n (succProbIdx0 n x)
   let e1x := stdBasisVec n (succProbIdx1 n x)
   let e0y := stdBasisVec n (succProbIdx0 n y)
@@ -442,9 +449,9 @@ theorem noisyTrajectory_pureDensityMatrix_re {n : ℕ} (σ : ℝ) (hσ : σ ∈ 
   have hc1 : Continuous (fun Ψ : E n => ⟪Ψ, e1x⟫_ℝ * ⟪Ψ, e1y⟫_ℝ) :=
     (continuous_id.inner continuous_const).mul (continuous_id.inner continuous_const)
   simp_rw [pureDensityMatrix_re_eq]
-  rw [noisyTrajectoryExpectation_add σ hσ gates Φ₀ hΦ₀ hc0 hc1,
-      noisyTrajectory_bilinear σ hσ gates Φ₀ hΦ₀ e0x e0y,
-      noisyTrajectory_bilinear σ hσ gates Φ₀ hΦ₀ e1x e1y]
+  rw [noisyTrajectoryExpectationHet_add steps hsteps Φ₀ hΦ₀ hc0 hc1,
+      noisyTrajectoryHet_bilinear steps hsteps Φ₀ hΦ₀ e0x e0y,
+      noisyTrajectoryHet_bilinear steps hsteps Φ₀ hΦ₀ e1x e1y]
   have h0_iff : succProbIdx0 n x = succProbIdx0 n y ↔ x = y := ⟨succProbIdx0_inj, congrArg _⟩
   have h1_iff : succProbIdx1 n x = succProbIdx1 n y ↔ x = y := ⟨succProbIdx1_inj, congrArg _⟩
   have h00 : ⟪e0x, e0y⟫_ℝ = if x = y then 1 else 0 := by
@@ -462,10 +469,12 @@ theorem noisyTrajectory_pureDensityMatrix_re {n : ℕ} (σ : ℝ) (hσ : σ ∈ 
   · simp only [hxy, ↓reduceIte, mul_zero, add_zero]
     ring
 
-theorem noisyTrajectory_pureDensityMatrix_im {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
-    (gates : List (E n ≃ₗᵢ[ℝ] E n)) (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1) (x y : Fin (2 ^ n)) :
-    noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => (pureDensityMatrix n Ψ x y).im) =
-    σ ^ (2 * gates.length) * (pureDensityMatrix n (idealGateTrajectory gates Φ₀) x y).im := by
+theorem noisyTrajectoryHet_pureDensityMatrix_im {n : ℕ}
+    (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ))
+    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
+    (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1) (x y : Fin (2 ^ n)) :
+    noisyTrajectoryExpectationHet n steps Φ₀ (fun Ψ => (pureDensityMatrix n Ψ x y).im) =
+    (fidelityProd steps) ^ 2 * (pureDensityMatrix n (idealGateTrajectoryHet steps Φ₀) x y).im := by
   let e0x := stdBasisVec n (succProbIdx0 n x)
   let e1x := stdBasisVec n (succProbIdx1 n x)
   let e0y := stdBasisVec n (succProbIdx0 n y)
@@ -475,9 +484,9 @@ theorem noisyTrajectory_pureDensityMatrix_im {n : ℕ} (σ : ℝ) (hσ : σ ∈ 
   have hc01 : Continuous (fun Ψ : E n => ⟪Ψ, e0x⟫_ℝ * ⟪Ψ, e1y⟫_ℝ) :=
     (continuous_id.inner continuous_const).mul (continuous_id.inner continuous_const)
   simp_rw [pureDensityMatrix_im_eq]
-  rw [noisyTrajectoryExpectation_sub σ hσ gates Φ₀ hΦ₀ hc10 hc01,
-      noisyTrajectory_bilinear σ hσ gates Φ₀ hΦ₀ e1x e0y,
-      noisyTrajectory_bilinear σ hσ gates Φ₀ hΦ₀ e0x e1y]
+  rw [noisyTrajectoryExpectationHet_sub steps hsteps Φ₀ hΦ₀ hc10 hc01,
+      noisyTrajectoryHet_bilinear steps hsteps Φ₀ hΦ₀ e1x e0y,
+      noisyTrajectoryHet_bilinear steps hsteps Φ₀ hΦ₀ e0x e1y]
   have h10 : ⟪e1x, e0y⟫_ℝ = 0 := by
     dsimp only [e1x, e0y]
     rw [inner_stdBasisVec, ite_eq_right (succProbIdx0_ne_succProbIdx1 y x).symm]
@@ -487,6 +496,25 @@ theorem noisyTrajectory_pureDensityMatrix_im {n : ℕ} (σ : ℝ) (hσ : σ ∈ 
   rw [h10, h01]
   dsimp only [e0x, e1x, e0y, e1y]
   ring
+
+theorem noisyTrajectory_pureDensityMatrix_re {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
+    (gates : List (E n ≃ₗᵢ[ℝ] E n)) (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1) (x y : Fin (2 ^ n)) :
+    noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => (pureDensityMatrix n Ψ x y).re) =
+    σ ^ (2 * gates.length) * (pureDensityMatrix n (idealGateTrajectory gates Φ₀) x y).re +
+      (1 - σ ^ (2 * gates.length)) * (if x = y then 1 / (2 ^ n : ℝ) else 0) := by
+  rw [← noisyTrajectoryHet_eq_uniform,
+      noisyTrajectoryHet_pureDensityMatrix_re _ (mem_map_uniform_Icc hσ gates) Φ₀ hΦ₀ x y,
+      fidelityProd_map_uniform, idealGateTrajectoryHet_map_uniform,
+      ← pow_mul, mul_comm gates.length 2]
+
+theorem noisyTrajectory_pureDensityMatrix_im {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
+    (gates : List (E n ≃ₗᵢ[ℝ] E n)) (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1) (x y : Fin (2 ^ n)) :
+    noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => (pureDensityMatrix n Ψ x y).im) =
+    σ ^ (2 * gates.length) * (pureDensityMatrix n (idealGateTrajectory gates Φ₀) x y).im := by
+  rw [← noisyTrajectoryHet_eq_uniform,
+      noisyTrajectoryHet_pureDensityMatrix_im _ (mem_map_uniform_Icc hσ gates) Φ₀ hΦ₀ x y,
+      fidelityProd_map_uniform, idealGateTrajectoryHet_map_uniform,
+      ← pow_mul, mul_comm gates.length 2]
 
 private lemma continuous_realToVec_apply {n : ℕ} (x : Fin (2 ^ n)) :
     Continuous (fun Φ : E n => realToVec Φ x) := by
@@ -504,6 +532,26 @@ private lemma continuous_realToVec_apply {n : ℕ} (x : Fin (2 ^ n)) :
 private lemma continuous_pureDensityMatrix_apply {n : ℕ} (x y : Fin (2 ^ n)) :
     Continuous (fun Φ : E n => pureDensityMatrix n Φ x y) :=
   (continuous_realToVec_apply x).mul (continuous_star.comp (continuous_realToVec_apply y))
+
+/-- Complex-valued expectation of `f : E n → ℂ` along the heterogeneous multi-gate pure-state
+    Markov trajectory `Ψ_{k+1} = cos θ_{k+1} (U_{k+1} Ψ_k) + sin θ_{k+1} e_{2,k+1}`. -/
+noncomputable def noisyTrajectoryExpectationℂHet (n : ℕ) :
+    List ((E n ≃ₗᵢ[ℝ] E n) × ℝ) → E n → (E n → ℂ) → ℂ
+  | [] => fun Φ₀ f => f Φ₀
+  | p :: rest => fun Φ₀ f =>
+      ∫ θ, ∫ e₂, noisyTrajectoryExpectationℂHet n rest (isotropicError (p.1 Φ₀) e₂ θ) f
+            ∂(perpSphereMeasure (p.1 Φ₀)) ∂(poissonAngleMeasure (d n) p.2)
+
+@[simp]
+lemma noisyTrajectoryExpectationℂHet_nil (n : ℕ) (Φ₀ : E n) (f : E n → ℂ) :
+    noisyTrajectoryExpectationℂHet n [] Φ₀ f = f Φ₀ := rfl
+
+@[simp]
+lemma noisyTrajectoryExpectationℂHet_cons (n : ℕ) (p : (E n ≃ₗᵢ[ℝ] E n) × ℝ)
+    (rest : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ)) (Φ₀ : E n) (f : E n → ℂ) :
+    noisyTrajectoryExpectationℂHet n (p :: rest) Φ₀ f =
+    ∫ θ, ∫ e₂, noisyTrajectoryExpectationℂHet n rest (isotropicError (p.1 Φ₀) e₂ θ) f
+          ∂(perpSphereMeasure (p.1 Φ₀)) ∂(poissonAngleMeasure (d n) p.2) := rfl
 
 /-- Complex-valued expectation of `f : E n → ℂ` along the multi-gate pure-state Markov
     trajectory `Ψ_{k+1} = cos θ_{k+1} (U_{k+1} Ψ_k) + sin θ_{k+1} e_{2,k+1}`. -/
@@ -525,12 +573,72 @@ lemma noisyTrajectoryExpectationℂ_cons (n : ℕ) (σ : ℝ) (U : E n ≃ₗᵢ
     ∫ θ, ∫ e₂, noisyTrajectoryExpectationℂ n σ rest (isotropicError (U Φ₀) e₂ θ) f
           ∂(perpSphereMeasure (U Φ₀)) ∂(poissonAngleMeasure (d n) σ) := rfl
 
+/-- `noisyTrajectoryExpectationℂHet` specializes to `noisyTrajectoryExpectationℂ` when all steps
+    share the uniform parameter `σ`. -/
+theorem noisyTrajectoryExpectationℂHet_eq_uniform {n : ℕ} (σ : ℝ)
+    (gates : List (E n ≃ₗᵢ[ℝ] E n)) (Φ₀ : E n) (f : E n → ℂ) :
+    noisyTrajectoryExpectationℂHet n (gates.map (·, σ)) Φ₀ f =
+    noisyTrajectoryExpectationℂ n σ gates Φ₀ f := by
+  induction gates generalizing Φ₀ with
+  | nil => rfl
+  | cons U rest ih =>
+    simp only [List.map_cons, noisyTrajectoryExpectationℂHet_cons,
+      noisyTrajectoryExpectationℂ_cons]
+    simp_rw [ih]
+
 private lemma integral_mk_complex {α : Type*} [MeasurableSpace α] {μ : Measure α}
     {r i : α → ℝ} (hr : Integrable r μ) (hi : Integrable i μ) :
     ∫ x, (⟨r x, i x⟩ : ℂ) ∂μ = ⟨∫ x, r x ∂μ, ∫ x, i x ∂μ⟩ := by
   have hint : Integrable (fun x => (⟨r x, i x⟩ : ℂ)) μ := Integrable.re_im_iff.mp ⟨hr, hi⟩
   exact Complex.ext (Complex.reCLM.integral_comp_comm hint).symm
     (Complex.imCLM.integral_comp_comm hint).symm
+
+/-- Componentwise compatibility of `noisyTrajectoryExpectationℂHet` with
+    `noisyTrajectoryExpectationHet` for any `f : E n → ℂ` continuous on `unitSphere n`. -/
+theorem noisyTrajectoryExpectationℂHet_eq_re_im_of_continuousOn {n : ℕ}
+    (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ))
+    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
+    (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1)
+    {f : E n → ℂ} (hf : ContinuousOn f (unitSphere n)) :
+    noisyTrajectoryExpectationℂHet n steps Φ₀ f =
+    ⟨noisyTrajectoryExpectationHet n steps Φ₀ (fun Ψ => (f Ψ).re),
+     noisyTrajectoryExpectationHet n steps Φ₀ (fun Ψ => (f Ψ).im)⟩ := by
+  induction steps generalizing Φ₀ with
+  | nil => rfl
+  | cons p rest ih =>
+    simp only [noisyTrajectoryExpectationℂHet_cons, noisyTrajectoryExpectationHet_cons]
+    have hp := hsteps p List.mem_cons_self
+    have hrest : ∀ q ∈ rest, q.2 ∈ Set.Icc 0 1 :=
+      fun q hq => hsteps q (List.mem_cons_of_mem p hq)
+    have hU : ‖p.1 Φ₀‖ = 1 := by rw [p.1.norm_map]; exact hΦ₀
+    have hfr := noisyTrajectoryExpectationHet_continuousOn_unitSphere rest hrest
+      (Complex.continuous_re.comp_continuousOn hf)
+    have hfi := noisyTrajectoryExpectationHet_continuousOn_unitSphere rest hrest
+      (Complex.continuous_im.comp_continuousOn hf)
+    have hinner : ∀ θ : ℝ,
+        ∫ e₂, noisyTrajectoryExpectationℂHet n rest (isotropicError (p.1 Φ₀) e₂ θ) f
+          ∂(perpSphereMeasure (p.1 Φ₀)) =
+        ⟨∫ e₂, noisyTrajectoryExpectationHet n rest (isotropicError (p.1 Φ₀) e₂ θ)
+            (fun Ψ => (f Ψ).re) ∂(perpSphereMeasure (p.1 Φ₀)),
+         ∫ e₂, noisyTrajectoryExpectationHet n rest (isotropicError (p.1 Φ₀) e₂ θ)
+            (fun Ψ => (f Ψ).im) ∂(perpSphereMeasure (p.1 Φ₀))⟩ := by
+      intro θ
+      have hae : ∀ᵐ e₂ ∂(perpSphereMeasure (p.1 Φ₀)),
+          noisyTrajectoryExpectationℂHet n rest (isotropicError (p.1 Φ₀) e₂ θ) f =
+          ⟨noisyTrajectoryExpectationHet n rest (isotropicError (p.1 Φ₀) e₂ θ)
+              (fun Ψ => (f Ψ).re),
+           noisyTrajectoryExpectationHet n rest (isotropicError (p.1 Φ₀) e₂ θ)
+              (fun Ψ => (f Ψ).im)⟩ := by
+        filter_upwards [ae_isotropicError_mem_sphere hU θ] with e₂ he₂
+        exact ih hrest (isotropicError (p.1 Φ₀) e₂ θ) he₂
+      rw [integral_congr_ae hae]
+      exact integral_mk_complex
+        (integrable_perpSphere_of_continuousOn hU θ hfr)
+        (integrable_perpSphere_of_continuousOn hU θ hfi)
+    simp_rw [hinner]
+    exact integral_mk_complex
+      (integrable_outer_integral_of_continuousOn p.2 hp hU hfr)
+      (integrable_outer_integral_of_continuousOn p.2 hp hU hfi)
 
 /-- Componentwise compatibility of `noisyTrajectoryExpectationℂ` with `noisyTrajectoryExpectation`
     for any observable `f : E n → ℂ` continuous on the unit sphere. -/
@@ -540,39 +648,10 @@ theorem noisyTrajectoryExpectationℂ_eq_re_im_of_continuousOn {n : ℕ} (σ : �
     noisyTrajectoryExpectationℂ n σ gates Φ₀ f =
     ⟨noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => (f Ψ).re),
      noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => (f Ψ).im)⟩ := by
-  induction gates generalizing Φ₀ with
-  | nil => rfl
-  | cons U rest ih =>
-    simp only [noisyTrajectoryExpectationℂ_cons, noisyTrajectoryExpectation_cons]
-    have hU : ‖U Φ₀‖ = 1 := by rw [U.norm_map]; exact hΦ₀
-    have hfr := noisyTrajectoryExpectation_continuousOn_unitSphere σ hσ rest
-      (Complex.continuous_re.comp_continuousOn hf)
-    have hfi := noisyTrajectoryExpectation_continuousOn_unitSphere σ hσ rest
-      (Complex.continuous_im.comp_continuousOn hf)
-    have hinner : ∀ θ : ℝ,
-        ∫ e₂, noisyTrajectoryExpectationℂ n σ rest (isotropicError (U Φ₀) e₂ θ) f
-          ∂(perpSphereMeasure (U Φ₀)) =
-        ⟨∫ e₂, noisyTrajectoryExpectation n σ rest (isotropicError (U Φ₀) e₂ θ)
-            (fun Ψ => (f Ψ).re) ∂(perpSphereMeasure (U Φ₀)),
-         ∫ e₂, noisyTrajectoryExpectation n σ rest (isotropicError (U Φ₀) e₂ θ)
-            (fun Ψ => (f Ψ).im) ∂(perpSphereMeasure (U Φ₀))⟩ := by
-      intro θ
-      have hae : ∀ᵐ e₂ ∂(perpSphereMeasure (U Φ₀)),
-          noisyTrajectoryExpectationℂ n σ rest (isotropicError (U Φ₀) e₂ θ) f =
-          ⟨noisyTrajectoryExpectation n σ rest (isotropicError (U Φ₀) e₂ θ)
-              (fun Ψ => (f Ψ).re),
-           noisyTrajectoryExpectation n σ rest (isotropicError (U Φ₀) e₂ θ)
-              (fun Ψ => (f Ψ).im)⟩ := by
-        filter_upwards [ae_isotropicError_mem_sphere hU θ] with e₂ he₂
-        exact ih (isotropicError (U Φ₀) e₂ θ) he₂
-      rw [integral_congr_ae hae]
-      exact integral_mk_complex
-        (integrable_perpSphere_of_continuousOn hU θ hfr)
-        (integrable_perpSphere_of_continuousOn hU θ hfi)
-    simp_rw [hinner]
-    exact integral_mk_complex
-      (integrable_outer_integral_of_continuousOn σ hσ hU hfr)
-      (integrable_outer_integral_of_continuousOn σ hσ hU hfi)
+  rw [← noisyTrajectoryExpectationℂHet_eq_uniform, ← noisyTrajectoryHet_eq_uniform,
+      ← noisyTrajectoryHet_eq_uniform]
+  exact noisyTrajectoryExpectationℂHet_eq_re_im_of_continuousOn _
+    (mem_map_uniform_Icc hσ gates) Φ₀ hΦ₀ hf
 
 /-- Componentwise compatibility of `noisyTrajectoryExpectationℂ` with `noisyTrajectoryExpectation`
     for continuous `f : E n → ℂ`. -/
@@ -614,6 +693,34 @@ theorem noisyTrajectoryExpectationℂ_pureDensityMatrix_eq_re_im {n : ℕ} (σ :
   noisyTrajectoryExpectationℂ_eq_re_im σ hσ _ _ (norm_ketToReal ψ₀)
     (continuous_pureDensityMatrix_apply x y)
 
+/-- **Heterogeneous multi-gate depolarizing channel emergence:** Averaging `pureDensityMatrix`
+    along any heterogeneous unitary/isotropic-error schedule `steps : List (𝐔[Fin (2 ^ n)] × ℝ)`
+    with `∀ p ∈ steps, p.2 ∈ [0, 1]` yields
+    `(depolarizingChannel n (fidelityProd steps) _
+      (MState.pure (idealUnitaryTrajectory (steps.map Prod.fst) ψ₀))).m` entrywise. -/
+theorem noisyTrajectoryHet_eq_depolarizingChannel {n : ℕ}
+    (steps : List (𝐔[Fin (2 ^ n)] × ℝ))
+    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
+    (ψ₀ : Ket (Fin (2 ^ n))) (x y : Fin (2 ^ n)) :
+    noisyTrajectoryExpectationℂHet n
+      (steps.map (Prod.map unitaryToRealIso id)) (ketToReal ψ₀)
+      (fun Ψ => pureDensityMatrix n Ψ x y) =
+    (depolarizingChannel n (fidelityProd steps) (fidelityProd_mem_Icc hsteps)
+      (MState.pure (idealUnitaryTrajectory (steps.map Prod.fst) ψ₀))).m x y := by
+  have hrsteps := mem_map_fst_Icc unitaryToRealIso hsteps
+  have hideal :
+      idealGateTrajectoryHet (steps.map (Prod.map unitaryToRealIso id)) (ketToReal ψ₀) =
+      ketToReal (idealUnitaryTrajectory (steps.map Prod.fst) ψ₀) := by
+    rw [ketToReal_idealUnitaryTrajectory, idealGateTrajectoryHet, List.map_map, List.map_map]; rfl
+  rw [noisyTrajectoryExpectationℂHet_eq_re_im_of_continuousOn _ hrsteps _ (norm_ketToReal ψ₀)
+        (continuous_pureDensityMatrix_apply x y).continuousOn,
+      noisyTrajectoryHet_pureDensityMatrix_re _ hrsteps _ (norm_ketToReal ψ₀),
+      noisyTrajectoryHet_pureDensityMatrix_im _ hrsteps _ (norm_ketToReal ψ₀),
+      fidelityProd_map_fst, hideal, pureDensityMatrix_ketToReal]
+  simp only [depolarizingChannel_apply_m, Matrix.add_apply, Matrix.smul_apply, smul_eq_mul,
+    uniform_m_apply]
+  apply Complex.ext <;> (by_cases hxy : x = y <;> simp [hxy, -Complex.ofReal_pow])
+
 /-- **Multi-gate depolarizing channel emergence:** Averaging `pureDensityMatrix` along the
     interleaved unitary/isotropic-error Markov trajectory for `us : List 𝐔[Fin (2 ^ n)]`
     yields
@@ -625,13 +732,13 @@ theorem noisyTrajectory_eq_depolarizingChannel {n : ℕ} (σ : ℝ) (hσ : σ �
       (fun Ψ => pureDensityMatrix n Ψ x y) =
     (depolarizingChannel n (σ ^ us.length) (pow_mem_Icc_zero_one hσ us.length)
       (MState.pure (idealUnitaryTrajectory us ψ₀))).m x y := by
-  rw [noisyTrajectoryExpectationℂ_pureDensityMatrix_eq_re_im σ hσ,
-      noisyTrajectory_pureDensityMatrix_re σ hσ _ _ (norm_ketToReal ψ₀),
-      noisyTrajectory_pureDensityMatrix_im σ hσ _ _ (norm_ketToReal ψ₀)]
-  simp only [List.length_map, ← ketToReal_idealUnitaryTrajectory, pureDensityMatrix_ketToReal,
-    depolarizingChannel_apply_m, Matrix.add_apply, Matrix.smul_apply, smul_eq_mul,
-    uniform_m_apply, ← pow_mul, mul_comm us.length 2]
-  apply Complex.ext <;> (by_cases hxy : x = y <;> simp [hxy, -Complex.ofReal_pow])
+  have hmap : (us.map unitaryToRealIso).map (·, σ) =
+      (us.map (·, σ)).map (Prod.map unitaryToRealIso id) := by
+    simp [List.map_map, Function.comp_def, Prod.map]
+  have hfst : (us.map (·, σ)).map Prod.fst = us := by simp [Function.comp_def]
+  rw [← noisyTrajectoryExpectationℂHet_eq_uniform, hmap,
+      noisyTrajectoryHet_eq_depolarizingChannel _ (mem_map_uniform_Icc hσ us),
+      hfst, depolarizingChannel_congr (fidelityProd_map_uniform us σ)]
 
 /-- **Single-step depolarizing channel emergence:** Averaging the rank-1 density matrix
     `pureDensityMatrix` over one isotropic sphere error step on `ketToReal ψ` yields
@@ -854,182 +961,6 @@ theorem noisyCircuit_bornProb_pure {n : ℕ} (σ : ℝ) (hσ : σ ∈ Set.Icc 0 
 
 /-! ## Heterogeneous per-gate `Circuit.count` channels and fidelity factorization -/
 
-/-- Complex-valued expectation of `f : E n → ℂ` along the heterogeneous multi-gate pure-state
-    Markov trajectory `Ψ_{k+1} = cos θ_{k+1} (U_{k+1} Ψ_k) + sin θ_{k+1} e_{2,k+1}`. -/
-noncomputable def noisyTrajectoryExpectationℂHet (n : ℕ) :
-    List ((E n ≃ₗᵢ[ℝ] E n) × ℝ) → E n → (E n → ℂ) → ℂ
-  | [] => fun Φ₀ f => f Φ₀
-  | p :: rest => fun Φ₀ f =>
-      ∫ θ, ∫ e₂, noisyTrajectoryExpectationℂHet n rest (isotropicError (p.1 Φ₀) e₂ θ) f
-            ∂(perpSphereMeasure (p.1 Φ₀)) ∂(poissonAngleMeasure (d n) p.2)
-
-@[simp]
-lemma noisyTrajectoryExpectationℂHet_nil (n : ℕ) (Φ₀ : E n) (f : E n → ℂ) :
-    noisyTrajectoryExpectationℂHet n [] Φ₀ f = f Φ₀ := rfl
-
-@[simp]
-lemma noisyTrajectoryExpectationℂHet_cons (n : ℕ) (p : (E n ≃ₗᵢ[ℝ] E n) × ℝ)
-    (rest : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ)) (Φ₀ : E n) (f : E n → ℂ) :
-    noisyTrajectoryExpectationℂHet n (p :: rest) Φ₀ f =
-    ∫ θ, ∫ e₂, noisyTrajectoryExpectationℂHet n rest (isotropicError (p.1 Φ₀) e₂ θ) f
-          ∂(perpSphereMeasure (p.1 Φ₀)) ∂(poissonAngleMeasure (d n) p.2) := rfl
-
-/-- `noisyTrajectoryExpectationℂHet` specializes to `noisyTrajectoryExpectationℂ` when all steps
-    share the uniform parameter `σ`. -/
-theorem noisyTrajectoryExpectationℂHet_eq_uniform {n : ℕ} (σ : ℝ)
-    (gates : List (E n ≃ₗᵢ[ℝ] E n)) (Φ₀ : E n) (f : E n → ℂ) :
-    noisyTrajectoryExpectationℂHet n (gates.map (·, σ)) Φ₀ f =
-    noisyTrajectoryExpectationℂ n σ gates Φ₀ f := by
-  induction gates generalizing Φ₀ with
-  | nil => rfl
-  | cons U rest ih =>
-    simp only [List.map_cons, noisyTrajectoryExpectationℂHet_cons,
-      noisyTrajectoryExpectationℂ_cons]
-    simp_rw [ih]
-
-/-- Componentwise compatibility of `noisyTrajectoryExpectationℂHet` with
-    `noisyTrajectoryExpectationHet` for any `f : E n → ℂ` continuous on `unitSphere n`. -/
-theorem noisyTrajectoryExpectationℂHet_eq_re_im_of_continuousOn {n : ℕ}
-    (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ))
-    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
-    (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1)
-    {f : E n → ℂ} (hf : ContinuousOn f (unitSphere n)) :
-    noisyTrajectoryExpectationℂHet n steps Φ₀ f =
-    ⟨noisyTrajectoryExpectationHet n steps Φ₀ (fun Ψ => (f Ψ).re),
-     noisyTrajectoryExpectationHet n steps Φ₀ (fun Ψ => (f Ψ).im)⟩ := by
-  induction steps generalizing Φ₀ with
-  | nil => rfl
-  | cons p rest ih =>
-    simp only [noisyTrajectoryExpectationℂHet_cons, noisyTrajectoryExpectationHet_cons]
-    have hp := hsteps p List.mem_cons_self
-    have hrest : ∀ q ∈ rest, q.2 ∈ Set.Icc 0 1 :=
-      fun q hq => hsteps q (List.mem_cons_of_mem p hq)
-    have hU : ‖p.1 Φ₀‖ = 1 := by rw [p.1.norm_map]; exact hΦ₀
-    have hfr := noisyTrajectoryExpectationHet_continuousOn_unitSphere rest hrest
-      (Complex.continuous_re.comp_continuousOn hf)
-    have hfi := noisyTrajectoryExpectationHet_continuousOn_unitSphere rest hrest
-      (Complex.continuous_im.comp_continuousOn hf)
-    have hinner : ∀ θ : ℝ,
-        ∫ e₂, noisyTrajectoryExpectationℂHet n rest (isotropicError (p.1 Φ₀) e₂ θ) f
-          ∂(perpSphereMeasure (p.1 Φ₀)) =
-        ⟨∫ e₂, noisyTrajectoryExpectationHet n rest (isotropicError (p.1 Φ₀) e₂ θ)
-            (fun Ψ => (f Ψ).re) ∂(perpSphereMeasure (p.1 Φ₀)),
-         ∫ e₂, noisyTrajectoryExpectationHet n rest (isotropicError (p.1 Φ₀) e₂ θ)
-            (fun Ψ => (f Ψ).im) ∂(perpSphereMeasure (p.1 Φ₀))⟩ := by
-      intro θ
-      have hae : ∀ᵐ e₂ ∂(perpSphereMeasure (p.1 Φ₀)),
-          noisyTrajectoryExpectationℂHet n rest (isotropicError (p.1 Φ₀) e₂ θ) f =
-          ⟨noisyTrajectoryExpectationHet n rest (isotropicError (p.1 Φ₀) e₂ θ)
-              (fun Ψ => (f Ψ).re),
-           noisyTrajectoryExpectationHet n rest (isotropicError (p.1 Φ₀) e₂ θ)
-              (fun Ψ => (f Ψ).im)⟩ := by
-        filter_upwards [ae_isotropicError_mem_sphere hU θ] with e₂ he₂
-        exact ih hrest (isotropicError (p.1 Φ₀) e₂ θ) he₂
-      rw [integral_congr_ae hae]
-      exact integral_mk_complex
-        (integrable_perpSphere_of_continuousOn hU θ hfr)
-        (integrable_perpSphere_of_continuousOn hU θ hfi)
-    simp_rw [hinner]
-    exact integral_mk_complex
-      (integrable_outer_integral_of_continuousOn p.2 hp hU hfr)
-      (integrable_outer_integral_of_continuousOn p.2 hp hU hfi)
-
-theorem noisyTrajectoryHet_pureDensityMatrix_re {n : ℕ}
-    (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ))
-    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
-    (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1) (x y : Fin (2 ^ n)) :
-    noisyTrajectoryExpectationHet n steps Φ₀ (fun Ψ => (pureDensityMatrix n Ψ x y).re) =
-    (fidelityProd steps) ^ 2 * (pureDensityMatrix n (idealGateTrajectoryHet steps Φ₀) x y).re +
-      (1 - (fidelityProd steps) ^ 2) * (if x = y then 1 / (2 ^ n : ℝ) else 0) := by
-  let e0x := stdBasisVec n (succProbIdx0 n x)
-  let e1x := stdBasisVec n (succProbIdx1 n x)
-  let e0y := stdBasisVec n (succProbIdx0 n y)
-  let e1y := stdBasisVec n (succProbIdx1 n y)
-  have hc0 : Continuous (fun Ψ : E n => ⟪Ψ, e0x⟫_ℝ * ⟪Ψ, e0y⟫_ℝ) :=
-    (continuous_id.inner continuous_const).mul (continuous_id.inner continuous_const)
-  have hc1 : Continuous (fun Ψ : E n => ⟪Ψ, e1x⟫_ℝ * ⟪Ψ, e1y⟫_ℝ) :=
-    (continuous_id.inner continuous_const).mul (continuous_id.inner continuous_const)
-  simp_rw [pureDensityMatrix_re_eq]
-  rw [noisyTrajectoryExpectationHet_add steps hsteps Φ₀ hΦ₀ hc0 hc1,
-      noisyTrajectoryHet_bilinear steps hsteps Φ₀ hΦ₀ e0x e0y,
-      noisyTrajectoryHet_bilinear steps hsteps Φ₀ hΦ₀ e1x e1y]
-  have h0_iff : succProbIdx0 n x = succProbIdx0 n y ↔ x = y := ⟨succProbIdx0_inj, congrArg _⟩
-  have h1_iff : succProbIdx1 n x = succProbIdx1 n y ↔ x = y := ⟨succProbIdx1_inj, congrArg _⟩
-  have h00 : ⟪e0x, e0y⟫_ℝ = if x = y then 1 else 0 := by
-    simp [e0x, e0y, inner_stdBasisVec, h0_iff]
-  have h11 : ⟪e1x, e1y⟫_ℝ = if x = y then 1 else 0 := by
-    simp [e1x, e1y, inner_stdBasisVec, h1_iff]
-  have hN_ne : (2 ^ n : ℝ) ≠ 0 := by positivity
-  rw [h00, h11, cast_d n]
-  dsimp only [e0x, e1x, e0y, e1y]
-  by_cases hxy : x = y
-  · subst hxy
-    simp only [↓reduceIte]
-    field_simp [hN_ne]
-    ring
-  · simp only [hxy, ↓reduceIte, mul_zero, add_zero]
-    ring
-
-theorem noisyTrajectoryHet_pureDensityMatrix_im {n : ℕ}
-    (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ))
-    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
-    (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1) (x y : Fin (2 ^ n)) :
-    noisyTrajectoryExpectationHet n steps Φ₀ (fun Ψ => (pureDensityMatrix n Ψ x y).im) =
-    (fidelityProd steps) ^ 2 * (pureDensityMatrix n (idealGateTrajectoryHet steps Φ₀) x y).im := by
-  let e0x := stdBasisVec n (succProbIdx0 n x)
-  let e1x := stdBasisVec n (succProbIdx1 n x)
-  let e0y := stdBasisVec n (succProbIdx0 n y)
-  let e1y := stdBasisVec n (succProbIdx1 n y)
-  have hc10 : Continuous (fun Ψ : E n => ⟪Ψ, e1x⟫_ℝ * ⟪Ψ, e0y⟫_ℝ) :=
-    (continuous_id.inner continuous_const).mul (continuous_id.inner continuous_const)
-  have hc01 : Continuous (fun Ψ : E n => ⟪Ψ, e0x⟫_ℝ * ⟪Ψ, e1y⟫_ℝ) :=
-    (continuous_id.inner continuous_const).mul (continuous_id.inner continuous_const)
-  simp_rw [pureDensityMatrix_im_eq]
-  rw [noisyTrajectoryExpectationHet_sub steps hsteps Φ₀ hΦ₀ hc10 hc01,
-      noisyTrajectoryHet_bilinear steps hsteps Φ₀ hΦ₀ e1x e0y,
-      noisyTrajectoryHet_bilinear steps hsteps Φ₀ hΦ₀ e0x e1y]
-  have h10 : ⟪e1x, e0y⟫_ℝ = 0 := by
-    dsimp only [e1x, e0y]
-    rw [inner_stdBasisVec, ite_eq_right (succProbIdx0_ne_succProbIdx1 y x).symm]
-  have h01 : ⟪e0x, e1y⟫_ℝ = 0 := by
-    dsimp only [e0x, e1y]
-    rw [inner_stdBasisVec, ite_eq_right (succProbIdx0_ne_succProbIdx1 x y)]
-  rw [h10, h01]
-  dsimp only [e0x, e1x, e0y, e1y]
-  ring
-
-/-- **Heterogeneous multi-gate depolarizing channel emergence:** Averaging `pureDensityMatrix`
-    along any heterogeneous unitary/isotropic-error schedule `steps : List (𝐔[Fin (2 ^ n)] × ℝ)`
-    with `∀ p ∈ steps, p.2 ∈ [0, 1]` yields
-    `(depolarizingChannel n (fidelityProd steps) _
-      (MState.pure (idealUnitaryTrajectory (steps.map Prod.fst) ψ₀))).m` entrywise. -/
-theorem noisyTrajectoryHet_eq_depolarizingChannel {n : ℕ}
-    (steps : List (𝐔[Fin (2 ^ n)] × ℝ))
-    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
-    (ψ₀ : Ket (Fin (2 ^ n))) (x y : Fin (2 ^ n)) :
-    noisyTrajectoryExpectationℂHet n
-      (steps.map (Prod.map unitaryToRealIso id)) (ketToReal ψ₀)
-      (fun Ψ => pureDensityMatrix n Ψ x y) =
-    (depolarizingChannel n (fidelityProd steps) (fidelityProd_mem_Icc hsteps)
-      (MState.pure (idealUnitaryTrajectory (steps.map Prod.fst) ψ₀))).m x y := by
-  have hrsteps : ∀ q ∈ steps.map (Prod.map unitaryToRealIso id), q.2 ∈ Set.Icc 0 1 := by
-    intro q hq
-    rcases List.mem_map.mp hq with ⟨p, hp, rfl⟩
-    exact hsteps p hp
-  have hideal :
-      idealGateTrajectoryHet (steps.map (Prod.map unitaryToRealIso id)) (ketToReal ψ₀) =
-      ketToReal (idealUnitaryTrajectory (steps.map Prod.fst) ψ₀) := by
-    rw [ketToReal_idealUnitaryTrajectory, idealGateTrajectoryHet, List.map_map, List.map_map]
-    rfl
-  rw [noisyTrajectoryExpectationℂHet_eq_re_im_of_continuousOn _ hrsteps _ (norm_ketToReal ψ₀)
-        (continuous_pureDensityMatrix_apply x y).continuousOn,
-      noisyTrajectoryHet_pureDensityMatrix_re _ hrsteps _ (norm_ketToReal ψ₀),
-      noisyTrajectoryHet_pureDensityMatrix_im _ hrsteps _ (norm_ketToReal ψ₀),
-      fidelityProd_map_fst, hideal, pureDensityMatrix_ketToReal]
-  simp only [depolarizingChannel_apply_m, Matrix.add_apply, Matrix.smul_apply, smul_eq_mul,
-    uniform_m_apply]
-  apply Complex.ext <;> (by_cases hxy : x = y <;> simp [hxy, -Complex.ofReal_pow])
-
 /-- Effective circuit fidelity parameter across a syntactic circuit `c : Circuit n` given a
     gate-dependent fidelity assignment `σGate : ∀ {k}, PrimitiveGate k → ℝ`. -/
 noncomputable def circuitFidelity {n : ℕ} (σGate : ∀ {k}, PrimitiveGate k → ℝ) : Circuit n → ℝ
@@ -1158,16 +1089,9 @@ lemma circuitStepsHet_mem_Icc {n : ℕ} (σGate : ∀ {k}, PrimitiveGate k → �
     (hσ : ∀ {k} (g : PrimitiveGate k), σGate g ∈ Set.Icc 0 1) (c : Circuit n) :
     ∀ p ∈ circuitStepsHet σGate c, p.2 ∈ Set.Icc 0 1 := by
   induction c with
-  | identity => intro _ hp; cases hp
-  | gate g _ =>
-    intro p hp
-    rcases List.mem_singleton.mp hp with rfl
-    exact hσ g
-  | seq c₁ c₂ ih₁ ih₂ =>
-    intro p hp
-    rcases List.mem_append.mp hp with hp₁ | hp₂
-    · exact ih₁ p hp₁
-    · exact ih₂ p hp₂
+  | identity => simp
+  | gate g _ => exact List.forall_mem_singleton.mpr (hσ g)
+  | seq _ _ ih₁ ih₂ => exact List.forall_mem_append.mpr ⟨ih₁, ih₂⟩
 
 /-- **Heterogeneous end-to-end density-matrix bridge for syntactic circuits:** Averaging
     `pureDensityMatrix` along the microscopic pure-state Markov trajectory of
@@ -1183,14 +1107,8 @@ theorem noisyCircuitHet_trajectory_eq_channel {n : ℕ}
     (noisyCircuitChannelHet σGate hσ c (MState.pure ψ₀)).m x y := by
   rw [noisyTrajectoryHet_eq_depolarizingChannel _ (circuitStepsHet_mem_Icc σGate hσ c),
       noisyCircuitChannelHet_eq, CPTPMap.compose_eq, ofUnitary_pure,
-      map_fst_circuitStepsHet, idealUnitaryTrajectory_circuitUnitaries]
-  have hchan :
-      depolarizingChannel n (fidelityProd (circuitStepsHet σGate c))
-        (fidelityProd_mem_Icc (circuitStepsHet_mem_Icc σGate hσ c)) =
-      depolarizingChannel n (circuitFidelity σGate c) (circuitFidelity_mem_Icc σGate hσ c) := by
-    congr 1
-    exact fidelityProd_circuitStepsHet σGate c
-  rw [hchan]
+      map_fst_circuitStepsHet, idealUnitaryTrajectory_circuitUnitaries,
+      depolarizingChannel_congr (fidelityProd_circuitStepsHet σGate c)]
 
 /-- **Born-rule probability under heterogeneous noisy circuit execution:** Measuring outcome
     `w : Fin (2 ^ n)` with `computationalPOVM n` after `noisyCircuitChannelHet σGate hσ c` on any

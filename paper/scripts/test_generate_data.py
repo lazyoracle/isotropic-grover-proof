@@ -66,8 +66,7 @@ class GenerateDataTests(unittest.TestCase):
     def test_repetition_overhead_precision_and_no_underflow_at_n60(self) -> None:
         n = 60
         M = 1
-        theta = math.asin(math.sqrt(math.ldexp(1.0, -n)))
-        k_ideal = max(1, round(math.pi / (4.0 * theta) - 0.5))
+        k_ideal = gd.ideal_iteration_int(n, M)
 
         # At sigma_eff = 0.0, p_e = 2^-60 (where naive 1.0 - p_e == 1.0 in float64!)
         k_zero = gd.repetition_overhead(n, M, k_ideal, 0.0)
@@ -94,10 +93,8 @@ class GenerateDataTests(unittest.TestCase):
 
     def test_resource_budget_solver_recovers_target_overhead_up_to_n60(self) -> None:
         for n in (10, 20, 40, 60):
-            theta = math.asin(math.sqrt(math.ldexp(1.0, -n)))
-            k_ideal = max(1, round(math.pi / (4.0 * theta) - 0.5))
-            g1 = n + k_ideal * (16 * n - 20)
-            g2 = k_ideal * (12 * n - 18)
+            k_ideal = gd.ideal_iteration_int(n, 1)
+            g1, g2 = gd.gate_counts_1q_2q(n, k_ideal)
             for k_budget in (2.0, 10.0):
                 for alpha in (0.1, 0.01):
                     with self.subTest(n=n, k_budget=k_budget, alpha=alpha):

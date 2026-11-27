@@ -155,11 +155,14 @@ lemma fidelityProd_mem_Icc {α : Type*} {steps : List (α × ℝ)}
     rw [fidelityProd_cons]
     exact ⟨mul_nonneg hp.1 hrest.1, by nlinarith [hp.1, hp.2, hrest.1, hrest.2]⟩
 
-private lemma mem_map_uniform_Icc {α : Type*} {σ : ℝ} (hσ : σ ∈ Set.Icc 0 1) (xs : List α) :
+lemma mem_map_uniform_Icc {α : Type*} {σ : ℝ} (hσ : σ ∈ Set.Icc 0 1) (xs : List α) :
     ∀ p ∈ xs.map (·, σ), p.2 ∈ Set.Icc 0 1 := by
-  intro p hp
-  rcases List.mem_map.mp hp with ⟨_, _, rfl⟩
-  exact hσ
+  simpa using fun _ _ => hσ
+
+lemma mem_map_fst_Icc {α β : Type*} (f : α → β) {steps : List (α × ℝ)}
+    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1) :
+    ∀ q ∈ steps.map (Prod.map f id), q.2 ∈ Set.Icc 0 1 :=
+  List.forall_mem_map.mpr hsteps
 
 section NoisyTrajectory
 
@@ -779,9 +782,9 @@ theorem noisyTrajectoryExpectation_sub (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
     noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => f Ψ - g Ψ) =
     noisyTrajectoryExpectation n σ gates Φ₀ f -
     noisyTrajectoryExpectation n σ gates Φ₀ g := by
-  simp_rw [sub_eq_add_neg]
-  rw [noisyTrajectoryExpectation_add σ hσ gates Φ₀ hΦ₀ hf (g := fun Ψ => -g Ψ) hg.neg,
-      noisyTrajectoryExpectation_neg]
+  rw [← noisyTrajectoryHet_eq_uniform, ← noisyTrajectoryHet_eq_uniform,
+      ← noisyTrajectoryHet_eq_uniform]
+  exact noisyTrajectoryExpectationHet_sub _ (mem_map_uniform_Icc hσ gates) Φ₀ hΦ₀ hf hg
 
 /-- Finite-sum linearity of `noisyTrajectoryExpectationHet` for continuous observables,
     holding for every `s : Finset ι` (including `s = ∅`). -/

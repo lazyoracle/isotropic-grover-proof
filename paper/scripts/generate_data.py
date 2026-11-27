@@ -61,28 +61,30 @@ DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parent.parent / "data"
 _DEC_PREC = 64
 
 
+def _decimal_atan_series(u: Decimal, eps: Decimal) -> Decimal:
+    """Evaluate `atan(u)` for `|u| < 1` via its alternating Taylor series."""
+    u2 = u * u
+    term = u
+    total = u
+    k = 1
+    while True:
+        term = -term * u2
+        k += 2
+        step = term / Decimal(k)
+        if abs(step) < eps:
+            break
+        total += step
+    return total
+
+
 def _compute_decimal_pi() -> Decimal:
     """Compute pi to `_DEC_PREC` digits via Machin's identity."""
     with localcontext() as ctx:
         ctx.prec = _DEC_PREC + 8
-
-        def atan_inv(m: int) -> Decimal:
-            inv_m = Decimal(1) / Decimal(m)
-            inv_m2 = inv_m * inv_m
-            term = inv_m
-            total = inv_m
-            k = 1
-            eps = Decimal(10) ** (-_DEC_PREC - 4)
-            while True:
-                term = -term * inv_m2
-                k += 2
-                step = term / Decimal(k)
-                if abs(step) < eps:
-                    break
-                total += step
-            return total
-
-        return Decimal(4) * (Decimal(4) * atan_inv(5) - atan_inv(239))
+        eps = Decimal(10) ** (-_DEC_PREC - 4)
+        atan_5 = _decimal_atan_series(Decimal(1) / Decimal(5), eps)
+        atan_239 = _decimal_atan_series(Decimal(1) / Decimal(239), eps)
+        return Decimal(4) * (Decimal(4) * atan_5 - atan_239)
 
 
 _PI_DEC: Decimal = _compute_decimal_pi()
@@ -116,19 +118,7 @@ def exact_ideal_prob_and_complement(n: int, M: int, K: int) -> tuple[float, floa
         for _ in range(8):
             u = u / (Decimal(1) + (Decimal(1) + u * u).sqrt())
 
-        u2 = u * u
-        term = u
-        atan_u = u
-        k = 1
-        while True:
-            term = -term * u2
-            k += 2
-            step = term / Decimal(k)
-            if abs(step) < eps:
-                break
-            atan_u += step
-
-        theta = Decimal(256) * atan_u
+        theta = Decimal(256) * _decimal_atan_series(u, eps)
         alpha = Decimal(2 * K + 1) * theta
         mult = int((alpha / _PI_DEC).to_integral_value())
         rem = alpha - Decimal(mult) * _PI_DEC
@@ -178,6 +168,16 @@ def gate_counts_1q_2q(n: int, K: int) -> tuple[int, int]:
     return g1, g2
 
 
+def _log_fidelity(sigma: float) -> float:
+    """Return `ln(sigma)` for `sigma in (0, 1]` without cancellation near 1."""
+    return math.log1p(sigma - 1.0) if sigma > 0.5 else math.log(sigma)
+
+
+def _clamped_exp(x: float) -> float:
+    """Return `exp(x)` or `0.0` below the float64 underflow floor."""
+    return math.exp(x) if x > -750.0 else 0.0
+
+
 def optimal_iteration_continuous(gamma: float, n: int, M: int = 1) -> float:
     """Return continuous first-lobe optimal iteration count `K^*(gamma, n, M)`.
 
@@ -193,11 +193,11 @@ def optimal_iteration_continuous(gamma: float, n: int, M: int = 1) -> float:
     if not (0 < M < two_pow_n):
         raise ValueError(f"M={M} must satisfy 0 < M < 2^n={two_pow_n}")
 
-    theta = grover_half_angle(n, M)
     if gamma == 1.0:
-        return math.pi / (4.0 * theta) - 0.5
+        return ideal_iteration_continuous(n, M)
 
-    neg_ln_gamma = -math.log1p(gamma - 1.0) if gamma > 0.5 else -math.log(gamma)
+    theta = grover_half_angle(n, M)
+    neg_ln_gamma = -_log_fidelity(gamma)
     kappa = neg_ln_gamma / (2.0 * theta)
 
     # Switch between direct asin(z) for |z| <= 0.7 and complementary asin(sqrt(1 - z^2))
@@ -232,8 +232,7 @@ def noisy_grover_prob_continuous(
     p_id = math.sin((2.0 * K + 1.0) * theta) ** 2
     if sigma_init <= 0.0 or gamma <= 0.0:
         return r
-    ln_w = 2.0 * (math.log(sigma_init) + K * math.log(gamma))
-    w = math.exp(ln_w) if ln_w > -750.0 else 0.0
+    w = _clamped_exp(2.0 * (math.log(sigma_init) + K * math.log(gamma)))
     return r + w * (p_id - r)
 
 
@@ -265,7 +264,7 @@ def repetition_overhead(
     r = math.ldexp(float(M), -n)
     if ln_sigma_eff is not None:
         two_ln_s = 2.0 * ln_sigma_eff
-        s2 = math.exp(two_ln_s) if two_ln_s > -750.0 else 0.0
+        s2 = _clamped_exp(two_ln_s)
         one_minus_s2 = -math.expm1(two_ln_s)
     elif sigma_eff == 0.0:
         s2 = 0.0
@@ -316,29 +315,29 @@ def solve_infidelity_budget(n: int, k_budget: float, alpha: float, M: int = 1) -
     return math.exp(0.5 * (lo_ln + hi_ln))
 
 
+def _primitive_expected_queries(
+    n: int, M: int, k_int: int, ln_s: float, k_id: int, theta: float
+) -> float:
+    """Return `k_int / p_e(n, M, k_int)` under `G(n, K) = n + K(28n - 38)`."""
+    r = math.ldexp(float(M), -n)
+    s2 = _clamped_exp(2.0 * (n + k_int * (28 * n - 38)) * ln_s)
+    if k_int == k_id:
+        p_id, _ = exact_ideal_prob_and_complement(n, M, k_int)
+    else:
+        p_id = math.sin((2 * k_int + 1) * theta) ** 2
+    return float(k_int) / (r + s2 * (p_id - r))
+
+
 def _optimal_query_complexity_primitive(n: int, sigma_g: float, M: int = 1) -> float:
     """Return `min_{1 <= K <= K_ideal} K / p_e(n, M, K)` under `G = n + K(28n - 38)`."""
     k_id = ideal_iteration_int(n, M)
-    r = math.ldexp(float(M), -n)
     theta = grover_half_angle(n, M)
-    ln_s = math.log1p(sigma_g - 1.0) if sigma_g > 0.5 else math.log(sigma_g)
-    g_iter = 28 * n - 38
-    gamma = math.exp(g_iter * ln_s) if g_iter * ln_s > -750.0 else 0.0
-
-    if gamma > 0.0:
-        k_star = optimal_iteration_continuous(gamma, n, M)
-    else:
-        k_star = 1.0
+    ln_s = _log_fidelity(sigma_g)
+    gamma = _clamped_exp((28 * n - 38) * ln_s)
+    k_star = optimal_iteration_continuous(gamma, n, M) if gamma > 0.0 else 1.0
 
     def expected_queries(k_int: int) -> float:
-        two_ln_seff = 2.0 * (n + k_int * g_iter) * ln_s
-        s2 = math.exp(two_ln_seff) if two_ln_seff > -750.0 else 0.0
-        if k_int == k_id:
-            p_id, _ = exact_ideal_prob_and_complement(n, M, k_int)
-        else:
-            p_id = math.sin((2 * k_int + 1) * theta) ** 2
-        p_e = r + s2 * (p_id - r)
-        return float(k_int) / p_e
+        return _primitive_expected_queries(n, M, k_int, ln_s, k_id, theta)
 
     # Unimodal ternary search on [1, ceil(k_star) + 2] plus exact endpoint K_ideal
     left = 1
@@ -351,24 +350,18 @@ def _optimal_query_complexity_primitive(n: int, sigma_g: float, M: int = 1) -> f
         else:
             left = m1
 
-    best = expected_queries(k_id)
-    for k_cand in range(left, right + 1):
-        val = expected_queries(k_cand)
-        if val < best:
-            best = val
-    return best
+    return min(
+        expected_queries(k_id),
+        *(expected_queries(k_cand) for k_cand in range(left, right + 1)),
+    )
 
 
 def _naive_query_complexity_primitive(n: int, sigma_g: float, M: int = 1) -> float:
     """Return `K_ideal / p_e(n, M, K_ideal)` under `G = n + K_ideal*(28n - 38)`."""
     k_id = ideal_iteration_int(n, M)
-    r = math.ldexp(float(M), -n)
-    p_id, _ = exact_ideal_prob_and_complement(n, M, k_id)
-    ln_s = math.log1p(sigma_g - 1.0) if sigma_g > 0.5 else math.log(sigma_g)
-    two_ln_seff = 2.0 * (n + k_id * (28 * n - 38)) * ln_s
-    s2 = math.exp(two_ln_seff) if two_ln_seff > -750.0 else 0.0
-    p_e = r + s2 * (p_id - r)
-    return float(k_id) / p_e
+    return _primitive_expected_queries(
+        n, M, k_id, _log_fidelity(sigma_g), k_id, grover_half_angle(n, M)
+    )
 
 
 def build_fig2_oscillations_and_peaks() -> tuple[str, str]:
@@ -454,20 +447,13 @@ def build_fig3a_queries() -> str:
         q_ideal = _optimal_query_complexity_primitive(n, 1.0, 1)
         q_naive_s1 = float(k_id) / p_id
         q_classical = math.ldexp(1.0, n)
-
-        q_opt_9999 = _optimal_query_complexity_primitive(n, 0.9999, 1)
-        q_naive_9999 = _naive_query_complexity_primitive(n, 0.9999, 1)
-        q_opt_999 = _optimal_query_complexity_primitive(n, 0.999, 1)
-        q_naive_999 = _naive_query_complexity_primitive(n, 0.999, 1)
-        q_opt_99999 = _optimal_query_complexity_primitive(n, 0.99999, 1)
-        q_naive_99999 = _naive_query_complexity_primitive(n, 0.99999, 1)
-
+        noisy_cols = "\t".join(
+            f"{_optimal_query_complexity_primitive(n, s, 1):.8e}\t"
+            f"{_naive_query_complexity_primitive(n, s, 1):.8e}"
+            for s in (0.9999, 0.999, 0.99999)
+        )
         lines.append(
-            f"{n}\t{n}\t{q_ideal:.8e}\t{q_classical:.8e}\t"
-            f"{q_opt_9999:.8e}\t{q_naive_9999:.8e}\t"
-            f"{q_opt_999:.8e}\t{q_naive_999:.8e}\t"
-            f"{q_opt_99999:.8e}\t{q_naive_99999:.8e}\t"
-            f"{q_naive_s1:.8e}"
+            f"{n}\t{n}\t{q_ideal:.8e}\t{q_classical:.8e}\t{noisy_cols}\t{q_naive_s1:.8e}"
         )
 
     return "\n".join(lines) + "\n"
@@ -534,7 +520,8 @@ def build_fig4_and_table1() -> tuple[str, str]:
         "n\tinfid2q_k2_a01\tinfid2q_k2_a001\tinfid2q_k10_a01\tinfid2q_k10_a001",
     ]
 
-    table_Benchmarks = {10, 20, 30, 40, 50, 60}
+    table_benchmarks = {10, 20, 30, 40, 50, 60}
+    budget_grid = ((2.0, 0.1), (2.0, 0.01), (10.0, 0.1), (10.0, 0.01))
     table_lines = [
         "% Generated by paper/scripts/generate_data.py — do not edit manually.",
         "% Columns: n & K_ideal & G_1q & G_2q & (1-sigma_2q)[k<=2, alpha=0.1]"
@@ -543,25 +530,17 @@ def build_fig4_and_table1() -> tuple[str, str]:
     ]
 
     for n in range(6, 61):
-        e_k2_a01 = solve_infidelity_budget(n, 2.0, 0.1, 1)
-        e_k2_a001 = solve_infidelity_budget(n, 2.0, 0.01, 1)
-        e_k10_a01 = solve_infidelity_budget(n, 10.0, 0.1, 1)
-        e_k10_a001 = solve_infidelity_budget(n, 10.0, 0.01, 1)
+        budgets = [solve_infidelity_budget(n, kb, alpha, 1) for kb, alpha in budget_grid]
+        fig4_lines.append(f"{n}\t" + "\t".join(f"{b:.8e}" for b in budgets))
 
-        fig4_lines.append(
-            f"{n}\t{e_k2_a01:.8e}\t{e_k2_a001:.8e}\t{e_k10_a01:.8e}\t{e_k10_a001:.8e}"
-        )
-
-        if n in table_Benchmarks:
+        if n in table_benchmarks:
             k_id = ideal_iteration_int(n, 1)
             g1, g2 = gate_counts_1q_2q(n, k_id)
             k_str = f"${k_id}$" if k_id < 1000 else _format_tex_sci(float(k_id), 2)
-            g1_str = _format_tex_sci(float(g1), 2)
-            g2_str = _format_tex_sci(float(g2), 2)
+            tex_budgets = " & ".join(_format_tex_sci(b, 2) for b in budgets)
             table_lines.append(
-                f"{n} & {k_str} & {g1_str} & {g2_str} & "
-                f"{_format_tex_sci(e_k2_a01, 2)} & {_format_tex_sci(e_k2_a001, 2)} & "
-                f"{_format_tex_sci(e_k10_a01, 2)} & {_format_tex_sci(e_k10_a001, 2)} \\\\"
+                f"{n} & {k_str} & {_format_tex_sci(float(g1), 2)} & "
+                f"{_format_tex_sci(float(g2), 2)} & {tex_budgets} \\\\"
             )
 
     return "\n".join(fig4_lines) + "\n", "\n".join(table_lines) + "\n"

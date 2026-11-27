@@ -335,52 +335,31 @@ class CheckManuscriptStyleTests(unittest.TestCase):
         self.assertTrue(naked_errs, "Expected error for naked section-to-subsection jump")
 
     def test_lean_declaration_audit_rejects_nonexistent_identifiers(self) -> None:
-        bad_qual = (
-            "Theorem \\texttt{IsotropicGrover.nonexistent\\_thm} does not exist.\n"
+        bad_cases = (
+            (
+                "IsotropicGrover.nonexistent_thm",
+                "Theorem \\texttt{IsotropicGrover.nonexistent\\_thm} does not exist.\n",
+            ),
+            (
+                "nonexistent_lemma_xyz",
+                "Lemma \\texttt{nonexistent\\_lemma\\_xyz} is missing.\n",
+            ),
+            (
+                "Grover.nonexistent_fn",
+                "External \\texttt{Grover.nonexistent\\_fn} is missing.\n",
+            ),
+            ("UnknownCapNs.size", "Bogus \\texttt{UnknownCapNs.size} must fail.\n"),
+            (
+                "c.nonexistent_proj",
+                "Bogus \\texttt{c.nonexistent\\_proj} must fail.\n",
+            ),
         )
-        errs_qual = self._check_tex(
-            {"supplement_body.tex": bad_qual}, lean_dir=LEAN_DIR
-        )
-        self.assertTrue(
-            any("IsotropicGrover.nonexistent_thm" in e for e in errs_qual),
-            errs_qual,
-        )
-
-        bad_unqual = "Lemma \\texttt{nonexistent\\_lemma\\_xyz} is missing.\n"
-        errs_unqual = self._check_tex(
-            {"supplement_body.tex": bad_unqual}, lean_dir=LEAN_DIR
-        )
-        self.assertTrue(
-            any("nonexistent_lemma_xyz" in e for e in errs_unqual),
-            errs_unqual,
-        )
-
-        bad_ext = "External \\texttt{Grover.nonexistent\\_fn} is missing.\n"
-        errs_ext = self._check_tex(
-            {"supplement_body.tex": bad_ext}, lean_dir=LEAN_DIR
-        )
-        self.assertTrue(
-            any("Grover.nonexistent_fn" in e for e in errs_ext),
-            errs_ext,
-        )
-
-        bad_cap_ns = "Bogus \\texttt{UnknownCapNs.size} must fail.\n"
-        errs_cap_ns = self._check_tex(
-            {"supplement_body.tex": bad_cap_ns}, lean_dir=LEAN_DIR
-        )
-        self.assertTrue(
-            any("UnknownCapNs.size" in e for e in errs_cap_ns),
-            errs_cap_ns,
-        )
-
-        bad_var_proj = "Bogus \\texttt{c.nonexistent\\_proj} must fail.\n"
-        errs_var_proj = self._check_tex(
-            {"supplement_body.tex": bad_var_proj}, lean_dir=LEAN_DIR
-        )
-        self.assertTrue(
-            any("c.nonexistent_proj" in e for e in errs_var_proj),
-            errs_var_proj,
-        )
+        for expected_ident, snippet in bad_cases:
+            with self.subTest(ident=expected_ident):
+                errs = self._check_tex(
+                    {"supplement_body.tex": snippet}, lean_dir=LEAN_DIR
+                )
+                self.assertTrue(any(expected_ident in e for e in errs), errs)
 
     def test_lean_audit_instances_variable_projections_and_standalone_cli_tools(
         self,

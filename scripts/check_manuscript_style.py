@@ -24,6 +24,7 @@ Enforces the codified rules in `notes/author-style-guide.md` and Section 6 of
 from __future__ import annotations
 
 import argparse
+from bisect import bisect_right
 from pathlib import Path
 import re
 import sys
@@ -627,15 +628,8 @@ def _line_offsets(text: str) -> list[int]:
 
 
 def _pos_to_line(pos: int, offsets: list[int]) -> int:
-    """Convert 0-based character index `pos` to 1-based line number via binary search."""
-    lo, hi = 0, len(offsets) - 1
-    while lo <= hi:
-        mid = (lo + hi) // 2
-        if offsets[mid] <= pos:
-            lo = mid + 1
-        else:
-            hi = mid - 1
-    return hi + 1
+    """Convert 0-based character index `pos` to 1-based line number."""
+    return bisect_right(offsets, pos)
 
 
 def _extract_delimited(
@@ -676,10 +670,41 @@ def _skip_ws(text: str, pos: int) -> int:
     return pos
 
 
+_THEBIBLIOGRAPHY_RE = re.compile(
+    r"\\begin\s*\{thebibliography\}.*?\\end\s*\{thebibliography\}", flags=re.DOTALL
+)
+_BIBITEM_RE = re.compile(
+    r"\\bibitem\b.*?(?=\n[ \t]*\n|\\bibitem\b|\\end\s*\{|\Z)", flags=re.DOTALL
+)
+_VERBATIM_ENV_RE = re.compile(
+    r"\\begin\s*\{(?:verbatim|lstlisting)\}.*?\\end\s*\{(?:verbatim|lstlisting)\}",
+    flags=re.DOTALL,
+)
+_VERB_INLINE_RE = re.compile(r"\\verb([^A-Za-z\s]).*?\1")
+_NEWCOMMAND_RE = re.compile(r"\\(?:re|provide)?newcommand\*?(?![A-Za-z])")
+_TEXT_IN_MATH_RE = re.compile(r"\\text(?:rm|bf|it)?\s*\{")
+_IGNORED_CMD_RE = re.compile(
+    r"\\(" + "|".join(sorted(IGNORED_PROSE_COMMANDS)) + r")\*?(?![A-Za-z])"
+)
+_DISPLAY_ENV_RE = re.compile(
+    r"\\begin\s*\{("
+    + "|".join(re.escape(e) for e in sorted(DISPLAY_MATH_ENVS))
+    + r")\}(.*?)\\end\s*\{\1\}",
+    flags=re.DOTALL,
+)
+
+
+def _mask_verbatim(buf: list[str], text: str) -> None:
+    """Mask `verbatim`/`lstlisting` environments and inline `\\verb|...|`."""
+    for rx in (_VERBATIM_ENV_RE, _VERB_INLINE_RE):
+        for m in rx.finditer(text):
+            _mask_slice(buf, m.start(), m.end())
+
+
 def _mask_macro_definitions(text: str) -> str:
     """Mask `\\newcommand`, `\\renewcommand`, `\\providecommand` bodies."""
     buf = list(text)
-    for m in re.finditer(r"\\(?:re|provide)?newcommand\*?(?![A-Za-z])", text):
+    for m in _NEWCOMMAND_RE.finditer(text):
         pos = _skip_ws(text, m.end())
         # Name argument: either {\cmd} or \cmd
         if pos < len(text) and text[pos] == "{":
@@ -702,7 +727,7 @@ def _mask_macro_definitions(text: str) -> str:
 
 def _unmask_text_macros_in_math(buf: list[str], math_text: str, base_offset: int) -> None:
     """Restore prose inside `\\text{...}` / `\\textrm{...}` within a masked math span."""
-    for m in re.finditer(r"\\text(?:rm|bf|it)?\s*\{", math_text):
+    for m in _TEXT_IN_MATH_RE.finditer(math_text):
         brace_idx = m.end() - 1
         inner, _ = _extract_delimited(math_text, brace_idx, "{", "}")
         if inner is not None:
@@ -715,31 +740,11 @@ def _prepare_prose_text(comment_stripped: str) -> str:
     buf = list(comment_stripped)
     n = len(comment_stripped)
 
-    # 1. Mask thebibliography environments
-    for m in re.finditer(
-        r"\\begin\s*\{thebibliography\}.*?\\end\s*\{thebibliography\}",
-        comment_stripped,
-        flags=re.DOTALL,
-    ):
-        _mask_slice(buf, m.start(), m.end())
-
-    # 2. Mask standalone \bibitem entries up to blank line, next \bibitem, or \end{...}
-    for m in re.finditer(
-        r"\\bibitem\b.*?(?=\n[ \t]*\n|\\bibitem\b|\\end\s*\{|\Z)",
-        comment_stripped,
-        flags=re.DOTALL,
-    ):
-        _mask_slice(buf, m.start(), m.end())
-
-    # 3. Mask verbatim / lstlisting environments and \verb|...|
-    for m in re.finditer(
-        r"\\begin\s*\{(?:verbatim|lstlisting)\}.*?\\end\s*\{(?:verbatim|lstlisting)\}",
-        comment_stripped,
-        flags=re.DOTALL,
-    ):
-        _mask_slice(buf, m.start(), m.end())
-    for m in re.finditer(r"\\verb([^A-Za-z\s]).*?\1", comment_stripped):
-        _mask_slice(buf, m.start(), m.end())
+    # 1-3. Mask bibliography, standalone \bibitem entries, and verbatim spans
+    for rx in (_THEBIBLIOGRAPHY_RE, _BIBITEM_RE):
+        for m in rx.finditer(comment_stripped):
+            _mask_slice(buf, m.start(), m.end())
+    _mask_verbatim(buf, comment_stripped)
 
     # 4. Mask \hyperref[target] bracket target (keep {visible text})
     for m in re.finditer(r"\\hyperref\s*\[", comment_stripped):
@@ -754,10 +759,7 @@ def _prepare_prose_text(comment_stripped: str) -> str:
             _mask_slice(buf, m.start(), after_url)
 
     # 6. Mask ignored commands with optional [...] and {arg}
-    cmd_pattern = re.compile(
-        r"\\(" + "|".join(sorted(IGNORED_PROSE_COMMANDS)) + r")\*?(?![A-Za-z])"
-    )
-    for m in cmd_pattern.finditer(comment_stripped):
+    for m in _IGNORED_CMD_RE.finditer(comment_stripped):
         pos = _skip_ws(comment_stripped, m.end())
         while pos < n and comment_stripped[pos] == "[":
             _, pos = _extract_delimited(comment_stripped, pos, "[", "]")
@@ -770,12 +772,7 @@ def _prepare_prose_text(comment_stripped: str) -> str:
 
     # 7. Mask display math environments (preserving \text{...} from already-masked buf)
     pre_disp = "".join(buf)
-    env_alt = "|".join(re.escape(e) for e in sorted(DISPLAY_MATH_ENVS))
-    for m in re.finditer(
-        rf"\\begin\s*\{{({env_alt})\}}(.*?)\\end\s*\{{\1\}}",
-        pre_disp,
-        flags=re.DOTALL,
-    ):
+    for m in _DISPLAY_ENV_RE.finditer(pre_disp):
         _mask_slice(buf, m.start(), m.end())
         _unmask_text_macros_in_math(buf, pre_disp[m.start(2) : m.end(2)], m.start(2))
 
@@ -815,6 +812,12 @@ def _prepare_prose_text(comment_stripped: str) -> str:
     return "".join(buf)
 
 
+def _matches_word_set(low: str, word_set: frozenset[str]) -> bool:
+    return low in word_set or (
+        "-" in low and any(part in word_set for part in low.split("-"))
+    )
+
+
 def _check_prose_lexicon(path: Path, comment_stripped: str, offsets: list[int]) -> list[str]:
     """Check banned hype words/phrases, British spellings, and 2nd-person pronouns."""
     errors: list[str] = []
@@ -827,30 +830,14 @@ def _check_prose_lexicon(path: Path, comment_stripped: str, offsets: list[int]) 
         line_no = _pos_to_line(m.start(), offsets)
         tokens.append((low, raw_word, line_no))
 
-        if low in BANNED_HYPE_WORDS:
+        if _matches_word_set(low, BANNED_HYPE_WORDS):
             errors.append(
                 f"{path}:{line_no}: banned hype/LLM word '{raw_word}' in prose/caption"
             )
-        elif "-" in low:
-            for part in low.split("-"):
-                if part in BANNED_HYPE_WORDS:
-                    errors.append(
-                        f"{path}:{line_no}: banned hype/LLM word '{raw_word}' in prose/caption"
-                    )
-                    break
-
-        if low in BRITISH_SPELLINGS:
+        if _matches_word_set(low, BRITISH_SPELLINGS):
             errors.append(
                 f"{path}:{line_no}: British spelling '{raw_word}'; use APS American English"
             )
-        elif "-" in low:
-            for part in low.split("-"):
-                if part in BRITISH_SPELLINGS:
-                    errors.append(
-                        f"{path}:{line_no}: British spelling '{raw_word}'; use APS American English"
-                    )
-                    break
-
         if low in SECOND_PERSON_PRONOUNS:
             errors.append(
                 f"{path}:{line_no}: forbidden second-person pronoun '{raw_word}' in prose"
@@ -925,16 +912,9 @@ def _check_equation_hygiene(
     """Check `$$`, `\\[...\\]`, blank lines around/in equations, and terminal `,`/`.`."""
     errors: list[str] = []
 
-    # Mask verbatim/texttt before checking math delimiters
+    # Mask verbatim before checking math delimiters
     scan_buf = list(comment_stripped)
-    for m in re.finditer(
-        r"\\begin\s*\{(?:verbatim|lstlisting)\}.*?\\end\s*\{(?:verbatim|lstlisting)\}",
-        comment_stripped,
-        flags=re.DOTALL,
-    ):
-        _mask_slice(scan_buf, m.start(), m.end())
-    for m in re.finditer(r"\\verb([^A-Za-z\s]).*?\1", comment_stripped):
-        _mask_slice(scan_buf, m.start(), m.end())
+    _mask_verbatim(scan_buf, comment_stripped)
     scan_text = "".join(scan_buf)
 
     # 1. Reject unescaped $$ (preceded by an even number of backslashes)
@@ -976,12 +956,7 @@ def _check_equation_hygiene(
         )
 
     # 3. Display math environments: blank lines & terminal punctuation
-    env_alt = "|".join(re.escape(e) for e in sorted(DISPLAY_MATH_ENVS))
-    for m in re.finditer(
-        rf"\\begin\s*\{{({env_alt})\}}(.*?)\\end\s*\{{\1\}}",
-        scan_text,
-        flags=re.DOTALL,
-    ):
+    for m in _DISPLAY_ENV_RE.finditer(scan_text):
         env_name = m.group(1)
         body = m.group(2)
         begin_line = _pos_to_line(m.start(), offsets)
@@ -1161,22 +1136,32 @@ def build_lean_index(lean_dir: Path) -> LeanIndex:
     )
 
 
+_TEXTTT_ESCAPES: tuple[tuple[str, str], ...] = (
+    ("\\_", "_"),
+    ("\\#", "#"),
+    ("\\&", "&"),
+    ("\\%", "%"),
+    ("$\\mathbb{C}$", "ℂ"),
+    ("\\mathbb{C}", "ℂ"),
+    ("$\\mathbb{R}$", "ℝ"),
+    ("\\mathbb{R}", "ℝ"),
+    ("$\\mathbb{N}$", "ℕ"),
+    ("\\mathbb{N}", "ℕ"),
+    ("~", " "),
+)
+
+
 def _unescape_texttt_lean(raw: str) -> str:
     """Normalize LaTeX escapes inside `\\texttt{...}` to raw Lean text."""
     s = raw.strip()
-    s = s.replace("\\_", "_")
-    s = s.replace("\\#", "#")
-    s = s.replace("\\&", "&")
-    s = s.replace("\\%", "%")
-    s = s.replace("$\\mathbb{C}$", "ℂ").replace("\\mathbb{C}", "ℂ")
-    s = s.replace("$\\mathbb{R}$", "ℝ").replace("\\mathbb{R}", "ℝ")
-    s = s.replace("$\\mathbb{N}$", "ℕ").replace("\\mathbb{N}", "ℕ")
-    s = s.replace("~", " ")
-    s = " ".join(s.split())
-    return s
+    for src, dst in _TEXTTT_ESCAPES:
+        s = s.replace(src, dst)
+    return " ".join(s.split())
 
 
-_LEAN_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_'ℂℝℕ₀₁₂₃₄₅₆₇₈₉]*(?:\.[A-Za-z_][A-Za-z0-9_'ℂℝℕ₀₁₂₃₄₅₆₇₈₉]*)*$")
+_LEAN_ID_PART = r"[A-Za-z_][A-Za-z0-9_'ℂℝℕ₀₁₂₃₄₅₆₇₈₉]*"
+_LEAN_IDENT_RE = re.compile(rf"^{_LEAN_ID_PART}(?:\.{_LEAN_ID_PART})*$")
+_ISOTROPIC_QUAL_RE = re.compile(rf"\bIsotropicGrover\.{_LEAN_ID_PART}")
 _GIT_REV_RE = re.compile(r"^[0-9a-f]{7,40}$")
 _VERSION_RE = re.compile(r"^v?\d+\.\d+(?:\.\d+)*(?:[-+][A-Za-z0-9._-]+)?$")
 
@@ -1240,7 +1225,7 @@ def _check_lean_declarations(
             text.startswith(pfx) for pfx in CLI_COMMAND_PREFIXES
         ):
             continue
-        if text.startswith("-") or "/" in text or ":" in text and "://" in text:
+        if text.startswith("-") or "/" in text:
             continue
         if any(text.endswith(ext) for ext in FILE_EXTENSIONS):
             continue
@@ -1259,9 +1244,7 @@ def _check_lean_declarations(
 
         # Multi-token Lean expression/type signature: audit explicit IsotropicGrover.* refs
         if not _LEAN_IDENT_RE.match(text):
-            for qm in re.finditer(
-                r"\bIsotropicGrover\.[A-Za-z_][A-Za-z0-9_'ℂℝℕ₀₁₂₃₄₅₆₇₈₉]*", text
-            ):
+            for qm in _ISOTROPIC_QUAL_RE.finditer(text):
                 reason = _audit_single_lean_ident(qm.group(0), index)
                 if reason:
                     errors.append(f"{path}:{line_no}: {reason}")

@@ -73,7 +73,7 @@ import re
 import sys
 from pathlib import Path
 
-lean_files = sorted(Path("IsotropicGroverProof").glob("*.lean")) + [
+lean_files = sorted(Path("IsotropicGroverProof").rglob("*.lean")) + [
     Path("IsotropicGroverProof.lean")
 ]
 missing = [str(p) for p in lean_files if not p.is_file()]
@@ -165,13 +165,10 @@ for target in targets:
     for idx, line in enumerate(lines, start=1):
         nxt = lines[idx] if idx < len(lines) else ""
         candidates = (line + (" " + nxt if nxt else ""), line + nxt)
-        if any(undef_ref_re.search(w) for w in candidates):
-            errors.append(f"{log_path}:{idx}: {line.strip()}")
-        if any(undef_cit_re.search(w) for w in candidates):
-            errors.append(f"{log_path}:{idx}: {line.strip()}")
+        for rx in (undef_ref_re, undef_cit_re, mult_label_re):
+            if any(rx.search(w) for w in candidates):
+                errors.append(f"{log_path}:{idx}: {line.strip()}")
         if there_undef_re.search(line):
-            errors.append(f"{log_path}:{idx}: {line.strip()}")
-        if any(mult_label_re.search(w) for w in candidates):
             errors.append(f"{log_path}:{idx}: {line.strip()}")
         if any(dup_dest_re.search(w) for w in candidates):
             errors.append(f"{log_path}:{idx}: duplicate hyperref destination: {line.strip()}")
