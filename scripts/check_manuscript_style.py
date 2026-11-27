@@ -263,6 +263,51 @@ SECOND_PERSON_PRONOUNS: frozenset[str] = frozenset(
     {"you", "your", "yours", "yourself", "yourselves"}
 )
 
+FORBIDDEN_CONTRACTIONS: frozenset[str] = frozenset(
+    {
+        "don't",
+        "doesn't",
+        "didn't",
+        "can't",
+        "won't",
+        "wouldn't",
+        "shouldn't",
+        "couldn't",
+        "isn't",
+        "aren't",
+        "wasn't",
+        "weren't",
+        "hasn't",
+        "haven't",
+        "hadn't",
+        "it's",
+        "we're",
+        "we've",
+        "we'll",
+        "they're",
+        "they've",
+        "they'll",
+        "you're",
+        "you've",
+        "you'll",
+        "let's",
+        "that's",
+        "there's",
+        "here's",
+        "what's",
+    }
+)
+
+_LATIN_SHORTHAND_RE = re.compile(
+    r"(?<![A-Za-z])(?:e\.g\.|etc\.|viz\.|cf\.)", flags=re.IGNORECASE
+)
+_CONTRACTION_RE = re.compile(
+    r"(?<![A-Za-z])(?:"
+    + "|".join(re.escape(c) for c in sorted(FORBIDDEN_CONTRACTIONS))
+    + r")(?![A-Za-z])",
+    flags=re.IGNORECASE,
+)
+
 DISPLAY_MATH_ENVS: frozenset[str] = frozenset(
     {
         "equation",
@@ -454,6 +499,29 @@ CURATED_EXTERNAL_UNQUALIFIED: frozenset[str] = frozenset(
     }
 )
 
+CLI_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "elan",
+        "lake",
+        "lean",
+        "git",
+        "gh",
+        "bash",
+        "sh",
+        "zsh",
+        "python",
+        "python3",
+        "latexmk",
+        "pdflatex",
+        "xelatex",
+        "lualatex",
+        "bibtex",
+        "biber",
+        "pdfinfo",
+        "pdftoppm",
+    }
+)
+
 CLI_COMMAND_PREFIXES: tuple[str, ...] = (
     "lake ",
     "elan ",
@@ -474,6 +542,29 @@ CLI_COMMAND_PREFIXES: tuple[str, ...] = (
     "ls ",
     "export ",
     "PATH=",
+)
+
+CURATED_DOT_FIELDS: frozenset[str] = frozenset(
+    {
+        "size",
+        "count",
+        "eval",
+        "evolve",
+        "length",
+        "card",
+        "val",
+        "vec",
+        "re",
+        "im",
+        "m",
+        "mats",
+        "measure",
+        "exp_val",
+        "prod",
+        "map",
+        "fst",
+        "snd",
+    }
 )
 
 FILE_EXTENSIONS: tuple[str, ...] = (
@@ -503,6 +594,7 @@ class LeanIndex(NamedTuple):
     module_names: frozenset[str]
     qualified_external: frozenset[str]
     unqualified_external: frozenset[str]
+    dot_fields: frozenset[str]
 
 
 def _strip_latex_comment_line(line: str) -> str:
@@ -676,15 +768,16 @@ def _prepare_prose_text(comment_stripped: str) -> str:
         else:
             _mask_slice(buf, m.start(), m.end())
 
-    # 7. Mask display math environments (preserving \text{...} inside math)
+    # 7. Mask display math environments (preserving \text{...} from already-masked buf)
+    pre_disp = "".join(buf)
     env_alt = "|".join(re.escape(e) for e in sorted(DISPLAY_MATH_ENVS))
     for m in re.finditer(
         rf"\\begin\s*\{{({env_alt})\}}(.*?)\\end\s*\{{\1\}}",
-        comment_stripped,
+        pre_disp,
         flags=re.DOTALL,
     ):
         _mask_slice(buf, m.start(), m.end())
-        _unmask_text_macros_in_math(buf, m.group(2), m.start(2))
+        _unmask_text_macros_in_math(buf, pre_disp[m.start(2) : m.end(2)], m.start(2))
 
     # 8. Mask inline $...$ math (preserving \text{...} inside math)
     work = "".join(buf)
@@ -775,6 +868,19 @@ def _check_prose_lexicon(path: Path, comment_stripped: str, offsets: list[int]) 
                     errors.append(
                         f"{path}:{line_no}: banned filler phrase '{joined}' in prose/caption"
                     )
+
+    # Latin shorthands (e.g., etc., viz., cf.) and informal contractions
+    for m in _LATIN_SHORTHAND_RE.finditer(prose):
+        line_no = _pos_to_line(m.start(), offsets)
+        errors.append(
+            f"{path}:{line_no}: forbidden Latin shorthand '{m.group(0)}' in prose; "
+            "write out 'for example', 'such as', or 'compare'"
+        )
+    for m in _CONTRACTION_RE.finditer(prose):
+        line_no = _pos_to_line(m.start(), offsets)
+        errors.append(
+            f"{path}:{line_no}: forbidden contraction '{m.group(0)}' in prose"
+        )
 
     return errors
 
@@ -1013,7 +1119,7 @@ def _strip_lean_comments(lean_src: str) -> str:
 
 _LEAN_DECL_RE = re.compile(
     r"^\s*(?:@\[[^\]]*\]\s*)*(?:private\s+|protected\s+)?(?:noncomputable\s+)?"
-    r"(?:theorem|lemma|def|abbrev|structure|inductive|class|opaque)\s+([^\s({:\[]+)",
+    r"(?:theorem|lemma|def|abbrev|structure|inductive|class|instance|opaque)\s+([^\s({:\[]+)",
     flags=re.MULTILINE,
 )
 
@@ -1024,8 +1130,7 @@ def build_lean_index(lean_dir: Path) -> LeanIndex:
     modules: set[str] = set()
     qual_ext: set[str] = set(CURATED_EXTERNAL_QUALIFIED)
     unqual_ext: set[str] = set(CURATED_EXTERNAL_UNQUALIFIED)
-    dot_fields: set[str] = set()
-    cap_types: set[str] = set()
+    dot_fields: set[str] = set(CURATED_DOT_FIELDS)
 
     lean_files = sorted(lean_dir.rglob("*.lean"))
     root_lean = lean_dir.with_suffix(".lean")
@@ -1044,21 +1149,15 @@ def build_lean_index(lean_dir: Path) -> LeanIndex:
         for qm in re.finditer(r"\b([A-Z][A-Za-z0-9_']*(?:\.[A-Za-z0-9_']+)+)\b", clean):
             qual_ext.add(qm.group(1))
 
-        for cm in re.finditer(r"\b([A-Z][A-Za-z0-9_']*)\b", clean):
-            cap_types.add(cm.group(1))
-
         for dm in re.finditer(r"\.([A-Za-z_][A-Za-z0-9_']*)\b", clean):
             dot_fields.add(dm.group(1))
-
-    for tname in cap_types:
-        for fname in dot_fields:
-            qual_ext.add(f"{tname}.{fname}")
 
     return LeanIndex(
         local_decls=frozenset(decls),
         module_names=frozenset(modules),
         qualified_external=frozenset(qual_ext),
         unqualified_external=frozenset(unqual_ext | modules),
+        dot_fields=frozenset(dot_fields),
     )
 
 
@@ -1099,6 +1198,13 @@ def _audit_single_lean_ident(ident: str, index: LeanIndex) -> str | None:
     if "." in ident:
         if ident in index.qualified_external or ident in index.local_decls:
             return None
+        parts = ident.split(".")
+        head = parts[0]
+        # Allow term/variable dot-projections such as c.size, gates.length, S.card
+        if (head[0].islower() or len(head) == 1) and all(
+            seg in index.dot_fields for seg in parts[1:]
+        ):
+            return None
         return f"unknown qualified Lean declaration '{ident}'"
 
     # Single-character variables/gate symbols (X, Y, Z, H, S, T, c, n, etc.)
@@ -1128,8 +1234,11 @@ def _check_lean_declarations(
         if not text:
             continue
 
-        # Ignore CLI commands, flags, file paths, versions, URLs, git hashes
-        if any(text.startswith(pfx) for pfx in CLI_COMMAND_PREFIXES):
+        # Ignore CLI tool names, commands, flags, file paths, versions, URLs, git hashes
+        first_tok = text.split()[0]
+        if first_tok in CLI_TOOL_NAMES or any(
+            text.startswith(pfx) for pfx in CLI_COMMAND_PREFIXES
+        ):
             continue
         if text.startswith("-") or "/" in text or ":" in text and "://" in text:
             continue

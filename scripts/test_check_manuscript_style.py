@@ -364,6 +364,87 @@ class CheckManuscriptStyleTests(unittest.TestCase):
             errs_ext,
         )
 
+        bad_cap_ns = "Bogus \\texttt{UnknownCapNs.size} must fail.\n"
+        errs_cap_ns = self._check_tex(
+            {"supplement_body.tex": bad_cap_ns}, lean_dir=LEAN_DIR
+        )
+        self.assertTrue(
+            any("UnknownCapNs.size" in e for e in errs_cap_ns),
+            errs_cap_ns,
+        )
+
+        bad_var_proj = "Bogus \\texttt{c.nonexistent\\_proj} must fail.\n"
+        errs_var_proj = self._check_tex(
+            {"supplement_body.tex": bad_var_proj}, lean_dir=LEAN_DIR
+        )
+        self.assertTrue(
+            any("c.nonexistent_proj" in e for e in errs_var_proj),
+            errs_var_proj,
+        )
+
+    def test_lean_audit_instances_variable_projections_and_standalone_cli_tools(
+        self,
+    ) -> None:
+        valid_supp = (
+            "Instance \\texttt{perpSphereMeasure\\_isProbMeasure} (also qualified as "
+            "\\texttt{IsotropicGrover.perpSphereMeasure\\_isProbMeasure}), projections "
+            "\\texttt{c.size}, \\texttt{c.count}, \\texttt{c.eval}, "
+            "\\texttt{gates.length}, and \\texttt{S.card}, and tools "
+            "\\texttt{elan}, \\texttt{lake}, \\texttt{git}, \\texttt{latexmk}, "
+            "and \\texttt{python3} are all valid.\n"
+        )
+        self.assertEqual(
+            self._check_tex({"supplement_body.tex": valid_supp}, lean_dir=LEAN_DIR),
+            [],
+        )
+
+    def test_display_math_text_macro_preserves_masked_cite_and_catches_bad_prose(
+        self,
+    ) -> None:
+        clean_eq = (
+            "The identity reads\n"
+            "\\begin{equation}\n"
+            "a = b \\quad \\text{(see Ref.~\\cite{Novel2026} at "
+            "\\url{https://example.org/behaviour})}.\n"
+            "\\end{equation}\n"
+        )
+        self.assertEqual(self._check_tex({"eq_cite.tex": clean_eq}), [])
+
+        bad_eq = (
+            "The identity reads\n"
+            "\\begin{equation}\n"
+            "a = b \\quad \\text{for novel behaviour}.\n"
+            "\\end{equation}\n"
+        )
+        bad_errs = self._check_tex({"eq_bad.tex": bad_eq})
+        self.assertTrue(any("novel" in e for e in bad_errs), bad_errs)
+        self.assertTrue(any("behaviour" in e for e in bad_errs), bad_errs)
+
+    def test_rejects_latin_shorthands_and_contractions_in_prose(self) -> None:
+        for bad in (
+            "e.g.,",
+            "etc.",
+            "viz.",
+            "cf.",
+            "don't",
+            "it's",
+            "we'll",
+            "can't",
+            "won't",
+            "isn't",
+            "aren't",
+            "doesn't",
+        ):
+            with self.subTest(bad=bad):
+                errs = self._check_tex({"shorthand.tex": f"We avoid {bad} in prose.\n"})
+                self.assertTrue(errs, f"Expected style error for {bad!r}")
+
+        # Allowed: 'i.e.,' and standard possessives such as "Grover's"
+        allowed = (
+            "Grover's search rotates the state, i.e., amplifies the marked amplitude.\n"
+        )
+        self.assertEqual(self._check_tex({"allowed.tex": allowed}), [])
+
     def test_cli_main_exit_code_and_file_line_format(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             good = Path(td) / "good.tex"

@@ -164,6 +164,39 @@ class GenerateDataTests(unittest.TestCase):
             with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
                 self.assertNotEqual(gd.main(["--output-dir", str(out_dir), "--check"]), 0)
 
+    def test_fig3a_strict_query_monotonicity_across_fidelities(self) -> None:
+        content = gd.build_fig3a_queries()
+        data_lines = [
+            ln for ln in content.splitlines() if ln.strip() and not ln.startswith("#")
+        ]
+        headers = data_lines[0].split()
+        rows = data_lines[1:]
+        self.assertEqual(len(rows), 47)  # n = 4 .. 50
+
+        for row_str in rows:
+            cols = dict(zip(headers, row_str.split()))
+            n = int(cols["n"])
+            q_ideal = float(cols["Q_ideal"])
+            q_opt_99999 = float(cols["Q_opt_s99999"])
+            q_opt_9999 = float(cols["Q_opt_s9999"])
+            q_opt_999 = float(cols["Q_opt_s999"])
+            q_naive_99999 = float(cols["Q_naive_s99999"])
+            q_naive_9999 = float(cols["Q_naive_s9999"])
+            q_naive_999 = float(cols["Q_naive_s999"])
+
+            with self.subTest(n=n):
+                self.assertAlmostEqual(
+                    q_ideal / gd._optimal_query_complexity_primitive(n, 1.0, 1),
+                    1.0,
+                    places=7,
+                )
+                self.assertLess(q_ideal, q_opt_99999)
+                self.assertLess(q_opt_99999, q_opt_9999)
+                self.assertLess(q_opt_9999, q_opt_999)
+                self.assertLessEqual(q_opt_999, q_naive_999)
+                self.assertLessEqual(q_opt_9999, q_naive_9999)
+                self.assertLessEqual(q_opt_99999, q_naive_99999)
+
 
 if __name__ == "__main__":
     unittest.main()
