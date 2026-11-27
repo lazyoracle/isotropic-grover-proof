@@ -75,6 +75,8 @@ This guarantee is enforced in two ways:
 ## Repository Structure
 
 - `english-proof.md` — Complete end-to-end mathematical derivation, Lean formalization map, and extensibility guide (§1–§9).
+- `paper/` — *Physical Review A* (`revtex4-2`) manuscript, Supplemental Material, and unified arXiv preprint sources (`main.tex`, `supplement.tex`, `arxiv.tex`, `body.tex`, `supplement_body.tex`, `preamble.tex`, `metadata.tex`, `references.bib`, native `tikz`/`pgfplots` figures in `paper/figures/`, and deterministic data generator `paper/scripts/generate_data.py` populating `paper/data/`).
+- `scripts/` — Verification and build scripts (`build_paper.sh`, `check_manuscript_style.py`, `check_markdown_math.py`, `build_docs.sh`).
 - `IsotropicGroverProof.lean` — Root library entry point importing `IsotropicGroverProof.Basic`.
 - `IsotropicGroverProof/` — Barrel module `Basic.lean` plus 11 verified submodules:
   ```text
@@ -102,4 +104,10 @@ Install [`elan`](https://leanprover-community.github.io/get_started.html), fetch
 
 ```bash
 lake exe cache get && lake build --wfail
+```
+
+To verify deterministic figure/table datasets (`paper/data/`), run the manuscript style and Lean-identifier linter across all LaTeX sources, and compile all three PDF targets (`paper/build/main.pdf`, `paper/build/supplement.pdf`, and `paper/build/arxiv.pdf`) with TeX Live and `latexmk`:
+
+```bash
+bash scripts/build_paper.sh
 ```

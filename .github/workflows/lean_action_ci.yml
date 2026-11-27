@@ -112,6 +112,37 @@ jobs:
         with:
           path: _pages/
 
+  paper:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install TeX Live packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            texlive-latex-recommended \
+            texlive-latex-extra \
+            texlive-publishers \
+            texlive-pictures \
+            texlive-science \
+            cm-super-minimal \
+            latexmk
+
+      - name: Lint data, style, Lean declarations, and build PDFs
+        run: bash scripts/build_paper.sh
+
+      - name: Upload manuscript PDFs
+        uses: actions/upload-artifact@v4
+        with:
+          name: manuscript-pdfs
+          if-no-files-found: error
+          path: |
+            paper/build/main.pdf
+            paper/build/supplement.pdf
+            paper/build/arxiv.pdf
+
   deploy:
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

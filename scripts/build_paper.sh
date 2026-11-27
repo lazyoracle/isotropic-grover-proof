@@ -13,13 +13,17 @@ python3 -B -m unittest scripts/test_check_manuscript_style.py paper/scripts/test
 echo "[3/4] Linting LaTeX manuscript sources..."
 REQUIRED_TEX=(
   "paper/main.tex"
+  "paper/supplement.tex"
+  "paper/arxiv.tex"
   "paper/preamble.tex"
   "paper/metadata.tex"
   "paper/body.tex"
+  "paper/supplement_body.tex"
   "paper/figures/fig1_sphere_duality.tex"
   "paper/figures/fig2_grover_oscillations.tex"
   "paper/figures/fig3_complexity_crossover.tex"
   "paper/figures/fig4_resource_estimation.tex"
+  "paper/figures/figS1_lean_architecture.tex"
 )
 
 for req in "${REQUIRED_TEX[@]}"; do
@@ -45,26 +49,28 @@ MAIN_GROUP=(
 )
 python3 -B scripts/check_manuscript_style.py "${LINT_ARGS[@]}" "${MAIN_GROUP[@]}"
 
-# If Supplemental Material / unified arXiv sources are present, lint them as well
-if [[ -f "paper/supplement_body.tex" ]]; then
-  SUPP_GROUP=("paper/preamble.tex" "paper/metadata.tex" "paper/supplement_body.tex")
-  [[ -f "paper/supplement.tex" ]] && SUPP_GROUP+=("paper/supplement.tex")
-  [[ -f "paper/figures/figS1_lean_architecture.tex" ]] && SUPP_GROUP+=("paper/figures/figS1_lean_architecture.tex")
-  python3 -B scripts/check_manuscript_style.py "${LINT_ARGS[@]}" "${SUPP_GROUP[@]}"
-fi
+# Check standalone Supplemental Material tree
+SUPP_GROUP=(
+  "paper/preamble.tex"
+  "paper/metadata.tex"
+  "paper/supplement_body.tex"
+  "paper/supplement.tex"
+  "paper/figures/figS1_lean_architecture.tex"
+)
+python3 -B scripts/check_manuscript_style.py "${LINT_ARGS[@]}" "${SUPP_GROUP[@]}"
 
-if [[ -f "paper/arxiv.tex" ]]; then
-  ARXIV_GROUP=("${MAIN_GROUP[@]}" "paper/arxiv.tex")
-  [[ -f "paper/supplement_body.tex" ]] && ARXIV_GROUP+=("paper/supplement_body.tex")
-  [[ -f "paper/figures/figS1_lean_architecture.tex" ]] && ARXIV_GROUP+=("paper/figures/figS1_lean_architecture.tex")
-  python3 -B scripts/check_manuscript_style.py "${LINT_ARGS[@]}" "${ARXIV_GROUP[@]}"
-fi
+# Check unified arXiv manuscript tree
+ARXIV_GROUP=(
+  "${MAIN_GROUP[@]}"
+  "paper/arxiv.tex"
+  "paper/supplement_body.tex"
+  "paper/figures/figS1_lean_architecture.tex"
+)
+python3 -B scripts/check_manuscript_style.py "${LINT_ARGS[@]}" "${ARXIV_GROUP[@]}"
 
 echo "[4/4] Compiling LaTeX targets with latexmk and auditing build logs..."
 mkdir -p paper/build
-TARGETS=("main.tex")
-[[ -f "paper/supplement.tex" ]] && TARGETS+=("supplement.tex")
-[[ -f "paper/arxiv.tex" ]] && TARGETS+=("arxiv.tex")
+TARGETS=("main.tex" "supplement.tex" "arxiv.tex")
 
 for target in "${TARGETS[@]}"; do
   (
