@@ -169,7 +169,7 @@ Because individual realizations $\Psi'$ rotate across real subspaces that mix re
 
 \begin{theorem}[Depolarizing channel emergence and heterogeneous circuit composition]
 \label{thm:channel-duality}
-Let $N = 2^n$ ($n \ge 0$) and $\ket{\psi'} = \iota^{-1}(\Psi')$ for a single isotropic step~\eqref{eq:isotropic-step} on $\Psi = \iota(\ket{\psi})$ with $\sigma \in [0, 1]$.
+Let $N = 2^n$ ($n \ge 0$) and $\ket{\psi'} = \iota^{-1}(\Psi')$ for a single isotropic step in Eq.~\eqref{eq:isotropic-step} on $\Psi = \iota(\ket{\psi})$ with $\sigma \in [0, 1]$.
 \begin{enumerate}
 \item The single-step complex density-matrix expectation equals the $n$-qubit depolarizing CPTP map $\Lambda_\sigma(\rho) = \sigma^2\rho + (1 - \sigma^2)I_N/N$:
 \begin{equation}
@@ -200,7 +200,7 @@ For matrix indices $x, y \in \{0, \dots, N - 1\}$, write $\Pi(\Psi)_{x,y} = (\ke
 where $\Psi'_j = \ip{\Psi'}{\hat{\mathbf{e}}_j}$.
 Applying Theorem~\ref{thm:bilinear} to $\operatorname{Re}\Pi(\Psi')_{x,y}$ pairs indices of matching parity ($\ip{\hat{\mathbf{e}}_{2x}}{\hat{\mathbf{e}}_{2y}} = \ip{\hat{\mathbf{e}}_{2x+1}}{\hat{\mathbf{e}}_{2y+1}} = \delta_{x,y}$), adding two identical noise floors $(1 - \sigma^2)\delta_{x,y}/d + (1 - \sigma^2)\delta_{x,y}/d = (1 - \sigma^2)\delta_{x,y}/N$ because $d = 2N$. Conversely, in $\operatorname{Im}\Pi(\Psi')_{x,y}$ every inner product pairs an even coordinate $2y$ with an odd coordinate $2x + 1$ (or $2x$ with $2y + 1$); because $2x \ne 2y + 1$ for all integers $x, y$---including on the diagonal $x = y$---both isotropic floor terms vanish identically, leaving $\E[\operatorname{Im}\Pi(\Psi')_{x,y}] = \sigma^2 \operatorname{Im}\Pi(\Psi)_{x,y}$ and proving Eq.~\eqref{eq:channel-onestep}.
 
-For a $G$-step trajectory~\eqref{eq:markov-chain}, we first verify by backward induction on $G$ that for any $\mathbf{u}, \mathbf{v} \in \mathbb{R}^d$,
+For a $G$-step trajectory in Eq.~\eqref{eq:markov-chain}, we first verify by backward induction on $G$ that for any $\mathbf{u}, \mathbf{v} \in \mathbb{R}^d$,
 \begin{align}
 \MoveEqLeft[1.4] \E\bigl[\ip{\Psi_G}{\mathbf{u}}\ip{\Psi_G}{\mathbf{v}}\bigr] \nonumber \\
 &= \sigma_{\mathrm{eff}}^2 \ip{\Phi_G}{\mathbf{u}}\ip{\Phi_G}{\mathbf{v}} + \frac{1 - \sigma_{\mathrm{eff}}^2}{d}\ip{\mathbf{u}}{\mathbf{v}}.
@@ -277,21 +277,21 @@ Let $0 < M < N = 2^n$, $\theta = \arcsin\sqrt{M/N} \in (0, \pi/2)$, $\sigma_{\ma
 \kappa = \frac{-\ln\gamma}{2\theta} \ge 0, \qquad \phi = \arctan\kappa \in \bigl[0, \tfrac{\pi}{2}\bigr).
 \label{eq:kappa-def}
 \end{equation}
-Viewed as a continuous function of $K \ge 0$, $p_e(K)$ in Eq.~\eqref{eq:pe-excess} attains its unique global maximum at $K^*(\gamma, n, M)$ given by
+Viewed as a continuous function of $K \ge 0$, $p_e(K)$ in Eq.~\eqref{eq:pe-excess} attains its unique maximum on the first amplification lobe $(2K + 1)\theta \in [\theta, \pi - \theta]$ at $K^*(\gamma, n, M)$ given by
 \begin{equation}
 (2K^* + 1)\theta = \frac{\pi - \phi - \arcsin\bigl(\sin\phi\cos(2\theta)\bigr)}{2},
 \label{eq:optimal-k-exact}
 \end{equation}
-satisfying $0 \le K^*(\gamma, n, M) \le K_{\mathrm{ideal}}$, with equality $K^* = K_{\mathrm{ideal}}$ if and only if $\gamma = 1$.
+satisfying $0 \le K^*(\gamma, n, M) \le K_{\mathrm{ideal}}$, with equality $K^* = K_{\mathrm{ideal}}$ if and only if $\gamma = 1$. Whenever $\gamma \in (0, 1)$, $K^*(\gamma, n, M)$ is the unique global maximizer over all $K \ge 0$.
 \end{proposition}
 
 \begin{proof}
-For $\gamma = 1$, $\kappa = \phi = 0$ and Eq.~\eqref{eq:optimal-k-exact} gives $(2K^* + 1)\theta = \pi/2$. For $\gamma \in (0, 1)$, write $\alpha(K) = (2K + 1)\theta \ge \theta$ and $h(K) = \gamma^{2K}(\sin^2\alpha - \sin^2\theta) = \frac{1}{2}e^{-2\kappa(\alpha - \theta)}[\cos(2\theta) - \cos(2\alpha)]$. Differentiating with respect to $\alpha$ gives
+At $\gamma = 1$, $\kappa = \phi = 0$ and $\sin^2((2K + 1)\theta)$ attains its unique maximum on $[\theta, \pi - \theta]$ at $(2K^* + 1)\theta = \pi/2$, matching Eq.~\eqref{eq:optimal-k-exact} while repeating periodically across lobes. For $\gamma \in (0, 1)$, write $\alpha(K) = (2K + 1)\theta \ge \theta$ and $h(K) = \gamma^{2K}(\sin^2\alpha - \sin^2\theta) = \frac{1}{2}e^{-2\kappa(\alpha - \theta)}[\cos(2\theta) - \cos(2\alpha)]$. Differentiating with respect to $\alpha$ gives
 \begin{equation}
 e^{2\kappa(\alpha - \theta)} \frac{dh}{d\alpha} = \sin(2\alpha) + \kappa\cos(2\alpha) - \kappa\cos(2\theta).
 \label{eq:dh-dalpha}
 \end{equation}
-Dividing Eq.~\eqref{eq:dh-dalpha} by $\sqrt{1 + \kappa^2} = \sec\phi$ converts the stationary condition $dh/d\alpha = 0$ into $\sin(2\alpha + \phi) = \sin\phi\cos(2\theta)$. On the first lobe $\alpha \in [\theta, \pi - \theta]$, $2\alpha + \phi$ spans $[2\theta + \phi, 2\pi - 2\theta + \phi]$. Because $\abs{\sin\phi\cos(2\theta)} < \sin\phi = \sin(\pi - \phi)$ and $\sin(2\theta + \phi) > \sin\phi\cos(2\theta)$ (as $\sin(2\theta)\cos\phi > 0$ and $\sin\phi[\cos(2\theta) - \cos(2\theta)] = 0$), $dh/d\alpha$ starts strictly positive at $\alpha = \theta$ for $\theta < \pi/4$, crosses zero uniquely from above to below at $2\alpha^* + \phi = \pi - \arcsin(\sin\phi\cos(2\theta))$, and remains negative to $\alpha = \pi/2$ and across the descending side where $\sin(2\alpha) \le 0$ (while for $\theta \ge \pi/4$, $\cos(2\theta) \le 0$ similarly keeps $\alpha^* > \theta$ with $2\alpha^* \le \pi$). Finally, for any higher lobe $\alpha + m\pi$ ($m \ge 1$), $h(\alpha + m\pi) = e^{-2\kappa m\pi}h(\alpha) < h(\alpha)$ whenever $h(\alpha) > 0$, proving that $\alpha^*$ in Eq.~\eqref{eq:optimal-k-exact} is the unique global maximizer over all $K \ge 0$. Since $\phi + \arcsin(\sin\phi\cos(2\theta)) > \phi - \phi = 0$ for $\phi > 0$ and $\theta \in (0, \pi/2)$ ($\abs{\cos(2\theta)} < 1$), we have $(2K^* + 1)\theta < \pi/2$, whence $K^* < K_{\mathrm{ideal}}$.
+Evaluating Eq.~\eqref{eq:dh-dalpha} at the endpoints of $[\theta, \pi - \theta]$ gives $+\sin(2\theta) > 0$ at $\alpha = \theta$ and $-\sin(2\theta) < 0$ at $\alpha = \pi - \theta$ for every $\theta \in (0, \pi/2)$, bracketing a maximizer in $(\theta, \pi - \theta)$. Dividing Eq.~\eqref{eq:dh-dalpha} by $\sqrt{1 + \kappa^2} = \sec\phi$ rewrites $dh/d\alpha = 0$ as $\sin(2\alpha + \phi) = \sin\psi$, where $\psi = \arcsin(\sin\phi\cos(2\theta)) \in (-\phi, \phi)$. Because $\psi < \phi < 2\theta + \phi$ and $\sin(\phi - 2\theta) = \sin\psi - \cos\phi\sin(2\theta) < \sin\psi$ implies $\phi - 2\theta < \psi$ (hence $2\pi - 2\theta + \phi < 2\pi + \psi$), the open interval $(2\theta + \phi, 2\pi - 2\theta + \phi)$ lies strictly inside $(\psi, 2\pi + \psi)$, where $\sin u = \sin\psi$ has the unique solution $2\alpha^* + \phi = \pi - \psi$, yielding Eq.~\eqref{eq:optimal-k-exact}. Where $\sin^2\alpha \le \sin^2\theta$ we have $h \le 0 < h(K^*)$, and on every later amplification lobe $\alpha + m\pi$ ($m \ge 1$) damping gives $h(\alpha + m\pi) = e^{-2\kappa m\pi}h(\alpha) < h(\alpha)$, so $K^*$ is the unique global maximizer over all $K \ge 0$. Since $\phi + \psi > \phi - \phi = 0$, $(2K^* + 1)\theta < \pi/2$ and hence $K^* < K_{\mathrm{ideal}}$.
 \end{proof}
 
 Three limiting regimes of Proposition~\ref{prop:optimal-k} illuminate how circuit depth competes with coherent rotation. First, for sparse search ($M \ll N$), $\cos(2\theta) = 1 - 2M/N \to 1$ implies $\arcsin(\sin\phi\cos(2\theta)) \to \phi$, simplifying Eq.~\eqref{eq:optimal-k-exact} to the universal scaling curve $(2K^* + 1)\theta \to \pi/2 - \phi = \operatorname{arccot}\kappa$, i.e., $K^* / K_{\mathrm{ideal}} \approx (2/\pi)\operatorname{arccot}\kappa$. Second, in the intermediate overdamped regime where per-iteration loss is small ($-\ln\gamma \ll 1$) yet cumulative circuit depth makes $\kappa = (-\ln\gamma)/(2\theta) \gg 1$ (so $2\theta \ll -\ln\gamma \ll 1$), both $\pi/2 - \phi \approx 1/\kappa$ and $\arccos(\sin\phi\cos(2\theta)) \approx 1/\kappa$, causing $K^*$ to saturate at an $N$-independent ceiling:
@@ -345,7 +345,7 @@ Preserving Grover's quadratic $O(\sqrt{N/M})$ query scaling as $n \to \infty$ re
 \label{eq:fidelity-scaling-law}
 \end{equation}
 
-Figure~\ref{fig:complexity-crossover}(a) displays this phase transition for $M = 1$ across $n \in [4, 50]$. At low register sizes where $\kappa(n) \ll 1$, each optimal curve $Q_{\mathrm{opt}}(n)$ (solid) hugs the slope-$1/2$ noiseless baseline $Q_{\mathrm{ideal}}(n) \approx 0.690 \cdot 2^{n/2}$ (for example, up to $n \approx 11$ at $\sigma = 0.99999$). Passing through the crossover knee $\kappa(n) \sim 1$---located near $n \approx 7$ for $\sigma = 0.999$, $n \approx 11$ for $\sigma = 0.9999$, and $n \approx 16$ for $\sigma = 0.99999$---the solid $Q_{\mathrm{opt}}(n)$ curves bend upward to slope $1$ ($\propto N$, parallel to classical search $2^n$), while the naive $K_{\mathrm{ideal}}$ curves (dashed) shoot past $2^n$ with asymptotic slope $3/2$ ($\propto N^{3/2}$), reaching $2.97 \times 10^{22}$ queries by $n = 50$ compared with $1.13 \times 10^{15}$ for classical search.
+Figure~\ref{fig:complexity-crossover}(a) displays this phase transition for $M = 1$ across $n \in [4, 50]$. At low register sizes where $\kappa(n) \ll 1$, each optimal curve $Q_{\mathrm{opt}}(n)$ (solid) hugs the slope-$1/2$ noiseless baseline $Q_{\mathrm{ideal}}(n) \approx 0.690 \cdot 2^{n/2}$ (for example, up to $n \approx 12$ at $\sigma = 0.99999$). Passing through the crossover knee $\kappa(n) \sim 1$---located near $n \approx 7$ for $\sigma = 0.999$, $n \approx 12$ for $\sigma = 0.9999$, and $n \approx 17$--$18$ for $\sigma = 0.99999$---the solid $Q_{\mathrm{opt}}(n)$ curves bend upward to slope $1$ ($\propto N$, parallel to classical search $2^n$), while the naive $K_{\mathrm{ideal}}$ curves (dashed) shoot past $2^n$ with asymptotic slope $3/2$ ($\propto N^{3/2}$), reaching $2.97 \times 10^{22}$ queries by $n = 50$ compared with $1.13 \times 10^{15}$ for classical search.
 
 \subsection{Target-Confidence Repetition Overhead and Multi-Target Growth Rate \texorpdfstring{$b(\sigma, M)$}{b(sigma, M)}}
 \label{sec:repetition-overhead}
@@ -364,7 +364,7 @@ Second, following Ref.~\cite{SahaRoyLacalle2026}, fitting $k(n, M) = a\,b^n + c$
 \input{figures/fig4_resource_estimation}
 
 \begin{table*}[t]
-\caption{Heterogeneous gate counts and maximum tolerable two-qubit entangling-gate infidelities $1 - \sigma_{2\mathrm{q}}$ for single-target Grover search ($M = 1$, $K = K_{\mathrm{ideal}}(n)$) across $n \in \{10, 20, 30, 40, 50, 60\}$ qubits under linear-$n$ decomposition~\eqref{eq:linear-gate-counts} and single-to-two-qubit infidelity ratio $1 - \sigma_{1\mathrm{q}} = \alpha(1 - \sigma_{2\mathrm{q}})$. Associated single-qubit budgets follow via $1 - \sigma_{1\mathrm{q}} = \alpha(1 - \sigma_{2\mathrm{q}})$.}
+\caption{Heterogeneous gate counts and maximum tolerable two-qubit entangling-gate infidelities $1 - \sigma_{2\mathrm{q}}$ for single-target Grover search ($M = 1$, $K = K_{\mathrm{ideal}}(n)$) across $n \in \{10, 20, 30, 40, 50, 60\}$ qubits under the linear-$n$ decomposition in Eq.~\eqref{eq:linear-gate-counts}, with single-qubit budgets determined by $1 - \sigma_{1\mathrm{q}} = \alpha(1 - \sigma_{2\mathrm{q}})$.}
 \label{tab:resource-budgets}
 \begin{ruledtabular}
 \begin{tabular}{cccccccc}

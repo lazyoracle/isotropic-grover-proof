@@ -20,10 +20,11 @@
     \fill[oiBlue!7, opacity=0.45] (0,0) ellipse [x radius=1.82cm, y radius=0.48cm];
     \draw[oiGray!90, line width=0.65pt] (-1.82,0) arc[start angle=180, end angle=360, x radius=1.82cm, y radius=0.48cm];
 
-    % Reflection hyperplane (\mathbb{R} b_1)^\perp
+    % Reflection hyperplane (\mathbb{R} b_1)^\perp with exterior callout
     \fill[oiGreen!12, opacity=0.45] (0,-1.72) -- (0.46,-1.38) -- (0.46,1.82) -- (0,1.48) -- cycle;
     \draw[oiGreen!80!black, densely dashed, line width=0.65pt] (0,-1.78) -- (0,1.88);
-    \node[oiGreen!65!black, anchor=east, align=right, font=\scriptsize] at (-0.08, -1.36) {mirror\\$(\mathbb{R}\mathbf{b}_1)^\perp$};
+    \draw[oiGreen!70!black, thin] (-0.04, -1.24) -- (-1.62, -1.24);
+    \node[oiGreen!65!black, anchor=east, align=right, font=\scriptsize] at (-1.64, -1.24) {mirror\\$(\mathbb{R}\mathbf{b}_1)^\perp$};
 
     % Origin and ideal state Psi (north pole)
     \fill[oiBlack] (0,0) circle (1.3pt);
@@ -31,27 +32,29 @@
     \fill[oiBlack] (0,1.82) circle (1.7pt);
     \node[anchor=south, font=\footnotesize] at (0,1.85) {$\Psi$};
 
-    % Equatorial unit vector e_2 and reflected partner R_1 e_2
+    % Equatorial unit vector e_2 and reflected partner R_1 e_2 (exterior callouts clear of rim)
     \coordinate (E2) at (1.54, -0.26);
     \coordinate (E2R) at (-1.54, -0.26);
     \draw[vec, oiBlue] (0,0) -- (E2);
     \fill[oiBlue] (E2) circle (1.6pt);
-    \node[oiBlue, anchor=north west, font=\footnotesize] at (1.42, -0.30) {$\mathbf{e}_2$};
+    \draw[oiBlue!80!black, thin] (1.59, -0.28) -- (1.92, -0.44);
+    \node[oiBlue, anchor=west, inner sep=1pt, font=\footnotesize] at (1.94, -0.46) {$\mathbf{e}_2$};
 
     \draw[dashvec, oiPurple] (0,0) -- (E2R);
     \fill[oiPurple] (E2R) circle (1.5pt);
-    \node[oiPurple, anchor=north east, font=\footnotesize] at (-1.56, -0.32) {$R_1\mathbf{e}_2$};
+    \draw[oiPurple!85!black, thin] (-1.59, -0.28) -- (-1.92, -0.44);
+    \node[oiPurple, anchor=east, inner sep=1pt, font=\footnotesize] at (-1.94, -0.46) {$R_1\mathbf{e}_2$};
 
     % Perturbed state Psi' and reflected partner R_1 Psi'
     \coordinate (PSIP) at (1.00, 1.41);
     \coordinate (PSIPR) at (-1.00, 1.41);
     \draw[vec, oiVermilion, line width=1.0pt] (0,0) -- (PSIP);
     \fill[oiVermilion] (PSIP) circle (1.8pt);
-    \node[oiVermilion, anchor=south west, font=\footnotesize] at (1.02, 1.38) {$\Psi'$};
+    \node[oiVermilion, anchor=south west, font=\footnotesize] at (1.04, 1.41) {$\Psi'$};
 
     \draw[dashvec, oiPurple!90!black] (0,0) -- (PSIPR);
     \fill[oiPurple!90!black] (PSIPR) circle (1.6pt);
-    \node[oiPurple!90!black, anchor=south east, font=\footnotesize] at (-1.02, 1.38) {$R_1\Psi'$};
+    \node[oiPurple!90!black, anchor=south east, font=\footnotesize] at (-1.04, 1.41) {$R_1\Psi'$};
 
     % Reflection symmetry arrow between Psi' and R_1 Psi'
     \draw[<->, oiGreen!75!black, densely dotted, line width=0.7pt] (-0.84, 1.41) -- (0.84, 1.41);
@@ -69,20 +72,20 @@
   \end{scope}
 
   % ==================== CENTER BRIDGE: (2N - 1) Cancellation ====================
-  \begin{scope}[shift={(5.45, 0.05)}]
-    \node[box, text width=3.20cm] (bridge) at (0,0) {%
+  \begin{scope}[shift={(5.50, 0.05)}]
+    \node[box, text width=3.65cm] (bridge) at (0,0) {%
       {\bfseries $(2N - 1)$ cancellation}\\[3pt]
       $\E[\sin^2\theta] = \dfrac{2N - 1}{2N}(1 - \sigma^2)$\\[3pt]
       $\E[\mathbf{e}_2\mathbf{e}_2^\top] = \dfrac{P_\perp}{2N - 1}$\\[4pt]
       $\Downarrow$ {\scriptsize pair $\mathrm{Re}/\mathrm{Im}$ axes}\\[2pt]
       $\dfrac{1}{2N} + \dfrac{1}{2N} = \dfrac{1}{N}$
     };
-    \draw[->, line width=0.9pt, oiGray!90] (-2.95, 0) -- (bridge.west);
-    \draw[->, line width=0.9pt, oiGray!90] (bridge.east) -- (2.95, 0);
+    \draw[->, line width=0.9pt, oiGray!90] (-3.05, 0) -- (bridge.west);
+    \draw[->, line width=0.9pt, oiGray!90] (bridge.east) -- (3.05, 0);
   \end{scope}
 
   % ==================== PANEL (b): Complex Density-Matrix Contraction ====================
-  \begin{scope}[shift={(10.95,0)}]
+  \begin{scope}[shift={(11.10,0)}]
     \node[anchor=south, font=\footnotesize\bfseries] at (0, 2.48) {(b) Emergent channel on $\mathcal{D}(\mathbb{C}^N)$};
 
     % Outer pure-state boundary of density-operator convex body
@@ -115,8 +118,8 @@
     \foreach \ang in {14, 22, 30, 38, 48} {
       \fill[oiVermilion!75] (\ang:1.82cm) circle (1.2pt);
     }
-    \draw[oiVermilion!80!black, thin] (1.77, 0.45) -- (2.05, 0.45);
-    \node[oiVermilion!85!black, anchor=west, align=left, font=\scriptsize] at (2.06, 0.45) {pure draws\\$\ket{\psi_G}$};
+    \draw[oiVermilion!80!black, thin] (1.77, 0.45) -- (2.02, 0.45);
+    \node[oiVermilion!85!black, anchor=west, align=left, font=\scriptsize] at (2.04, 0.45) {pure draws\\$\ket{\psi_G}$};
 
     % Clean bottom formulas in open space below disk
     \node[oiBlue!85!black, anchor=north, font=\scriptsize] at (0, -1.96) {$\Lambda_{\sigma_{\mathrm{eff}}}(\rho) = \sigma_{\mathrm{eff}}^2\rho + (1 - \sigma_{\mathrm{eff}}^2)I_N / N$};

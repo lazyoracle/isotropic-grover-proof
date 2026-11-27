@@ -103,16 +103,17 @@ for target in targets:
     # Join hard-wrapped 79-column TeX log lines for reliable pattern matching where needed
     lines = raw_log.splitlines()
     for idx, line in enumerate(lines, start=1):
-        window = line + (" " + lines[idx] if idx < len(lines) else "")
-        if undef_ref_re.search(window):
+        nxt = lines[idx] if idx < len(lines) else ""
+        candidates = (line + (" " + nxt if nxt else ""), line + nxt)
+        if any(undef_ref_re.search(w) for w in candidates):
             errors.append(f"{log_path}:{idx}: {line.strip()}")
-        if undef_cit_re.search(window):
+        if any(undef_cit_re.search(w) for w in candidates):
             errors.append(f"{log_path}:{idx}: {line.strip()}")
         if there_undef_re.search(line):
             errors.append(f"{log_path}:{idx}: {line.strip()}")
-        if mult_label_re.search(window):
+        if any(mult_label_re.search(w) for w in candidates):
             errors.append(f"{log_path}:{idx}: {line.strip()}")
-        if dup_dest_re.search(window):
+        if any(dup_dest_re.search(w) for w in candidates):
             errors.append(f"{log_path}:{idx}: duplicate hyperref destination: {line.strip()}")
         m_over = overfull_re.search(line)
         if m_over:
