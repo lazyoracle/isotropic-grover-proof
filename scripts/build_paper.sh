@@ -68,6 +68,52 @@ ARXIV_GROUP=(
 )
 python3 -B scripts/check_manuscript_style.py "${LINT_ARGS[@]}" "${ARXIV_GROUP[@]}"
 
+python3 -B - <<'PY'
+import re
+import sys
+from pathlib import Path
+
+lean_files = sorted(Path("IsotropicGroverProof").glob("*.lean")) + [
+    Path("IsotropicGroverProof.lean")
+]
+missing = [str(p) for p in lean_files if not p.is_file()]
+if missing:
+    print(f"ERROR: Missing Lean source file(s): {', '.join(missing)}", file=sys.stderr)
+    sys.exit(1)
+
+actual_lines = sum(p.read_bytes().count(b"\n") for p in lean_files)
+supp_path = Path("paper/supplement_body.tex")
+raw = supp_path.read_text(encoding="utf-8")
+uncommented = "\n".join(
+    re.sub(r"(?<!\\)%.*$", "", line) for line in raw.splitlines()
+)
+
+pattern = re.compile(
+    r"(?:\$([0-9][0-9,\{\}]*)\$|([0-9][0-9,]*))\s+lines\s+of\s+Lean"
+)
+matches = list(pattern.finditer(uncommented))
+if not matches:
+    print(
+        f"ERROR: {supp_path}: expected Lean line-count statement ('... lines of Lean') not found",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+for m in matches:
+    token = m.group(1) or m.group(2)
+    stated = int(re.sub(r"[^0-9]", "", token))
+    if stated != actual_lines:
+        formatted = f"{actual_lines:,}".replace(",", "{,}")
+        print(
+            f"ERROR: {supp_path}: stated Lean line count ({stated}) != actual wc -l total ({actual_lines}); "
+            f"update to ${formatted}$",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+print(f"OK: {supp_path} Lean line count ({actual_lines}) matches {len(lean_files)} Lean source files")
+PY
+
 echo "[4/4] Compiling LaTeX targets with latexmk and auditing build logs..."
 mkdir -p paper/build
 TARGETS=("main.tex" "supplement.tex" "arxiv.tex")
