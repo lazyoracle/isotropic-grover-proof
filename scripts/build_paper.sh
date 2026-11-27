@@ -81,12 +81,15 @@ done
 
 python3 -B - "${TARGETS[@]}" <<'PY'
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
 targets = sys.argv[1:]
 build_dir = Path("paper/build")
 errors: list[str] = []
+pdffonts_bin = shutil.which("pdffonts")
 
 undef_ref_re = re.compile(r"LaTeX Warning: Reference `[^']*' on page .* undefined")
 undef_cit_re = re.compile(r"LaTeX Warning: Citation `[^']*' on page .* undefined")
@@ -101,6 +104,11 @@ for target in targets:
     pdf_path = build_dir / f"{stem}.pdf"
     if not pdf_path.is_file():
         errors.append(f"{pdf_path}: expected PDF output missing")
+    elif pdffonts_bin is not None:
+        font_out = subprocess.check_output([pdffonts_bin, str(pdf_path)], text=True)
+        for fline in font_out.splitlines()[2:]:
+            if re.search(r"\bType 3\b", fline):
+                errors.append(f"{pdf_path}: rasterized Type 3 bitmap font detected: {fline.strip()}")
     if not log_path.is_file():
         errors.append(f"{log_path}: expected log file missing")
         continue

@@ -127,7 +127,8 @@ jobs:
             texlive-publishers \
             texlive-pictures \
             texlive-science \
-            cm-super-minimal \
+            cm-super \
+            poppler-utils \
             latexmk
 
       - name: Lint data, style, Lean declarations, and build PDFs
