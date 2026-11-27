@@ -17,6 +17,10 @@
 --    `noisyUnitaryListChannel`), canonical Grover sequences, and syntactic `Circuit n`
 --    (`noisyCircuitChannel`, `c.size`), with concrete 1-qubit (`K = 0`) and 2-qubit (`K = 1`)
 --    primitive-gate circuit witnesses.
+-- 7. Subset measurement probabilities (`subsetSuccProb`) across arbitrary target subsets `S`
+--    (including `∅` and `Finset.univ`) and end-to-end heterogeneous multi-target (`M = S.card`)
+--    Grover search (`multiOracleUnitary`, `multiGroverStep`, `multiGrover_ideal_subsetSuccProb`,
+--    `noisyMultiGroverHet_succProb`).
 
 import QuantumComputation.Algorithms.Grover.Amplitude
 import IsotropicGroverProof.MainTheorem
@@ -31,7 +35,8 @@ and 2D Grover search plane, bridges `QuantumInfo` ket trajectories and unitary p
 `Grover.groverMatrix`, `Grover.groverState`, and `Grover.p_succ`, and proves end-to-end noisy
 Grover trajectory and `CPTPMap` / `computationalPOVM` Born-probability theorems across arbitrary
 unitary gate lists (`List 𝐔[Fin (2 ^ n)]`), canonical Grover sequences (`groverIterGates`,
-`groverFullGates`), and syntactic `Circuit n` (`c.size`) for all `σ ∈ [0, 1]` and `K : ℕ`.
+`groverFullGates`), syntactic `Circuit n` (`c.size`, `circuitFidelity`), and multi-target
+(`M = S.card`) search (`noisyMultiGroverHet_succProb`).
 -/
 
 namespace IsotropicGrover
@@ -951,11 +956,486 @@ theorem noisyGrover_circuit_grover2_bornProb (σ : ℝ) (hσ : σ ∈ Set.Icc 0 
       size_grover2QubitCircuit, show Grover.p_succ 1 (2 ^ 2) = 1 from p_succ_one_four]
   norm_num
 
+/-! ## Subset measurement probabilities and multi-target (`M`-marked-item) Grover search -/
+
+/-- Cumulative computational-basis measurement probability `∑ w ∈ S, succProb n Ψ w` of finding an
+    outcome in a target subset `S : Finset (Fin (2 ^ n))`. -/
+noncomputable def subsetSuccProb (n : ℕ) (Ψ : E n) (S : Finset (Fin (2 ^ n))) : ℝ :=
+  ∑ w ∈ S, succProb n Ψ w
+
+@[simp]
+lemma subsetSuccProb_empty (n : ℕ) (Ψ : E n) :
+    subsetSuccProb n Ψ ∅ = 0 := by
+  simp [subsetSuccProb]
+
+lemma subsetSuccProb_univ (n : ℕ) (Ψ : E n) :
+    subsetSuccProb n Ψ Finset.univ = ‖Ψ‖ ^ 2 :=
+  sum_succProb_eq_norm_sq n Ψ
+
+@[simp]
+lemma subsetSuccProb_singleton (n : ℕ) (Ψ : E n) (w : Fin (2 ^ n)) :
+    subsetSuccProb n Ψ {w} = succProb n Ψ w := by
+  simp [subsetSuccProb]
+
+/-- Equivalence between `subsetSuccProb` on `ketToReal ψ`, summed squared ket amplitudes, and
+    summed `computationalPOVM` outcome probabilities. -/
+theorem subsetSuccProb_ketToReal_eq_born {n : ℕ} (ψ : Ket (Fin (2 ^ n)))
+    (S : Finset (Fin (2 ^ n))) :
+    subsetSuccProb n (ketToReal ψ) S = ∑ w ∈ S, ‖ψ w‖ ^ 2 ∧
+    subsetSuccProb n (ketToReal ψ) S =
+      ∑ w ∈ S, ((computationalPOVM n).measure (MState.pure ψ) w : ℝ) := by
+  constructor
+  · exact Finset.sum_congr rfl fun w _ => (succProb_ketToReal_eq_born ψ w).1
+  · exact Finset.sum_congr rfl fun w _ => (succProb_ketToReal_eq_born ψ w).2.2.2
+
+/-- **Heterogeneous subset success probability theorem:** Holds for *every* target subset
+    `S : Finset (Fin (2 ^ n))` (including `S = ∅` and `S = Finset.univ`) across any heterogeneous
+    gate schedule `steps` with `∀ p ∈ steps, p.2 ∈ [0, 1]`. -/
+theorem noisyTrajectoryHet_subsetSuccProb {n : ℕ}
+    (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ))
+    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
+    (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1) (S : Finset (Fin (2 ^ n))) :
+    noisyTrajectoryExpectationHet n steps Φ₀ (fun Ψ => subsetSuccProb n Ψ S) =
+    (fidelityProd steps) ^ 2 * subsetSuccProb n (idealGateTrajectoryHet steps Φ₀) S +
+      (1 - (fidelityProd steps) ^ 2) * (S.card : ℝ) / (2 ^ n : ℝ) := by
+  have hcont : ∀ w ∈ S, Continuous (fun Ψ : E n => succProb n Ψ w) := fun w _ =>
+    ((continuous_id.inner continuous_const).pow 2).add
+      ((continuous_id.inner continuous_const).pow 2)
+  unfold subsetSuccProb
+  rw [noisyTrajectoryExpectationHet_sum steps hsteps Φ₀ hΦ₀ S _ hcont]
+  simp_rw [noisyTrajectoryHet_succProb steps hsteps Φ₀ hΦ₀]
+  rw [Finset.sum_add_distrib, ← Finset.mul_sum, Finset.sum_const, nsmul_eq_mul]
+  ring
+
+/-- **Heterogeneous `Circuit` subset Born-rule theorem:** Holds for *every* mixed state `ρ` and
+    *every* subset `S : Finset (Fin (2 ^ n))` (including `S = ∅` and `S = Finset.univ`). -/
+theorem noisyCircuitHet_subsetBornProb {n : ℕ}
+    (σGate : ∀ {k}, PrimitiveGate k → ℝ)
+    (hσ : ∀ {k} (g : PrimitiveGate k), σGate g ∈ Set.Icc 0 1)
+    (c : Circuit n) (ρ : MState (Fin (2 ^ n))) (S : Finset (Fin (2 ^ n))) :
+    ∑ w ∈ S, ((computationalPOVM n).measure (noisyCircuitChannelHet σGate hσ c ρ) w : ℝ) =
+    (circuitFidelity σGate c) ^ 2 *
+      (∑ w ∈ S, ((computationalPOVM n).measure (CPTPMap.ofUnitary c.eval ρ) w : ℝ)) +
+    (1 - (circuitFidelity σGate c) ^ 2) * (S.card : ℝ) / (2 ^ n : ℝ) := by
+  simp_rw [noisyCircuitHet_bornProb σGate hσ c ρ]
+  rw [Finset.sum_add_distrib, ← Finset.mul_sum, Finset.sum_const, nsmul_eq_mul]
+  ring
+
+/-- Multi-target phase oracle matrix `I - 2 ∑_{w ∈ S} |w⟩⟨w|` flipping the phase of every basis
+    state in `S`. -/
+noncomputable def multiOracleMatrix {n : ℕ} (S : Finset (Fin (2 ^ n))) :
+    Matrix (Fin (2 ^ n)) (Fin (2 ^ n)) ℂ :=
+  1 - (2 : ℂ) • ∑ w ∈ S, Matrix.single w w 1
+
+lemma multiOracleMatrix_eq_diagonal {n : ℕ} (S : Finset (Fin (2 ^ n))) :
+    multiOracleMatrix S =
+    Matrix.diagonal (fun i : Fin (2 ^ n) => if i ∈ S then (-1 : ℂ) else 1) := by
+  classical
+  ext i j
+  simp only [multiOracleMatrix, Matrix.sub_apply, Matrix.one_apply, Matrix.smul_apply,
+    Matrix.sum_apply, Matrix.single_apply, Matrix.diagonal_apply, smul_eq_mul]
+  by_cases hij : i = j
+  · subst hij
+    simp only [and_self, Finset.sum_ite_eq', ↓reduceIte]
+    by_cases hi : i ∈ S <;> norm_num [hi]
+  · have hne : ∀ w : Fin (2 ^ n), ¬(w = i ∧ w = j) := fun _ ⟨h1, h2⟩ => hij (h1.symm.trans h2)
+    simp [hij, hne]
+
+/-- Multi-target phase oracle packaged as an `n`-qubit unitary `𝐔[Fin (2 ^ n)]`. -/
+noncomputable def multiOracleUnitary {n : ℕ} (S : Finset (Fin (2 ^ n))) : 𝐔[Fin (2 ^ n)] :=
+  ⟨multiOracleMatrix S, by
+    classical
+    rw [multiOracleMatrix_eq_diagonal, Matrix.diagonal_mem_unitary, Pi.mem_unitary_iff]
+    intro i
+    split_ifs <;> simp⟩
+
+@[simp]
+lemma multiOracleUnitary_val {n : ℕ} (S : Finset (Fin (2 ^ n))) :
+    (multiOracleUnitary S).val = multiOracleMatrix S := rfl
+
+lemma multiOracleMatrix_singleton {n : ℕ} (target : Fin (2 ^ n)) :
+    multiOracleMatrix {target} = Grover.oracleMatrix target := by
+  rw [multiOracleMatrix_eq_diagonal, Grover.oracleMatrix]
+  congr 1; ext i; simp
+
+lemma multiOracleUnitary_singleton {n : ℕ} (target : Fin (2 ^ n)) :
+    multiOracleUnitary {target} = Grover.oracleUnitary target := by
+  apply Subtype.ext
+  exact multiOracleMatrix_singleton target
+
+lemma multiOracleMatrix_mulVec {n : ℕ} (S : Finset (Fin (2 ^ n)))
+    (v : Fin (2 ^ n) → ℂ) (i : Fin (2 ^ n)) :
+    (multiOracleMatrix S *ᵥ v) i = if i ∈ S then -v i else v i := by
+  classical
+  rw [multiOracleMatrix_eq_diagonal]
+  simp [Matrix.mulVec, dotProduct, Matrix.diagonal]
+
+/-- Single multi-target Grover iteration unitary `G_S = D * O_S`. -/
+noncomputable def multiGroverStep {n : ℕ} (S : Finset (Fin (2 ^ n))) : 𝐔[Fin (2 ^ n)] :=
+  Grover.diffuserUnitary * multiOracleUnitary S
+
+@[simp]
+lemma multiGroverStep_val {n : ℕ} (S : Finset (Fin (2 ^ n))) :
+    (multiGroverStep S).val = Grover.diffuserMatrix * multiOracleMatrix S := rfl
+
+/-- Uniform superposition `(1 / √|S|) ∑_{x ∈ S} |x⟩` over marked basis states in `E n`. -/
+noncomputable def multiTargetState {n : ℕ} (S : Finset (Fin (2 ^ n))) : E n :=
+  (1 / Real.sqrt (S.card : ℝ)) • ∑ x ∈ S, stdBasisVec n (succProbIdx0 n x)
+
+/-- Uniform superposition `(1 / √(2^n - |S|)) ∑_{x ∉ S} |x⟩` over unmarked basis states in `E n`. -/
+noncomputable def multiNonTargetState {n : ℕ} (S : Finset (Fin (2 ^ n))) : E n :=
+  (1 / Real.sqrt ((2 ^ n : ℝ) - (S.card : ℝ))) •
+    ∑ x ∈ Finset.univ \ S, stdBasisVec n (succProbIdx0 n x)
+
+/-- Initial half-angle `θ_{n,M} = arcsin √(M / 2^n)` for `M`-target Grover search on `n` qubits. -/
+noncomputable def multiGroverHalfAngle (n M : ℕ) : ℝ :=
+  Real.arcsin (Real.sqrt ((M : ℝ) / (2 ^ n : ℝ)))
+
+/-- Ideal `M`-target Grover success probability `sin²((2K + 1) θ_{n,M})` after `K` iterations. -/
+noncomputable def multiGroverPSucc (K n M : ℕ) : ℝ :=
+  Real.sin ((2 * (K : ℝ) + 1) * multiGroverHalfAngle n M) ^ 2
+
+/-- At `M = 1`, `multiGroverPSucc K n 1` coincides with `Grover.p_succ K (2 ^ n)`. -/
+theorem multiGroverPSucc_one_eq_p_succ (K n : ℕ) :
+    multiGroverPSucc K n 1 = Grover.p_succ K (2 ^ n) := by
+  rw [multiGroverPSucc, multiGroverHalfAngle, Grover.p_succ_eq_sin_sq,
+      Nat.cast_one, Nat.cast_pow, Nat.cast_ofNat, Real.sqrt_div zero_le_one, Real.sqrt_one]
+
+private lemma realToVec_multiTargetState {n : ℕ} (S : Finset (Fin (2 ^ n))) (y : Fin (2 ^ n)) :
+    realToVec (multiTargetState S) y =
+    if y ∈ S then ((1 / Real.sqrt (S.card : ℝ) : ℝ) : ℂ) else 0 := by
+  classical
+  unfold multiTargetState
+  rw [realToVec_smul, Pi.smul_apply, realToVec_sum]
+  simp_rw [realToVec_stdBasisVec_idx0]
+  rw [Finset.sum_ite_eq']
+  by_cases hy : y ∈ S <;> simp [hy]
+
+private lemma realToVec_multiNonTargetState {n : ℕ} (S : Finset (Fin (2 ^ n))) (y : Fin (2 ^ n)) :
+    realToVec (multiNonTargetState S) y =
+    if y ∈ S then 0 else ((1 / Real.sqrt ((2 ^ n : ℝ) - (S.card : ℝ)) : ℝ) : ℂ) := by
+  classical
+  unfold multiNonTargetState
+  rw [realToVec_smul, Pi.smul_apply, realToVec_sum]
+  simp_rw [realToVec_stdBasisVec_idx0]
+  rw [Finset.sum_ite_eq']
+  by_cases hy : y ∈ S <;> simp [hy]
+
+lemma norm_multiTargetState {n : ℕ} (S : Finset (Fin (2 ^ n))) (hS_pos : 0 < S.card) :
+    ‖multiTargetState S‖ = 1 := by
+  classical
+  have hM_pos : (0 : ℝ) < (S.card : ℝ) := Nat.cast_pos.mpr hS_pos
+  have hsq : ‖multiTargetState S‖ ^ 2 = 1 := by
+    rw [← sum_norm_sq_realToVec]
+    have hterm : ∀ y : Fin (2 ^ n),
+        ‖realToVec (multiTargetState S) y‖ ^ 2 = if y ∈ S then 1 / (S.card : ℝ) else 0 := by
+      intro y
+      rw [realToVec_multiTargetState]
+      by_cases hy : y ∈ S
+      · simp [hy, Complex.norm_real, Real.norm_eq_abs, sq_abs, Real.sq_sqrt hM_pos.le]
+      · simp [hy]
+    simp_rw [hterm]
+    rw [Finset.sum_ite_mem, Finset.univ_inter, Finset.sum_const, nsmul_eq_mul,
+        mul_one_div_cancel hM_pos.ne']
+  nlinarith [norm_nonneg (multiTargetState S)]
+
+lemma norm_multiNonTargetState {n : ℕ} (S : Finset (Fin (2 ^ n))) (hS_lt : S.card < 2 ^ n) :
+    ‖multiNonTargetState S‖ = 1 := by
+  classical
+  have hlt : (S.card : ℝ) < (2 ^ n : ℝ) := by exact_mod_cast hS_lt
+  have hNM_pos : 0 < (2 ^ n : ℝ) - (S.card : ℝ) := sub_pos.mpr hlt
+  have hsq : ‖multiNonTargetState S‖ ^ 2 = 1 := by
+    rw [← sum_norm_sq_realToVec]
+    have hterm : ∀ y : Fin (2 ^ n),
+        ‖realToVec (multiNonTargetState S) y‖ ^ 2 =
+        if y ∈ Finset.univ \ S then 1 / ((2 ^ n : ℝ) - (S.card : ℝ)) else 0 := by
+      intro y
+      rw [realToVec_multiNonTargetState]
+      by_cases hy : y ∈ S
+      · simp [hy]
+      · simp [hy, Complex.norm_real, Real.norm_eq_abs, sq_abs, Real.sq_sqrt hNM_pos.le]
+    simp_rw [hterm]
+    have hcard : ((Finset.univ \ S).card : ℝ) = (2 ^ n : ℝ) - (S.card : ℝ) := by
+      rw [Finset.card_sdiff_of_subset (Finset.subset_univ S), Finset.card_univ, Fintype.card_fin,
+          Nat.cast_sub (le_of_lt hS_lt), Nat.cast_pow, Nat.cast_ofNat]
+    rw [Finset.sum_ite_mem, Finset.univ_inter, Finset.sum_const, nsmul_eq_mul, hcard,
+        mul_one_div_cancel hNM_pos.ne']
+  nlinarith [norm_nonneg (multiNonTargetState S)]
+
+private lemma sin_multiGroverHalfAngle {n M : ℕ} (hM_le : M ≤ 2 ^ n) :
+    Real.sin (multiGroverHalfAngle n M) = Real.sqrt (M : ℝ) / Real.sqrt (2 ^ n : ℝ) := by
+  have hle : (M : ℝ) / (2 ^ n : ℝ) ≤ 1 :=
+    (div_le_one (by positivity)).mpr (by exact_mod_cast hM_le)
+  have hsqrt_le : Real.sqrt ((M : ℝ) / (2 ^ n : ℝ)) ≤ 1 :=
+    Real.sqrt_le_one.mpr hle
+  rw [multiGroverHalfAngle, Real.sin_arcsin (by linarith [Real.sqrt_nonneg ((M : ℝ) / 2 ^ n)])
+        hsqrt_le,
+      Real.sqrt_div (Nat.cast_nonneg M)]
+
+private lemma cos_multiGroverHalfAngle {n M : ℕ} (hM_le : M ≤ 2 ^ n) :
+    Real.cos (multiGroverHalfAngle n M) =
+    Real.sqrt ((2 ^ n : ℝ) - (M : ℝ)) / Real.sqrt (2 ^ n : ℝ) := by
+  have hnn : 0 ≤ (M : ℝ) / (2 ^ n : ℝ) := by positivity
+  have hN_ne : (2 ^ n : ℝ) ≠ 0 := by positivity
+  rw [multiGroverHalfAngle, Real.cos_arcsin, Real.sq_sqrt hnn,
+      show 1 - (M : ℝ) / (2 ^ n : ℝ) = ((2 ^ n : ℝ) - (M : ℝ)) / (2 ^ n : ℝ) by
+        field_simp [hN_ne],
+      Real.sqrt_div (sub_nonneg.mpr (by exact_mod_cast hM_le))]
+
+private lemma multiGrover_vec_apply {n : ℕ} (S : Finset (Fin (2 ^ n)))
+    (hS_pos : 0 < S.card) (hS_lt : S.card < 2 ^ n) (K : ℕ) (i : Fin (2 ^ n)) :
+    (applyUnitaryKet ((multiGroverStep S) ^ K * hadamardUnitary)
+      (Ket.basis (0 : Fin (2 ^ n)))).vec i =
+    if i ∈ S then
+      ((Real.sin ((2 * (K : ℝ) + 1) * multiGroverHalfAngle n S.card) /
+        Real.sqrt (S.card : ℝ) : ℝ) : ℂ)
+    else
+      ((Real.cos ((2 * (K : ℝ) + 1) * multiGroverHalfAngle n S.card) /
+        Real.sqrt ((2 ^ n : ℝ) - (S.card : ℝ)) : ℝ) : ℂ) := by
+  classical
+  set M : ℝ := (S.card : ℝ)
+  set N : ℝ := (2 ^ n : ℝ)
+  set θ : ℝ := multiGroverHalfAngle n S.card
+  have hN_nat : ((2 ^ n : ℕ) : ℝ) = N := by simp [N]
+  have hM_pos : 0 < M := Nat.cast_pos.mpr hS_pos
+  have hM_lt : M < N := by rw [← hN_nat]; exact Nat.cast_lt.mpr hS_lt
+  have hNM_pos : 0 < N - M := sub_pos.mpr hM_lt
+  have hsqrtM_ne : Real.sqrt M ≠ 0 := (Real.sqrt_pos.mpr hM_pos).ne'
+  have hsqrtNM_ne : Real.sqrt (N - M) ≠ 0 := (Real.sqrt_pos.mpr hNM_pos).ne'
+  have hsqrtN_pos : 0 < Real.sqrt N := Real.sqrt_pos.mpr (by positivity)
+  have hsqrtN_ne : Real.sqrt N ≠ 0 := hsqrtN_pos.ne'
+  have hsinθ : Real.sin θ = Real.sqrt M / Real.sqrt N :=
+    sin_multiGroverHalfAngle (le_of_lt hS_lt)
+  have hcosθ : Real.cos θ = Real.sqrt (N - M) / Real.sqrt N :=
+    cos_multiGroverHalfAngle (le_of_lt hS_lt)
+  induction K generalizing i with
+  | zero =>
+    rw [pow_zero, one_mul, applyUnitaryKet_hadamardUnitary_basis_zero, uniform_superposition_vec,
+        Nat.cast_zero, mul_zero, zero_add, one_mul]
+    by_cases hi : i ∈ S
+    · simp only [hi, ↓reduceIte, hsinθ]
+      exact congrArg Complex.ofReal (by dsimp [N] at hsqrtN_ne ⊢; field_simp [hsqrtM_ne, hsqrtN_ne])
+    · simp only [hi, ↓reduceIte, hcosθ]
+      exact congrArg Complex.ofReal
+        (by dsimp [N] at hsqrtNM_ne hsqrtN_ne ⊢; field_simp [hsqrtNM_ne, hsqrtN_ne])
+  | succ k ih =>
+    let vk := (applyUnitaryKet ((multiGroverStep S) ^ k * hadamardUnitary)
+      (Ket.basis (0 : Fin (2 ^ n)))).vec
+    have hstep_vec :
+        (applyUnitaryKet ((multiGroverStep S) ^ (k + 1) * hadamardUnitary)
+          (Ket.basis (0 : Fin (2 ^ n)))).vec i =
+        (Grover.diffuserMatrix *ᵥ (multiOracleMatrix S *ᵥ vk)) i := by
+      rw [pow_succ', mul_assoc, applyUnitaryKet_mul]
+      change ((multiGroverStep S).val *ᵥ vk) i = _
+      rw [multiGroverStep_val, Matrix.mulVec_mulVec]
+    set ak : ℝ := Real.sin ((2 * (k : ℝ) + 1) * θ)
+    set bk : ℝ := Real.cos ((2 * (k : ℝ) + 1) * θ)
+    have hwk : ∀ j : Fin (2 ^ n),
+        (multiOracleMatrix S *ᵥ vk) j =
+        if j ∈ S then ((-ak / Real.sqrt M : ℝ) : ℂ)
+        else ((bk / Real.sqrt (N - M) : ℝ) : ℂ) := by
+      intro j
+      rw [multiOracleMatrix_mulVec]
+      dsimp only [vk]
+      rw [ih j]
+      by_cases hj : j ∈ S
+      · simp only [hj, ↓reduceIte]; push_cast; ring
+      · simp only [hj, ↓reduceIte]
+    have hsum_wk :
+        ∑ j : Fin (2 ^ n), (multiOracleMatrix S *ᵥ vk) j =
+        ((Real.sqrt N * Real.cos ((2 * (k : ℝ) + 2) * θ) : ℝ) : ℂ) := by
+      rw [← Finset.sum_sdiff (Finset.subset_univ S)]
+      have hs1 : ∑ j ∈ Finset.univ \ S, (multiOracleMatrix S *ᵥ vk) j =
+          ((Real.sqrt (N - M) * bk : ℝ) : ℂ) := by
+        have hcongr : ∑ j ∈ Finset.univ \ S, (multiOracleMatrix S *ᵥ vk) j =
+            ∑ _j ∈ Finset.univ \ S, ((bk / Real.sqrt (N - M) : ℝ) : ℂ) := by
+          refine Finset.sum_congr rfl fun j hj => ?_
+          rw [hwk j, ite_eq_right (Finset.mem_sdiff.mp hj).2]
+        have hcard : (Finset.univ \ S).card = 2 ^ n - S.card := by
+          rw [Finset.card_sdiff_of_subset (Finset.subset_univ S), Finset.card_univ,
+              Fintype.card_fin]
+        have hsub_cast : (((2 ^ n - S.card : ℕ) : ℝ) : ℂ) = ((N - M : ℝ) : ℂ) := by
+          rw [Nat.cast_sub (le_of_lt hS_lt), hN_nat]
+        rw [hcongr, Finset.sum_const, hcard, nsmul_eq_mul, ← Complex.ofReal_natCast, hsub_cast,
+            ← Complex.ofReal_mul]
+        refine congrArg Complex.ofReal ?_
+        calc (N - M) * (bk / Real.sqrt (N - M))
+            = Real.sqrt (N - M) ^ 2 * (bk / Real.sqrt (N - M)) := by
+                rw [Real.sq_sqrt hNM_pos.le]
+          _ = Real.sqrt (N - M) * bk := by field_simp [hsqrtNM_ne]
+      have hs2 : ∑ j ∈ S, (multiOracleMatrix S *ᵥ vk) j =
+          ((-Real.sqrt M * ak : ℝ) : ℂ) := by
+        have hcongr : ∑ j ∈ S, (multiOracleMatrix S *ᵥ vk) j =
+            ∑ _j ∈ S, ((-ak / Real.sqrt M : ℝ) : ℂ) := by
+          refine Finset.sum_congr rfl fun j hj => ?_
+          rw [hwk j, ite_eq_left hj]
+        rw [hcongr, Finset.sum_const, nsmul_eq_mul, ← Complex.ofReal_natCast,
+            show ((S.card : ℝ) : ℂ) = (M : ℂ) from rfl, ← Complex.ofReal_mul]
+        refine congrArg Complex.ofReal ?_
+        calc M * (-ak / Real.sqrt M)
+            = Real.sqrt M ^ 2 * (-ak / Real.sqrt M) := by rw [Real.sq_sqrt hM_pos.le]
+          _ = -Real.sqrt M * ak := by field_simp [hsqrtM_ne]
+      rw [hs1, hs2, ← Complex.ofReal_add]
+      refine congrArg Complex.ofReal ?_
+      have hadd : (2 * (k : ℝ) + 2) * θ = (2 * (k : ℝ) + 1) * θ + θ := by ring
+      rw [hadd, Real.cos_add, hcosθ, hsinθ]
+      field_simp [hsqrtN_ne]
+      ring
+    rw [hstep_vec, Grover.diffuserMatrix_mulVec, hsum_wk, hwk i]
+    have hdivN : (2 : ℂ) / (2 ^ n : ℂ) *
+        ((Real.sqrt N * Real.cos ((2 * (k : ℝ) + 2) * θ) : ℝ) : ℂ) =
+        ((2 / Real.sqrt N * Real.cos ((2 * (k : ℝ) + 2) * θ) : ℝ) : ℂ) := by
+      have h2N : (2 : ℂ) / (2 ^ n : ℂ) = ((2 / N : ℝ) : ℂ) := by
+        dsimp [N]; push_cast; rfl
+      rw [h2N, ← Complex.ofReal_mul]
+      refine congrArg Complex.ofReal ?_
+      calc 2 / N * (Real.sqrt N * Real.cos ((2 * (k : ℝ) + 2) * θ))
+          = 2 / Real.sqrt N ^ 2 * (Real.sqrt N * Real.cos ((2 * (k : ℝ) + 2) * θ)) := by
+              rw [Real.sq_sqrt (by positivity : 0 ≤ N)]
+        _ = 2 / Real.sqrt N * Real.cos ((2 * (k : ℝ) + 2) * θ) := by
+              field_simp [hsqrtN_ne]
+    rw [hdivN]
+    have hang3 : (2 * ((k + 1 : ℕ) : ℝ) + 1) * θ = (2 * (k : ℝ) + 2) * θ + θ := by
+      push_cast; ring
+    have hang1 : (2 * (k : ℝ) + 1) * θ = (2 * (k : ℝ) + 2) * θ - θ := by ring
+    by_cases hi : i ∈ S
+    · simp only [hi, ↓reduceIte, ← Complex.ofReal_sub]
+      refine congrArg Complex.ofReal ?_
+      rw [hang3, Real.sin_add]
+      have hsin1 : ak = Real.sin ((2 * (k : ℝ) + 2) * θ - θ) := by dsimp [ak]; rw [hang1]
+      rw [hsin1, Real.sin_sub, hsinθ]
+      field_simp [hsqrtM_ne, hsqrtN_ne]
+      ring
+    · simp only [hi, ↓reduceIte, ← Complex.ofReal_sub]
+      refine congrArg Complex.ofReal ?_
+      rw [hang3, Real.cos_add]
+      have hcos1 : bk = Real.cos ((2 * (k : ℝ) + 2) * θ - θ) := by dsimp [bk]; rw [hang1]
+      rw [hcos1, Real.cos_sub, hcosθ]
+      field_simp [hsqrtNM_ne, hsqrtN_ne]
+      ring
+
+/-- **2D invariant search-plane representation of `M`-target Grover search:** For `0 < |S| < 2^n`,
+    `K` applications of `multiGroverStep S` after `hadamardUnitary` rotate `|0^n⟩` to
+    `sin((2K+1) θ_{n,|S|}) |S⟩ + cos((2K+1) θ_{n,|S|}) |S^⊥⟩`. -/
+theorem multiGrover_ketToReal_eq_plane {n : ℕ} (S : Finset (Fin (2 ^ n)))
+    (hS_pos : 0 < S.card) (hS_lt : S.card < 2 ^ n) (K : ℕ) :
+    ketToReal (applyUnitaryKet ((multiGroverStep S) ^ K * hadamardUnitary)
+      (Ket.basis (0 : Fin (2 ^ n)))) =
+    Real.sin ((2 * (K : ℝ) + 1) * multiGroverHalfAngle n S.card) • multiTargetState S +
+      Real.cos ((2 * (K : ℝ) + 1) * multiGroverHalfAngle n S.card) •
+        multiNonTargetState S := by
+  classical
+  rw [← vecToReal_realToVec
+    (Real.sin ((2 * (K : ℝ) + 1) * multiGroverHalfAngle n S.card) • multiTargetState S +
+      Real.cos ((2 * (K : ℝ) + 1) * multiGroverHalfAngle n S.card) • multiNonTargetState S),
+    ketToReal]
+  congr 1
+  ext i
+  rw [multiGrover_vec_apply S hS_pos hS_lt K i, realToVec_add, Pi.add_apply,
+      realToVec_smul, realToVec_smul, Pi.smul_apply, Pi.smul_apply,
+      realToVec_multiTargetState, realToVec_multiNonTargetState]
+  by_cases hi : i ∈ S <;> simp [hi, div_eq_mul_inv]
+
+private lemma subsetSuccProb_multiPlane {n : ℕ} (S : Finset (Fin (2 ^ n)))
+    (hS_pos : 0 < S.card) (a b : ℝ) :
+    subsetSuccProb n (a • multiTargetState S + b • multiNonTargetState S) S = a ^ 2 := by
+  classical
+  have hM_pos : (0 : ℝ) < (S.card : ℝ) := Nat.cast_pos.mpr hS_pos
+  unfold subsetSuccProb
+  have hterm : ∀ w ∈ S,
+      succProb n (a • multiTargetState S + b • multiNonTargetState S) w =
+      a ^ 2 / (S.card : ℝ) := by
+    intro w hw
+    rw [← norm_sq_realToVec_eq_succProb, realToVec_add, Pi.add_apply,
+        realToVec_smul, realToVec_smul, Pi.smul_apply, Pi.smul_apply,
+        realToVec_multiTargetState, realToVec_multiNonTargetState,
+        ite_eq_left hw, ite_eq_left hw, smul_zero, add_zero, smul_eq_mul]
+    norm_cast
+    rw [Real.norm_eq_abs, sq_abs, mul_one_div, div_pow, Real.sq_sqrt hM_pos.le]
+  rw [Finset.sum_congr rfl hterm, Finset.sum_const, nsmul_eq_mul,
+      mul_div_cancel₀ _ hM_pos.ne']
+
+/-- **Noiseless `M`-target Grover success probability theorem:** For `0 < S.card` and
+    `S.card < 2 ^ n`, Hadamard preparation followed by `K` applications of `multiGroverStep S`
+    on `Ket.basis 0` achieves `subsetSuccProb` equal to `multiGroverPSucc K n S.card`. -/
+theorem multiGrover_ideal_subsetSuccProb {n : ℕ} (S : Finset (Fin (2 ^ n)))
+    (hS_pos : 0 < S.card) (hS_lt : S.card < 2 ^ n) (K : ℕ) :
+    subsetSuccProb n
+      (ketToReal (applyUnitaryKet ((multiGroverStep S) ^ K * hadamardUnitary)
+        (Ket.basis (0 : Fin (2 ^ n))))) S =
+    multiGroverPSucc K n S.card := by
+  rw [multiGrover_ketToReal_eq_plane S hS_pos hS_lt K,
+      subsetSuccProb_multiPlane S hS_pos, multiGroverPSucc]
+
+/-- **End-to-end heterogeneous noisy `M`-target Grover search theorem:** Across any gate schedule
+    `steps : List (𝐔[Fin (2 ^ n)] × ℝ)` with `∀ p ∈ steps, p.2 ∈ [0, 1]` whose unitary product
+    implements `(multiGroverStep S) ^ K * hadamardUnitary` (`0 < S.card < 2 ^ n`), the expected
+    subset measurement probability along the pure-state Markov trajectory equals
+    `(fidelityProd steps) ^ 2 * multiGroverPSucc K n S.card +
+      (1 - (fidelityProd steps) ^ 2) * S.card / 2 ^ n`. -/
+theorem noisyMultiGroverHet_succProb {n : ℕ} (S : Finset (Fin (2 ^ n)))
+    (hS_pos : 0 < S.card) (hS_lt : S.card < 2 ^ n) (K : ℕ)
+    (steps : List (𝐔[Fin (2 ^ n)] × ℝ))
+    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
+    (hprod : unitaryListProd (steps.map Prod.fst) =
+      (multiGroverStep S) ^ K * hadamardUnitary) :
+    noisyTrajectoryExpectationHet n
+      (steps.map (Prod.map unitaryToRealIso id))
+      (ketToReal (Ket.basis (0 : Fin (2 ^ n))))
+      (fun Ψ => subsetSuccProb n Ψ S) =
+    (fidelityProd steps) ^ 2 * multiGroverPSucc K n S.card +
+      (1 - (fidelityProd steps) ^ 2) * (S.card : ℝ) / (2 ^ n : ℝ) := by
+  have hrsteps : ∀ q ∈ steps.map (Prod.map unitaryToRealIso id), q.2 ∈ Set.Icc 0 1 := by
+    intro q hq
+    rcases List.mem_map.mp hq with ⟨p, hp, rfl⟩
+    exact hsteps p hp
+  have hideal :
+      idealGateTrajectoryHet (steps.map (Prod.map unitaryToRealIso id))
+        (ketToReal (Ket.basis (0 : Fin (2 ^ n)))) =
+      ketToReal (applyUnitaryKet ((multiGroverStep S) ^ K * hadamardUnitary)
+        (Ket.basis (0 : Fin (2 ^ n)))) := by
+    rw [ ← hprod, ← idealUnitaryTrajectory_eq_applyUnitaryKet_prod,
+         ketToReal_idealUnitaryTrajectory, idealGateTrajectoryHet, List.map_map, List.map_map]
+    rfl
+  rw [noisyTrajectoryHet_subsetSuccProb _ hrsteps _ (norm_ketToReal _),
+      fidelityProd_map_fst, hideal,
+      multiGrover_ideal_subsetSuccProb S hS_pos hS_lt K]
+
 /-! ## Verification checks -/
 
 /-- info: 14 -/
 #guard_msgs in
 #eval grover2QubitCircuit.size
+
+/-- info: (12, 2, 0) -/
+#guard_msgs in
+#eval (gateCount1Q grover2QubitCircuit,
+       gateCount2Q grover2QubitCircuit,
+       gateCount3Q grover2QubitCircuit)
+
+-- Degenerate target-subset spot checks (S = ∅ and S = Finset.univ)
+example {n : ℕ} (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ))
+    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
+    (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1) :
+    noisyTrajectoryExpectationHet n steps Φ₀ (fun Ψ => subsetSuccProb n Ψ ∅) = 0 := by
+  simpa using noisyTrajectoryHet_subsetSuccProb steps hsteps Φ₀ hΦ₀ ∅
+
+example {n : ℕ} (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ))
+    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
+    (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1) :
+    noisyTrajectoryExpectationHet n steps Φ₀ (fun Ψ => subsetSuccProb n Ψ Finset.univ) = 1 := by
+  have h := noisyTrajectoryHet_subsetSuccProb steps hsteps Φ₀ hΦ₀ Finset.univ
+  rw [subsetSuccProb_univ, norm_idealGateTrajectoryHet, hΦ₀] at h
+  simp only [Finset.card_univ, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat] at h
+  have hN : (2 ^ n : ℝ) ≠ 0 := by positivity
+  rw [h]; field_simp [hN]; ring
+
+example {n : ℕ} (σGate : ∀ {k}, PrimitiveGate k → ℝ)
+    (hσ : ∀ {k} (g : PrimitiveGate k), σGate g ∈ Set.Icc 0 1)
+    (c : Circuit n) (ρ : MState (Fin (2 ^ n))) :
+    ∑ w ∈ (∅ : Finset (Fin (2 ^ n))),
+      ((computationalPOVM n).measure (noisyCircuitChannelHet σGate hσ c ρ) w : ℝ) = 0 := by
+  simp
 
 #check @targetBasisState_eq_ketToReal
 #check @uniformSuperposition_eq_ketToReal
@@ -989,6 +1469,18 @@ theorem noisyGrover_circuit_grover2_bornProb (σ : ℝ) (hσ : σ ∈ Set.Icc 0 
 #check @p_succ_zero
 #check @noisyGrover_circuit_hadamard1_bornProb
 #check @noisyGrover_circuit_grover2_bornProb
+#check @subsetSuccProb
+#check @noisyTrajectoryHet_subsetSuccProb
+#check @noisyCircuitHet_subsetBornProb
+#check @multiOracleMatrix
+#check @multiOracleUnitary
+#check @multiGroverStep
+#check @multiTargetState
+#check @multiNonTargetState
+#check @multiGroverHalfAngle
+#check @multiGroverPSucc
+#check @multiGrover_ideal_subsetSuccProb
+#check @noisyMultiGroverHet_succProb
 
 /--
 info: 'IsotropicGrover.isotropicGrover_uniformSuperposition' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -1127,5 +1619,29 @@ info: 'IsotropicGrover.noisyGrover_circuit_grover2_bornProb' depends on axioms: 
 -/
 #guard_msgs in
 #print axioms noisyGrover_circuit_grover2_bornProb
+
+/--
+info: 'IsotropicGrover.noisyTrajectoryHet_subsetSuccProb' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyTrajectoryHet_subsetSuccProb
+
+/--
+info: 'IsotropicGrover.noisyCircuitHet_subsetBornProb' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyCircuitHet_subsetBornProb
+
+/--
+info: 'IsotropicGrover.multiGrover_ideal_subsetSuccProb' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms multiGrover_ideal_subsetSuccProb
+
+/--
+info: 'IsotropicGrover.noisyMultiGroverHet_succProb' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyMultiGroverHet_succProb
 
 end IsotropicGrover
