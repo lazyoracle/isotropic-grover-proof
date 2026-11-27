@@ -1,0 +1,131 @@
+\begin{figure*}[t]
+\centering
+\begin{tikzpicture}[
+  >=Latex,
+  font=\footnotesize,
+  vec/.style={->, line width=0.85pt},
+  dashvec/.style={->, dashed, line width=0.75pt},
+  box/.style={draw=oiGray!65, rounded corners=3pt, fill=oiBlue!4, inner sep=5pt, align=center}
+]
+  % ==================== PANEL (a): Real Sphere S^{2N-1} ====================
+  \begin{scope}[shift={(0,0)}]
+    \node[anchor=south, font=\footnotesize\bfseries] at (0, 2.48) {(a) Pure-state geometry on $S^{2N-1} \subset \mathbb{R}^{2N}$};
+
+    % Outer sphere S^{2N-1}
+    \shade[ball color=oiSky!18, opacity=0.35] (0,0) circle (1.82cm);
+    \draw[line width=0.7pt, oiGray!85] (0,0) circle (1.82cm);
+
+    % Equatorial (2N-2)-sphere S(V_\perp(\Psi))
+    \draw[dashed, oiGray!75, line width=0.55pt] (1.82,0) arc[start angle=0, end angle=180, x radius=1.82cm, y radius=0.48cm];
+    \fill[oiBlue!7, opacity=0.45] (0,0) ellipse [x radius=1.82cm, y radius=0.48cm];
+    \draw[oiGray!90, line width=0.65pt] (-1.82,0) arc[start angle=180, end angle=360, x radius=1.82cm, y radius=0.48cm];
+
+    % Reflection hyperplane (\mathbb{R} b_1)^\perp with exterior callout
+    \fill[oiGreen!12, opacity=0.45] (0,-1.72) -- (0.46,-1.38) -- (0.46,1.82) -- (0,1.48) -- cycle;
+    \draw[oiGreen!80!black, densely dashed, line width=0.65pt] (0,-1.78) -- (0,1.88);
+    \draw[oiGreen!70!black, thin] (-0.04, -1.24) -- (-1.62, -1.24);
+    \node[oiGreen!65!black, anchor=east, align=right, font=\scriptsize] at (-1.64, -1.24) {mirror\\$(\mathbb{R}\mathbf{b}_1)^\perp$};
+
+    % Origin and ideal state Psi (north pole)
+    \fill[oiBlack] (0,0) circle (1.3pt);
+    \draw[vec, oiBlack] (0,0) -- (0,1.82);
+    \fill[oiBlack] (0,1.82) circle (1.7pt);
+    \node[anchor=south, font=\footnotesize] at (0,1.85) {$\Psi$};
+
+    % Equatorial unit vector e_2 and reflected partner R_1 e_2 (exterior callouts clear of rim)
+    \coordinate (E2) at (1.54, -0.26);
+    \coordinate (E2R) at (-1.54, -0.26);
+    \draw[vec, oiBlue] (0,0) -- (E2);
+    \fill[oiBlue] (E2) circle (1.6pt);
+    \draw[oiBlue!80!black, thin] (1.59, -0.28) -- (1.92, -0.44);
+    \node[oiBlue, anchor=west, inner sep=1pt, font=\footnotesize] at (1.94, -0.46) {$\mathbf{e}_2$};
+
+    \draw[dashvec, oiPurple] (0,0) -- (E2R);
+    \fill[oiPurple] (E2R) circle (1.5pt);
+    \draw[oiPurple!85!black, thin] (-1.59, -0.28) -- (-1.92, -0.44);
+    \node[oiPurple, anchor=east, inner sep=1pt, font=\footnotesize] at (-1.94, -0.46) {$R_1\mathbf{e}_2$};
+
+    % Perturbed state Psi' and reflected partner R_1 Psi'
+    \coordinate (PSIP) at (1.00, 1.41);
+    \coordinate (PSIPR) at (-1.00, 1.41);
+    \draw[vec, oiVermilion, line width=1.0pt] (0,0) -- (PSIP);
+    \fill[oiVermilion] (PSIP) circle (1.8pt);
+    \node[oiVermilion, anchor=south west, font=\footnotesize] at (1.04, 1.41) {$\Psi'$};
+
+    \draw[dashvec, oiPurple!90!black] (0,0) -- (PSIPR);
+    \fill[oiPurple!90!black] (PSIPR) circle (1.6pt);
+    \node[oiPurple!90!black, anchor=south east, font=\footnotesize] at (-1.04, 1.41) {$R_1\Psi'$};
+
+    % Reflection symmetry arrow between Psi' and R_1 Psi'
+    \draw[<->, oiGreen!75!black, densely dotted, line width=0.7pt] (-0.84, 1.41) -- (0.84, 1.41);
+
+    % Great-circle geodesic arc from Psi through Psi' to e_2
+    \draw[oiVermilion!85, line width=0.7pt] (0,1.82) to[out=-12, in=122] (PSIP) to[out=-58, in=100] (E2);
+
+    % Polar angle theta arc
+    \draw[->, oiBlack, line width=0.55pt] (0,0.72) arc[start angle=90, end angle=54.6, radius=0.72cm];
+    \node[anchor=south west, inner sep=1pt, font=\scriptsize] at (0.12, 0.75) {$\theta$};
+
+    % Clean bottom formulas in open space below sphere
+    \node[oiVermilion!90!black, anchor=north, font=\scriptsize] at (0, -1.96) {$\Psi' = (\cos\theta)\Psi + (\sin\theta)\mathbf{e}_2,\quad \mathbf{e}_2 \sim \mu_\perp(\Psi)$};
+    \node[oiGray!95!black, anchor=north, font=\scriptsize] at (0, -2.38) {$V_\perp(\Psi),\;\dim_{\mathbb{R}} = 2N - 1$};
+  \end{scope}
+
+  % ==================== CENTER BRIDGE: (2N - 1) Cancellation ====================
+  \begin{scope}[shift={(5.50, 0.05)}]
+    \node[box, text width=3.65cm] (bridge) at (0,0) {%
+      {\bfseries $(2N - 1)$ cancellation}\\[3pt]
+      $\E[\sin^2\theta] = \dfrac{2N - 1}{2N}(1 - \sigma^2)$\\[3pt]
+      $\E[\mathbf{e}_2\mathbf{e}_2^\top] = \dfrac{P_\perp}{2N - 1}$\\[4pt]
+      $\Downarrow$ {\scriptsize pair $\mathrm{Re}/\mathrm{Im}$ axes}\\[2pt]
+      $\dfrac{1}{2N} + \dfrac{1}{2N} = \dfrac{1}{N}$
+    };
+    \draw[->, line width=0.9pt, oiGray!90] (-3.05, 0) -- (bridge.west);
+    \draw[->, line width=0.9pt, oiGray!90] (bridge.east) -- (3.05, 0);
+  \end{scope}
+
+  % ==================== PANEL (b): Complex Density-Matrix Contraction ====================
+  \begin{scope}[shift={(11.10,0)}]
+    \node[anchor=south, font=\footnotesize\bfseries] at (0, 2.48) {(b) Emergent channel on $\mathcal{D}(\mathbb{C}^N)$};
+
+    % Outer pure-state boundary of density-operator convex body
+    \fill[oiOrange!8] (0,0) circle (1.82cm);
+    \draw[line width=0.8pt, oiGray!90] (0,0) circle (1.82cm);
+
+    % Contracted depolarized ball of radius \sigma_{\mathrm{eff}}^2
+    \fill[oiBlue!14] (0,0) circle (0.95cm);
+    \draw[dashed, oiBlue!85!black, line width=0.75pt] (0,0) circle (0.95cm);
+
+    % Maximally mixed center I_N / N
+    \fill[oiBlack] (0,0) circle (1.7pt);
+    \node[anchor=north east, font=\scriptsize] at (-0.04, -0.04) {$I_N / N$};
+
+    % Ideal output boundary point \rho_{\mathrm{ideal}} and contracted image
+    \coordinate (RHOID) at (1.36, 1.21);
+    \coordinate (RHONOISY) at (0.71, 0.63);
+    \draw[oiGray!70, line width=0.65pt] (0,0) -- (RHOID);
+    \draw[->, oiVermilion, line width=1.05pt] (RHOID) -- (RHONOISY);
+
+    \fill[oiBlack] (RHOID) circle (1.8pt);
+    \node[anchor=south west, font=\footnotesize] at (1.34, 1.20) {$\rho_{\mathrm{ideal}}$};
+
+    \fill[oiBlue!85!black] (RHONOISY) circle (2.0pt);
+    % Leader line from RHONOISY to clear exterior space on upper left
+    \draw[oiBlue!75!black, thin] (-1.38, 1.48) -- (0.63, 0.67);
+    \node[oiBlue!85!black, anchor=east, font=\scriptsize] at (-1.40, 1.50) {$\Lambda_{\sigma_{\mathrm{eff}}}(\rho_{\mathrm{ideal}})$};
+
+    % Sample pure-state realizations scattered on outer boundary
+    \foreach \ang in {14, 22, 30, 38, 48} {
+      \fill[oiVermilion!75] (\ang:1.82cm) circle (1.2pt);
+    }
+    \draw[oiVermilion!80!black, thin] (1.77, 0.45) -- (2.02, 0.45);
+    \node[oiVermilion!85!black, anchor=west, align=left, font=\scriptsize] at (2.04, 0.45) {pure draws\\$\ket{\psi_G}$};
+
+    % Clean bottom formulas in open space below disk
+    \node[oiBlue!85!black, anchor=north, font=\scriptsize] at (0, -1.96) {$\Lambda_{\sigma_{\mathrm{eff}}}(\rho) = \sigma_{\mathrm{eff}}^2\rho + (1 - \sigma_{\mathrm{eff}}^2)I_N / N$};
+    \node[oiGray!95!black, anchor=north, font=\scriptsize] at (0, -2.38) {outer boundary: $\Tr(\rho^2) = 1$};
+  \end{scope}
+\end{tikzpicture}
+\caption{Microscopic-to-channel duality for isotropic pure-state gate errors on an $n$-qubit register ($N = 2^n$). (a) Real Euclidean sphere $S^{2N-1} \subset \mathbb{R}^{2N}$, where a gate perturbation rotates $\Psi$ by polar angle $\theta \sim \nu_{2N,\sigma}$ toward a uniform equatorial vector $\mathbf{e}_2 \sim \mu_\perp(\Psi)$ (blue solid arrow), while ambient reflection $R_1$ across $(\mathbb{R}\mathbf{b}_1)^\perp$ (green dashed plane) maps $\Psi'$ (vermilion arrow) to $R_1\Psi'$ (purple dashed arrow) without altering $\mu_\perp(\Psi)$. (b) Averaging $\ket{\psi'}\bra{\psi'}$ cancels all $(2N - 1)$ factors and contracts the density-operator state space $\mathcal{D}(\mathbb{C}^N)$ radially toward $I_N/N$ with weight $\sigma_{\mathrm{eff}}^2 = \prod_{g=1}^G \sigma_g^2$, whereas individual realizations $\ket{\psi_G}$ remain pure on the boundary.}
+\label{fig:sphere-duality}
+\end{figure*}

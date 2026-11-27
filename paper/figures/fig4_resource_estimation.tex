@@ -1,0 +1,85 @@
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[font=\footnotesize]
+  % ---------- Panel (a): Two-qubit entangling infidelity budget ----------
+  \begin{axis}[
+    name=res2q,
+    width=7.65cm,
+    height=4.35cm,
+    ymode=log,
+    xmin=6, xmax=60,
+    ymin=1e-24, ymax=8e-2,
+    xtick={10, 20, 30, 40, 50, 60},
+    xticklabels={},
+    ytick={1e-22, 1e-18, 1e-14, 1e-10, 1e-6, 1e-2},
+    grid=major,
+    grid style={oiGray!22, line width=0.35pt},
+    tick label style={font=\scriptsize},
+    label style={font=\footnotesize},
+    title style={font=\footnotesize, yshift=-3pt},
+    axis line style={line width=0.55pt},
+    ylabel={2q budget $1 - \sigma_{2\mathrm{q}}$},
+    title={(a) Entangling-gate budget ($M = 1,\; K = K_{\mathrm{ideal}}$)},
+    legend columns=2,
+    legend style={
+      at={(0.5, 1.22)},
+      anchor=south,
+      draw=oiGray!55,
+      fill=white,
+      font=\scriptsize,
+      column sep=4pt,
+      inner sep=2pt
+    },
+    legend cell align=left
+  ]
+    \addplot[oiBlue, solid, line width=1.0pt] table[x=n, y=infid2q_k10_a001] {data/fig4_resource_budgets.dat};
+    \addlegendentry{$k \le 10,\; \alpha = 0.01$}
+
+    \addplot[oiPurple, densely dashed, line width=0.85pt] table[x=n, y=infid2q_k10_a01] {data/fig4_resource_budgets.dat};
+    \addlegendentry{$k \le 10,\; \alpha = 0.1$}
+
+    \addplot[oiVermilion, solid, line width=1.0pt] table[x=n, y=infid2q_k2_a001] {data/fig4_resource_budgets.dat};
+    \addlegendentry{$k \le 2,\; \alpha = 0.01$}
+
+    \addplot[oiGreen, densely dashed, line width=0.85pt] table[x=n, y=infid2q_k2_a01] {data/fig4_resource_budgets.dat};
+    \addlegendentry{$k \le 2,\; \alpha = 0.1$}
+
+    % Reference hardware threshold
+    \addplot[oiGray, dotted, line width=0.75pt] coordinates {(6, 1e-3) (60, 1e-3)};
+    \node[oiGray!95!black, font=\scriptsize, anchor=north east] at (axis cs:59, 6e-4) {physical 2q $\sim 10^{-3}$};
+  \end{axis}
+
+  % ---------- Panel (b): Single-qubit gate infidelity budget ----------
+  \begin{axis}[
+    name=res1q,
+    at={($(res2q.south)-(0,0.86cm)$)},
+    anchor=north,
+    width=7.65cm,
+    height=4.35cm,
+    ymode=log,
+    xmin=6, xmax=60,
+    ymin=1e-26, ymax=8e-3,
+    xtick={10, 20, 30, 40, 50, 60},
+    ytick={1e-24, 1e-20, 1e-16, 1e-12, 1e-8, 1e-4},
+    grid=major,
+    grid style={oiGray!22, line width=0.35pt},
+    tick label style={font=\scriptsize},
+    label style={font=\footnotesize},
+    title style={font=\footnotesize, yshift=-3pt},
+    axis line style={line width=0.55pt},
+    xlabel={Register size $n$ (qubits)},
+    ylabel={1q budget $1 - \sigma_{1\mathrm{q}}$},
+    title={(b) Single-qubit budget $1 - \sigma_{1\mathrm{q}} = \alpha(1 - \sigma_{2\mathrm{q}})$}
+  ]
+    \addplot[oiPurple, densely dashed, line width=0.95pt] table[x=n, y expr=0.1*\thisrow{infid2q_k10_a01}] {data/fig4_resource_budgets.dat};
+    \addplot[oiBlue, solid, line width=1.0pt] table[x=n, y expr=0.01*\thisrow{infid2q_k10_a001}] {data/fig4_resource_budgets.dat};
+    \addplot[oiGreen, densely dashed, line width=0.95pt] table[x=n, y expr=0.1*\thisrow{infid2q_k2_a01}] {data/fig4_resource_budgets.dat};
+    \addplot[oiVermilion, solid, line width=1.0pt] table[x=n, y expr=0.01*\thisrow{infid2q_k2_a001}] {data/fig4_resource_budgets.dat};
+
+    \addplot[oiGray, dotted, line width=0.75pt] coordinates {(6, 1e-4) (60, 1e-4)};
+    \node[oiGray!95!black, font=\scriptsize, anchor=north east] at (axis cs:59, 6e-5) {physical 1q $\sim 10^{-4}$};
+  \end{axis}
+\end{tikzpicture}
+\caption{Heterogeneous gate-infidelity budgets versus register size $n$ for $M = 1$ Grover search at $K = K_{\mathrm{ideal}}(n)$. (a) Maximum two-qubit infidelity $1 - \sigma_{2\mathrm{q}}$ maintaining repetition overhead $k(n) \le 10$ (top pair) or $k(n) \le 2$ (bottom pair) for $1 - \sigma_{1\mathrm{q}} = \alpha(1 - \sigma_{2\mathrm{q}})$ with $\alpha = 0.01$ (solid) and $\alpha = 0.1$ (dashed) under $G_{1\mathrm{q}} = n + K(16n - 20)$ and $G_{2\mathrm{q}} = K(12n - 18)$. (b) Associated single-qubit thresholds $1 - \sigma_{1\mathrm{q}}$. Downward cusps occur where integer $K_{\mathrm{ideal}}(n)$ lands near $\pi/(4\theta) - 1/2$, making $1 - p_{\mathrm{ideal}}$ exceptionally small.}
+\label{fig:resource-budgets}
+\end{figure}

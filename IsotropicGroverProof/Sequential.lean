@@ -2,8 +2,10 @@
 -- Multi-gate sequential Markov chain error accumulation:
 -- 1. Closed-form solution f_k = ((d - 1)σ^{2k} + 1) / d of the scalar fidelity recurrence
 --    f_{k+1} = λ f_k + (1 - λ)(1 - f_k) / (d - 1) and sequential_mixture_formula.
--- 2. Pure-state Markov trajectory noisyTrajectoryExpectation over arbitrary interleaved
---    isometries List (E n ≃ₗᵢ[ℝ] E n) across σ ∈ [0, 1], establishing noisyTrajectory_bilinear,
+-- 2. Pure-state Markov trajectories noisyTrajectoryExpectationHet (heterogeneous per-gate σ_k)
+--    and noisyTrajectoryExpectation (uniform σ) over arbitrary interleaved isometries across
+--    σ_k ∈ [0, 1], establishing noisyTrajectoryHet_bilinear, noisyTrajectoryHet_succProb,
+--    noisyTrajectoryHet_eq_uniform, noisyTrajectory_bilinear,
 --    noisyTrajectory_fidelity_eq_sequentialFidelity, and noisyTrajectory_succProb.
 
 import Mathlib.MeasureTheory.Integral.DominatedConvergence
@@ -15,9 +17,11 @@ import IsotropicGroverProof.SecondMoment
 
 Formalizes the `G`-gate fidelity recurrence `f_{k+1} = λ f_k + (1 - λ)(1 - f_k)/(d - 1)`
 in closed form `f_k = ((d - 1) σ^{2k} + 1) / d`, and proves the multi-gate pure-state Markov
-trajectory expectation theorems (`noisyTrajectory_bilinear`,
+trajectory expectation theorems for both heterogeneous per-gate fidelity schedules
+(`noisyTrajectoryHet_bilinear`, `noisyTrajectoryHet_succProb`, `noisyTrajectoryHet_eq_uniform`)
+and uniform fidelity (`noisyTrajectory_bilinear`,
 `noisyTrajectory_fidelity_eq_sequentialFidelity`, and `noisyTrajectory_succProb`) over arbitrary
-lists of interleaved linear isometries `List (E n ≃ₗᵢ[ℝ] E n)` for all `σ ∈ [0, 1]`.
+lists of interleaved linear isometries across `[0, 1]`.
 -/
 
 namespace IsotropicGrover
@@ -110,6 +114,56 @@ theorem sequential_mixture_formula (p : ℝ) (n G : ℕ) (σ : ℝ) :
 
 /-! ## Multi-gate sequential noisy trajectory over interleaved isometries -/
 
+/-- Product of per-step fidelity parameters `(steps.map Prod.snd).prod` across a heterogeneous
+    gate schedule `steps : List (α × ℝ)`. -/
+noncomputable def fidelityProd {α : Type*} (steps : List (α × ℝ)) : ℝ :=
+  (steps.map Prod.snd).prod
+
+@[simp]
+lemma fidelityProd_nil {α : Type*} : fidelityProd ([] : List (α × ℝ)) = 1 := rfl
+
+@[simp]
+lemma fidelityProd_cons {α : Type*} (p : α × ℝ) (rest : List (α × ℝ)) :
+    fidelityProd (p :: rest) = p.2 * fidelityProd rest := by
+  simp [fidelityProd]
+
+@[simp]
+lemma fidelityProd_append {α : Type*} (s₁ s₂ : List (α × ℝ)) :
+    fidelityProd (s₁ ++ s₂) = fidelityProd s₁ * fidelityProd s₂ := by
+  simp [fidelityProd]
+
+@[simp]
+lemma fidelityProd_map_fst {α β : Type*} (f : α → β) (steps : List (α × ℝ)) :
+    fidelityProd (steps.map (Prod.map f id)) = fidelityProd steps := by
+  simp [fidelityProd, Function.comp_def]
+
+@[simp]
+lemma fidelityProd_map_uniform {α : Type*} (xs : List α) (σ : ℝ) :
+    fidelityProd (xs.map (·, σ)) = σ ^ xs.length := by
+  induction xs with
+  | nil => simp [fidelityProd]
+  | cons _ _ ih => simp [fidelityProd_cons, ih, pow_succ']
+
+lemma fidelityProd_mem_Icc {α : Type*} {steps : List (α × ℝ)}
+    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1) :
+    fidelityProd steps ∈ Set.Icc 0 1 := by
+  induction steps with
+  | nil => exact ⟨zero_le_one, le_rfl⟩
+  | cons p rest ih =>
+    have hp := hsteps p List.mem_cons_self
+    have hrest := ih (fun q hq => hsteps q (List.mem_cons_of_mem p hq))
+    rw [fidelityProd_cons]
+    exact ⟨mul_nonneg hp.1 hrest.1, by nlinarith [hp.1, hp.2, hrest.1, hrest.2]⟩
+
+lemma mem_map_uniform_Icc {α : Type*} {σ : ℝ} (hσ : σ ∈ Set.Icc 0 1) (xs : List α) :
+    ∀ p ∈ xs.map (·, σ), p.2 ∈ Set.Icc 0 1 := by
+  simpa using fun _ _ => hσ
+
+lemma mem_map_fst_Icc {α β : Type*} (f : α → β) {steps : List (α × ℝ)}
+    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1) :
+    ∀ q ∈ steps.map (Prod.map f id), q.2 ∈ Set.Icc 0 1 :=
+  List.forall_mem_map.mpr hsteps
+
 section NoisyTrajectory
 
 variable {n : ℕ}
@@ -130,6 +184,31 @@ lemma idealGateTrajectory_cons (U : E n ≃ₗᵢ[ℝ] E n) (rest : List (E n �
 lemma idealGateTrajectory_append (g₁ g₂ : List (E n ≃ₗᵢ[ℝ] E n)) (Φ₀ : E n) :
     idealGateTrajectory (g₁ ++ g₂) Φ₀ = idealGateTrajectory g₂ (idealGateTrajectory g₁ Φ₀) :=
   List.foldl_append
+
+/-- Ideal noiseless state along a heterogeneous gate schedule
+    `steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ)`. -/
+def idealGateTrajectoryHet (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ)) (Φ₀ : E n) : E n :=
+  idealGateTrajectory (steps.map Prod.fst) Φ₀
+
+@[simp]
+lemma idealGateTrajectoryHet_nil (Φ₀ : E n) :
+    idealGateTrajectoryHet ([] : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ)) Φ₀ = Φ₀ := rfl
+
+@[simp]
+lemma idealGateTrajectoryHet_cons (p : (E n ≃ₗᵢ[ℝ] E n) × ℝ)
+    (rest : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ)) (Φ₀ : E n) :
+    idealGateTrajectoryHet (p :: rest) Φ₀ = idealGateTrajectoryHet rest (p.1 Φ₀) := rfl
+
+@[simp]
+lemma idealGateTrajectoryHet_append (s₁ s₂ : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ)) (Φ₀ : E n) :
+    idealGateTrajectoryHet (s₁ ++ s₂) Φ₀ =
+    idealGateTrajectoryHet s₂ (idealGateTrajectoryHet s₁ Φ₀) := by
+  simp [idealGateTrajectoryHet]
+
+@[simp]
+lemma idealGateTrajectoryHet_map_uniform (gates : List (E n ≃ₗᵢ[ℝ] E n)) (σ : ℝ) (Φ₀ : E n) :
+    idealGateTrajectoryHet (gates.map (·, σ)) Φ₀ = idealGateTrajectory gates Φ₀ := by
+  simp [idealGateTrajectoryHet, Function.comp_def]
 
 /-- Composite linear isometry equivalence corresponding to `idealGateTrajectory gates`. -/
 noncomputable def idealGateIso (gates : List (E n ≃ₗᵢ[ℝ] E n)) : E n ≃ₗᵢ[ℝ] E n :=
@@ -153,6 +232,33 @@ lemma norm_idealGateTrajectory (gates : List (E n ≃ₗᵢ[ℝ] E n)) (Φ₀ : 
   rw [← idealGateIso_apply]
   exact (idealGateIso gates).norm_map Φ₀
 
+@[simp]
+lemma norm_idealGateTrajectoryHet (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ)) (Φ₀ : E n) :
+    ‖idealGateTrajectoryHet steps Φ₀‖ = ‖Φ₀‖ :=
+  norm_idealGateTrajectory (steps.map Prod.fst) Φ₀
+
+/-- Expected value of an observable `f : E n → ℝ` along the heterogeneous multi-gate pure-state
+    Markov trajectory `Ψ_{k+1} = cos θ_{k+1} (U_{k+1} Ψ_k) + sin θ_{k+1} e_{2,k+1}` starting from
+    `Φ₀`, where each step `(U_k, σ_k)` applies isometry `U_k` followed by an isotropic sphere
+    perturbation with gate-specific fidelity parameter `σ_k`. -/
+noncomputable def noisyTrajectoryExpectationHet (n : ℕ) :
+    List ((E n ≃ₗᵢ[ℝ] E n) × ℝ) → E n → (E n → ℝ) → ℝ
+  | [] => fun Φ₀ f => f Φ₀
+  | p :: rest => fun Φ₀ f =>
+      ∫ θ, ∫ e₂, noisyTrajectoryExpectationHet n rest (isotropicError (p.1 Φ₀) e₂ θ) f
+            ∂(perpSphereMeasure (p.1 Φ₀)) ∂(poissonAngleMeasure (d n) p.2)
+
+@[simp]
+lemma noisyTrajectoryExpectationHet_nil (n : ℕ) (Φ₀ : E n) (f : E n → ℝ) :
+    noisyTrajectoryExpectationHet n [] Φ₀ f = f Φ₀ := rfl
+
+@[simp]
+lemma noisyTrajectoryExpectationHet_cons (n : ℕ) (p : (E n ≃ₗᵢ[ℝ] E n) × ℝ)
+    (rest : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ)) (Φ₀ : E n) (f : E n → ℝ) :
+    noisyTrajectoryExpectationHet n (p :: rest) Φ₀ f =
+    ∫ θ, ∫ e₂, noisyTrajectoryExpectationHet n rest (isotropicError (p.1 Φ₀) e₂ θ) f
+          ∂(perpSphereMeasure (p.1 Φ₀)) ∂(poissonAngleMeasure (d n) p.2) := rfl
+
 /-- Expected value of an observable `f : E n → ℝ` along the multi-gate pure-state Markov
     trajectory `Ψ_{k+1} = cos θ_{k+1} (U_{k+1} Ψ_k) + sin θ_{k+1} e_{2,k+1}` starting from `Φ₀`
     with per-gate fidelity parameter `σ`. -/
@@ -174,6 +280,36 @@ lemma noisyTrajectoryExpectation_cons (n : ℕ) (σ : ℝ) (U : E n ≃ₗᵢ[�
     ∫ θ, ∫ e₂, noisyTrajectoryExpectation n σ rest (isotropicError (U Φ₀) e₂ θ) f
           ∂(perpSphereMeasure (U Φ₀)) ∂(poissonAngleMeasure (d n) σ) := rfl
 
+/-- `noisyTrajectoryExpectationHet` specializes to `noisyTrajectoryExpectation` when every gate
+    carries the uniform fidelity parameter `σ`. -/
+theorem noisyTrajectoryHet_eq_uniform (σ : ℝ)
+    (gates : List (E n ≃ₗᵢ[ℝ] E n)) (Φ₀ : E n) (f : E n → ℝ) :
+    noisyTrajectoryExpectationHet n (gates.map (·, σ)) Φ₀ f =
+    noisyTrajectoryExpectation n σ gates Φ₀ f := by
+  induction gates generalizing Φ₀ with
+  | nil => rfl
+  | cons U rest ih =>
+    simp only [List.map_cons, noisyTrajectoryExpectationHet_cons, noisyTrajectoryExpectation_cons]
+    simp_rw [ih]
+
+/-- When `‖Φ₀‖ = 1`, `noisyTrajectoryExpectationHet` evaluates `f` almost surely only on unit
+    vectors `{Ψ : E n | ‖Ψ‖ = 1}`. -/
+theorem noisyTrajectoryHet_congr_unitSphere
+    (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ)) (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1)
+    {f₁ f₂ : E n → ℝ} (h : ∀ Ψ : E n, ‖Ψ‖ = 1 → f₁ Ψ = f₂ Ψ) :
+    noisyTrajectoryExpectationHet n steps Φ₀ f₁ =
+    noisyTrajectoryExpectationHet n steps Φ₀ f₂ := by
+  induction steps generalizing Φ₀ with
+  | nil => exact h Φ₀ hΦ₀
+  | cons p rest ih =>
+    simp only [noisyTrajectoryExpectationHet_cons]
+    have hU : ‖p.1 Φ₀‖ = 1 := by rw [p.1.norm_map]; exact hΦ₀
+    congr 1; ext θ
+    apply integral_congr_ae
+    filter_upwards [perpSphereMeasure_norm_ae (p.1 Φ₀)] with e₂ ⟨he₂_perp, he₂_norm⟩
+    exact ih (isotropicError (p.1 Φ₀) e₂ θ)
+      (isotropicError_norm (p.1 Φ₀) e₂ θ hU he₂_norm ((mem_V_perp_iff (p.1 Φ₀) e₂).mp he₂_perp))
+
 /-- When `‖Φ₀‖ = 1`, `noisyTrajectoryExpectation` evaluates `f` almost surely only on unit
     vectors `{Ψ : E n | ‖Ψ‖ = 1}`, so any two observables agreeing on the unit sphere have
     identical expectations. -/
@@ -182,16 +318,8 @@ theorem noisyTrajectory_congr_unitSphere (σ : ℝ)
     {f₁ f₂ : E n → ℝ} (h : ∀ Ψ : E n, ‖Ψ‖ = 1 → f₁ Ψ = f₂ Ψ) :
     noisyTrajectoryExpectation n σ gates Φ₀ f₁ =
     noisyTrajectoryExpectation n σ gates Φ₀ f₂ := by
-  induction gates generalizing Φ₀ with
-  | nil => exact h Φ₀ hΦ₀
-  | cons U rest ih =>
-    simp only [noisyTrajectoryExpectation]
-    have hU : ‖U Φ₀‖ = 1 := by rw [U.norm_map]; exact hΦ₀
-    congr 1; ext θ
-    apply integral_congr_ae
-    filter_upwards [perpSphereMeasure_norm_ae (U Φ₀)] with e₂ ⟨he₂_perp, he₂_norm⟩
-    exact ih (isotropicError (U Φ₀) e₂ θ)
-      (isotropicError_norm (U Φ₀) e₂ θ hU he₂_norm ((mem_V_perp_iff (U Φ₀) e₂).mp he₂_perp))
+  rw [← noisyTrajectoryHet_eq_uniform, ← noisyTrajectoryHet_eq_uniform]
+  exact noisyTrajectoryHet_congr_unitSphere (gates.map (·, σ)) Φ₀ hΦ₀ h
 
 /-! ### Continuity and linearity helpers on the unit sphere -/
 
@@ -461,6 +589,27 @@ private lemma continuousOn_oneStep_unitSphere (σ : ℝ) (hσ : σ ∈ Set.Icc 0
       norm_inner_integral_le_of_continuousOn
         (mem_sphere_zero_iff_norm.mp hΨ_mem) hC θ
 
+/-- `noisyTrajectoryExpectationHet` preserves `ContinuousOn` on `unitSphere n`
+    for any heterogeneous gate schedule `steps` with `∀ p ∈ steps, p.2 ∈ Set.Icc 0 1`. -/
+theorem noisyTrajectoryExpectationHet_continuousOn_unitSphere
+    (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ))
+    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
+    {f : E n → ℝ} (hf : ContinuousOn f (unitSphere n)) :
+    ContinuousOn (fun Φ₀ => noisyTrajectoryExpectationHet n steps Φ₀ f)
+      (unitSphere n) := by
+  induction steps with
+  | nil => exact hf
+  | cons p rest ih =>
+    have hp := hsteps p List.mem_cons_self
+    have hrest := ih (fun q hq => hsteps q (List.mem_cons_of_mem p hq))
+    have hstep := continuousOn_oneStep_unitSphere p.2 hp hrest
+    have hU_maps : Set.MapsTo (p.1 : E n → E n)
+        (unitSphere n) (unitSphere n) := by
+      intro x hx
+      rw [mem_sphere_zero_iff_norm] at hx ⊢
+      rw [p.1.norm_map, hx]
+    exact hstep.comp p.1.continuous.continuousOn hU_maps
+
 /-- `noisyTrajectoryExpectation` preserves `ContinuousOn` on `unitSphere n`
     for any gate list and `σ ∈ [0, 1]`. -/
 theorem noisyTrajectoryExpectation_continuousOn_unitSphere (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
@@ -468,41 +617,61 @@ theorem noisyTrajectoryExpectation_continuousOn_unitSphere (σ : ℝ) (hσ : σ 
     (hf : ContinuousOn f (unitSphere n)) :
     ContinuousOn (fun Φ₀ => noisyTrajectoryExpectation n σ gates Φ₀ f)
       (unitSphere n) := by
-  induction gates with
-  | nil => exact hf
-  | cons U rest ih =>
-    have hstep := continuousOn_oneStep_unitSphere σ hσ ih
-    have hU_maps : Set.MapsTo (U : E n → E n)
-        (unitSphere n) (unitSphere n) := by
-      intro x hx
-      rw [mem_sphere_zero_iff_norm] at hx ⊢
-      rw [U.norm_map, hx]
-    exact hstep.comp U.continuous.continuousOn hU_maps
+  simp_rw [← noisyTrajectoryHet_eq_uniform]
+  exact noisyTrajectoryExpectationHet_continuousOn_unitSphere _
+    (mem_map_uniform_Icc hσ gates) hf
 
-/-! ### Linearity of `noisyTrajectoryExpectation` -/
+/-! ### Linearity of `noisyTrajectoryExpectationHet` and `noisyTrajectoryExpectation` -/
+
+/-- Expectation of a constant observable along the heterogeneous noisy trajectory equals that
+    constant. -/
+theorem noisyTrajectoryExpectationHet_const
+    (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ))
+    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
+    (Φ₀ : E n) (c : ℝ) :
+    noisyTrajectoryExpectationHet n steps Φ₀ (fun _ => c) = c := by
+  induction steps generalizing Φ₀ with
+  | nil => rfl
+  | cons p rest ih =>
+    have := poissonAngleMeasure_d_isProbMeasure n p.2 (hsteps p List.mem_cons_self)
+    have hrest : ∀ q ∈ rest, q.2 ∈ Set.Icc 0 1 :=
+      fun q hq => hsteps q (List.mem_cons_of_mem p hq)
+    simp only [noisyTrajectoryExpectationHet_cons]
+    simp_rw [ih hrest]
+    simp
 
 /-- Expectation of a constant observable along the noisy trajectory equals that constant. -/
 theorem noisyTrajectoryExpectation_const (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
     (gates : List (E n ≃ₗᵢ[ℝ] E n)) (Φ₀ : E n) (c : ℝ) :
     noisyTrajectoryExpectation n σ gates Φ₀ (fun _ => c) = c := by
-  have := poissonAngleMeasure_d_isProbMeasure n σ hσ
-  induction gates generalizing Φ₀ with
+  rw [← noisyTrajectoryHet_eq_uniform]
+  exact noisyTrajectoryExpectationHet_const _ (mem_map_uniform_Icc hσ gates) Φ₀ c
+
+/-- Scalar multiplication pulls out of `noisyTrajectoryExpectationHet`. -/
+theorem noisyTrajectoryExpectationHet_const_mul
+    (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ)) (Φ₀ : E n) (c : ℝ) (f : E n → ℝ) :
+    noisyTrajectoryExpectationHet n steps Φ₀ (fun Ψ => c * f Ψ) =
+    c * noisyTrajectoryExpectationHet n steps Φ₀ f := by
+  induction steps generalizing Φ₀ with
   | nil => rfl
-  | cons U rest ih =>
-    simp only [noisyTrajectoryExpectation]
-    simp_rw [ih]
-    simp
+  | cons p rest ih =>
+    simp only [noisyTrajectoryExpectationHet_cons]
+    simp_rw [ih, integral_const_mul]
 
 /-- Scalar multiplication pulls out of `noisyTrajectoryExpectation`. -/
 theorem noisyTrajectoryExpectation_const_mul (σ : ℝ)
     (gates : List (E n ≃ₗᵢ[ℝ] E n)) (Φ₀ : E n) (c : ℝ) (f : E n → ℝ) :
     noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => c * f Ψ) =
     c * noisyTrajectoryExpectation n σ gates Φ₀ f := by
-  induction gates generalizing Φ₀ with
-  | nil => rfl
-  | cons U rest ih =>
-    simp only [noisyTrajectoryExpectation]
-    simp_rw [ih, integral_const_mul]
+  rw [← noisyTrajectoryHet_eq_uniform, ← noisyTrajectoryHet_eq_uniform]
+  exact noisyTrajectoryExpectationHet_const_mul (gates.map (·, σ)) Φ₀ c f
+
+/-- Negation pulls out of `noisyTrajectoryExpectationHet`. -/
+theorem noisyTrajectoryExpectationHet_neg
+    (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ)) (Φ₀ : E n) (f : E n → ℝ) :
+    noisyTrajectoryExpectationHet n steps Φ₀ (fun Ψ => -f Ψ) =
+    -noisyTrajectoryExpectationHet n steps Φ₀ f := by
+  simpa using noisyTrajectoryExpectationHet_const_mul steps Φ₀ (-1) f
 
 /-- Negation pulls out of `noisyTrajectoryExpectation`. -/
 theorem noisyTrajectoryExpectation_neg (σ : ℝ)
@@ -510,6 +679,51 @@ theorem noisyTrajectoryExpectation_neg (σ : ℝ)
     noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => -f Ψ) =
     -noisyTrajectoryExpectation n σ gates Φ₀ f := by
   simpa using noisyTrajectoryExpectation_const_mul σ gates Φ₀ (-1) f
+
+/-- Additivity of `noisyTrajectoryExpectationHet` for functions continuous on the unit sphere. -/
+theorem noisyTrajectoryExpectationHet_add_of_continuousOn
+    (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ))
+    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
+    (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1)
+    {f g : E n → ℝ}
+    (hf : ContinuousOn f (unitSphere n))
+    (hg : ContinuousOn g (unitSphere n)) :
+    noisyTrajectoryExpectationHet n steps Φ₀ (fun Ψ => f Ψ + g Ψ) =
+    noisyTrajectoryExpectationHet n steps Φ₀ f +
+    noisyTrajectoryExpectationHet n steps Φ₀ g := by
+  induction steps generalizing Φ₀ with
+  | nil => rfl
+  | cons p rest ih =>
+    simp only [noisyTrajectoryExpectationHet_cons]
+    have hp := hsteps p List.mem_cons_self
+    have hrest : ∀ q ∈ rest, q.2 ∈ Set.Icc 0 1 :=
+      fun q hq => hsteps q (List.mem_cons_of_mem p hq)
+    have hU : ‖p.1 Φ₀‖ = 1 := by rw [p.1.norm_map]; exact hΦ₀
+    have hf_rest := noisyTrajectoryExpectationHet_continuousOn_unitSphere rest hrest hf
+    have hg_rest := noisyTrajectoryExpectationHet_continuousOn_unitSphere rest hrest hg
+    have hinner_eq : ∀ θ : ℝ,
+        ∫ e₂, noisyTrajectoryExpectationHet n rest (isotropicError (p.1 Φ₀) e₂ θ)
+          (fun Ψ => f Ψ + g Ψ) ∂(perpSphereMeasure (p.1 Φ₀)) =
+        (∫ e₂, noisyTrajectoryExpectationHet n rest (isotropicError (p.1 Φ₀) e₂ θ) f
+          ∂(perpSphereMeasure (p.1 Φ₀))) +
+        (∫ e₂, noisyTrajectoryExpectationHet n rest (isotropicError (p.1 Φ₀) e₂ θ) g
+          ∂(perpSphereMeasure (p.1 Φ₀))) := by
+      intro θ
+      have hae : ∀ᵐ e₂ ∂(perpSphereMeasure (p.1 Φ₀)),
+          noisyTrajectoryExpectationHet n rest (isotropicError (p.1 Φ₀) e₂ θ)
+            (fun Ψ => f Ψ + g Ψ) =
+          noisyTrajectoryExpectationHet n rest (isotropicError (p.1 Φ₀) e₂ θ) f +
+          noisyTrajectoryExpectationHet n rest (isotropicError (p.1 Φ₀) e₂ θ) g := by
+        filter_upwards [ae_isotropicError_mem_sphere hU θ] with e₂ he₂
+        exact ih hrest (isotropicError (p.1 Φ₀) e₂ θ) he₂
+      rw [integral_congr_ae hae]
+      exact integral_add
+        (integrable_perpSphere_of_continuousOn hU θ hf_rest)
+        (integrable_perpSphere_of_continuousOn hU θ hg_rest)
+    simp_rw [hinner_eq]
+    exact integral_add
+      (integrable_outer_integral_of_continuousOn p.2 hp hU hf_rest)
+      (integrable_outer_integral_of_continuousOn p.2 hp hU hg_rest)
 
 /-- Additivity of `noisyTrajectoryExpectation` for functions continuous on the unit sphere. -/
 theorem noisyTrajectoryExpectation_add_of_continuousOn (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
@@ -520,36 +734,22 @@ theorem noisyTrajectoryExpectation_add_of_continuousOn (σ : ℝ) (hσ : σ ∈ 
     noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => f Ψ + g Ψ) =
     noisyTrajectoryExpectation n σ gates Φ₀ f +
     noisyTrajectoryExpectation n σ gates Φ₀ g := by
-  induction gates generalizing Φ₀ with
-  | nil => rfl
-  | cons U rest ih =>
-    simp only [noisyTrajectoryExpectation]
-    have hU : ‖U Φ₀‖ = 1 := by rw [U.norm_map]; exact hΦ₀
-    have hf_rest := noisyTrajectoryExpectation_continuousOn_unitSphere σ hσ rest hf
-    have hg_rest := noisyTrajectoryExpectation_continuousOn_unitSphere σ hσ rest hg
-    have hinner_eq : ∀ θ : ℝ,
-        ∫ e₂, noisyTrajectoryExpectation n σ rest (isotropicError (U Φ₀) e₂ θ)
-          (fun Ψ => f Ψ + g Ψ) ∂(perpSphereMeasure (U Φ₀)) =
-        (∫ e₂, noisyTrajectoryExpectation n σ rest (isotropicError (U Φ₀) e₂ θ) f
-          ∂(perpSphereMeasure (U Φ₀))) +
-        (∫ e₂, noisyTrajectoryExpectation n σ rest (isotropicError (U Φ₀) e₂ θ) g
-          ∂(perpSphereMeasure (U Φ₀))) := by
-      intro θ
-      have hae : ∀ᵐ e₂ ∂(perpSphereMeasure (U Φ₀)),
-          noisyTrajectoryExpectation n σ rest (isotropicError (U Φ₀) e₂ θ)
-            (fun Ψ => f Ψ + g Ψ) =
-          noisyTrajectoryExpectation n σ rest (isotropicError (U Φ₀) e₂ θ) f +
-          noisyTrajectoryExpectation n σ rest (isotropicError (U Φ₀) e₂ θ) g := by
-        filter_upwards [ae_isotropicError_mem_sphere hU θ] with e₂ he₂
-        exact ih (isotropicError (U Φ₀) e₂ θ) he₂
-      rw [integral_congr_ae hae]
-      exact integral_add
-        (integrable_perpSphere_of_continuousOn hU θ hf_rest)
-        (integrable_perpSphere_of_continuousOn hU θ hg_rest)
-    simp_rw [hinner_eq]
-    exact integral_add
-      (integrable_outer_integral_of_continuousOn σ hσ hU hf_rest)
-      (integrable_outer_integral_of_continuousOn σ hσ hU hg_rest)
+  rw [← noisyTrajectoryHet_eq_uniform, ← noisyTrajectoryHet_eq_uniform,
+      ← noisyTrajectoryHet_eq_uniform]
+  exact noisyTrajectoryExpectationHet_add_of_continuousOn _
+    (mem_map_uniform_Icc hσ gates) Φ₀ hΦ₀ hf hg
+
+/-- Additivity of `noisyTrajectoryExpectationHet` for continuous observables `f, g : E n → ℝ`. -/
+theorem noisyTrajectoryExpectationHet_add
+    (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ))
+    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
+    (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1)
+    {f g : E n → ℝ} (hf : Continuous f) (hg : Continuous g) :
+    noisyTrajectoryExpectationHet n steps Φ₀ (fun Ψ => f Ψ + g Ψ) =
+    noisyTrajectoryExpectationHet n steps Φ₀ f +
+    noisyTrajectoryExpectationHet n steps Φ₀ g :=
+  noisyTrajectoryExpectationHet_add_of_continuousOn steps hsteps Φ₀ hΦ₀
+    hf.continuousOn hg.continuousOn
 
 /-- Additivity of `noisyTrajectoryExpectation` for continuous observables `f, g : E n → ℝ`. -/
 theorem noisyTrajectoryExpectation_add (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
@@ -560,6 +760,20 @@ theorem noisyTrajectoryExpectation_add (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
     noisyTrajectoryExpectation n σ gates Φ₀ g :=
   noisyTrajectoryExpectation_add_of_continuousOn σ hσ gates Φ₀ hΦ₀ hf.continuousOn hg.continuousOn
 
+/-- Subtraction linearity of `noisyTrajectoryExpectationHet` for continuous observables
+    `f, g : E n → ℝ`. -/
+theorem noisyTrajectoryExpectationHet_sub
+    (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ))
+    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
+    (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1)
+    {f g : E n → ℝ} (hf : Continuous f) (hg : Continuous g) :
+    noisyTrajectoryExpectationHet n steps Φ₀ (fun Ψ => f Ψ - g Ψ) =
+    noisyTrajectoryExpectationHet n steps Φ₀ f -
+    noisyTrajectoryExpectationHet n steps Φ₀ g := by
+  simp_rw [sub_eq_add_neg]
+  rw [noisyTrajectoryExpectationHet_add steps hsteps Φ₀ hΦ₀ hf (g := fun Ψ => -g Ψ) hg.neg,
+      noisyTrajectoryExpectationHet_neg]
+
 /-- Subtraction linearity of `noisyTrajectoryExpectation` for continuous observables
     `f, g : E n → ℝ`. -/
 theorem noisyTrajectoryExpectation_sub (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
@@ -568,11 +782,97 @@ theorem noisyTrajectoryExpectation_sub (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
     noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => f Ψ - g Ψ) =
     noisyTrajectoryExpectation n σ gates Φ₀ f -
     noisyTrajectoryExpectation n σ gates Φ₀ g := by
-  simp_rw [sub_eq_add_neg]
-  rw [noisyTrajectoryExpectation_add σ hσ gates Φ₀ hΦ₀ hf (g := fun Ψ => -g Ψ) hg.neg,
-      noisyTrajectoryExpectation_neg]
+  rw [← noisyTrajectoryHet_eq_uniform, ← noisyTrajectoryHet_eq_uniform,
+      ← noisyTrajectoryHet_eq_uniform]
+  exact noisyTrajectoryExpectationHet_sub _ (mem_map_uniform_Icc hσ gates) Φ₀ hΦ₀ hf hg
+
+/-- Finite-sum linearity of `noisyTrajectoryExpectationHet` for continuous observables,
+    holding for every `s : Finset ι` (including `s = ∅`). -/
+theorem noisyTrajectoryExpectationHet_sum {ι : Type*}
+    (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ))
+    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
+    (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1)
+    (s : Finset ι) (f : ι → E n → ℝ) (hf : ∀ i ∈ s, Continuous (f i)) :
+    noisyTrajectoryExpectationHet n steps Φ₀ (fun Ψ => ∑ i ∈ s, f i Ψ) =
+    ∑ i ∈ s, noisyTrajectoryExpectationHet n steps Φ₀ (f i) := by
+  classical
+  induction s using Finset.induction_on with
+  | empty =>
+    simpa using noisyTrajectoryExpectationHet_const steps hsteps Φ₀ 0
+  | @insert a s ha ih =>
+    have hfa : Continuous (f a) := hf a (Finset.mem_insert_self a s)
+    have hfs : ∀ i ∈ s, Continuous (f i) :=
+      fun i hi => hf i (Finset.mem_insert_of_mem hi)
+    have hsum_cont : Continuous (fun Ψ => ∑ i ∈ s, f i Ψ) :=
+      continuous_finsetSum s hfs
+    simp_rw [Finset.sum_insert ha]
+    rw [noisyTrajectoryExpectationHet_add steps hsteps Φ₀ hΦ₀ hfa hsum_cont, ih hfs]
 
 /-! ### Multi-gate bilinear second-moment, fidelity, and success-probability theorems -/
+
+/-- **Heterogeneous multi-gate bilinear expectation theorem** over an arbitrary list
+    `steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ)` with per-gate fidelity parameters `p.2 ∈ [0, 1]`
+    and unit initial state `‖Φ₀‖ = 1`. -/
+theorem noisyTrajectoryHet_bilinear
+    (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ))
+    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
+    (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1) (u v : E n) :
+    noisyTrajectoryExpectationHet n steps Φ₀ (fun Ψ => ⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) =
+    (fidelityProd steps) ^ 2 *
+      (⟪idealGateTrajectoryHet steps Φ₀, u⟫_ℝ * ⟪idealGateTrajectoryHet steps Φ₀, v⟫_ℝ) +
+    (1 - (fidelityProd steps) ^ 2) / (d n : ℝ) * ⟪u, v⟫_ℝ := by
+  induction steps generalizing Φ₀ with
+  | nil =>
+    simp
+  | cons p rest ih =>
+    simp only [noisyTrajectoryExpectationHet_cons]
+    have hp := hsteps p List.mem_cons_self
+    have hrest : ∀ q ∈ rest, q.2 ∈ Set.Icc 0 1 :=
+      fun q hq => hsteps q (List.mem_cons_of_mem p hq)
+    have := poissonAngleMeasure_d_isProbMeasure n p.2 hp
+    have hU : ‖p.1 Φ₀‖ = 1 := by rw [p.1.norm_map]; exact hΦ₀
+    let W := idealGateIso (rest.map Prod.fst)
+    have hadj : ∀ (x y : E n), ⟪idealGateTrajectoryHet rest x, y⟫_ℝ = ⟪x, W.symm y⟫_ℝ := by
+      intro x y
+      rw [idealGateTrajectoryHet, ← idealGateIso_apply,
+          ← W.symm.inner_map_map (W x) y, W.symm_apply_apply]
+    have hquad_cont : ContinuousOn (fun Ψ : E n => ⟪Ψ, W.symm u⟫_ℝ * ⟪Ψ, W.symm v⟫_ℝ)
+        (unitSphere n) :=
+      ((continuous_id.inner continuous_const).mul
+        (continuous_id.inner continuous_const)).continuousOn
+    have hinner_eq : ∀ θ : ℝ,
+        ∫ e₂, noisyTrajectoryExpectationHet n rest (isotropicError (p.1 Φ₀) e₂ θ)
+          (fun Ψ => ⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) ∂(perpSphereMeasure (p.1 Φ₀)) =
+        (fidelityProd rest) ^ 2 *
+          (∫ e₂, ⟪isotropicError (p.1 Φ₀) e₂ θ, W.symm u⟫_ℝ *
+            ⟪isotropicError (p.1 Φ₀) e₂ θ, W.symm v⟫_ℝ ∂(perpSphereMeasure (p.1 Φ₀))) +
+        (1 - (fidelityProd rest) ^ 2) / (d n : ℝ) * ⟪u, v⟫_ℝ := by
+      intro θ
+      have hae : ∀ᵐ e₂ ∂(perpSphereMeasure (p.1 Φ₀)),
+          noisyTrajectoryExpectationHet n rest (isotropicError (p.1 Φ₀) e₂ θ)
+            (fun Ψ => ⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) =
+          (fidelityProd rest) ^ 2 *
+            (⟪isotropicError (p.1 Φ₀) e₂ θ, W.symm u⟫_ℝ *
+              ⟪isotropicError (p.1 Φ₀) e₂ θ, W.symm v⟫_ℝ) +
+          (1 - (fidelityProd rest) ^ 2) / (d n : ℝ) * ⟪u, v⟫_ℝ := by
+        filter_upwards [ae_isotropicError_mem_sphere hU θ] with e₂ he₂
+        rw [ih hrest (isotropicError (p.1 Φ₀) e₂ θ) he₂, hadj, hadj]
+      rw [integral_congr_ae hae]
+      have hint1 := (integrable_perpSphere_of_continuousOn hU θ hquad_cont).const_mul
+        ((fidelityProd rest) ^ 2)
+      rw [integral_add hint1 (integrable_const _), integral_const_mul, integral_const]
+      simp
+    simp_rw [hinner_eq]
+    have hout1 := (integrable_outer_integral_of_continuousOn p.2 hp hU hquad_cont).const_mul
+      ((fidelityProd rest) ^ 2)
+    rw [integral_add hout1 (integrable_const _), integral_const_mul, integral_const,
+        isotropicError_bilinear_secondMoment p.2 hp (p.1 Φ₀) hU (W.symm u) (W.symm v)]
+    simp only [smul_eq_mul, Measure.real, measure_univ, ENNReal.toReal_one, one_mul,
+               fidelityProd_cons, idealGateTrajectoryHet_cons]
+    rw [W.symm.inner_map_map u v, ← hadj (p.1 Φ₀) u, ← hadj (p.1 Φ₀) v]
+    have hd_ne := cast_d_ne_zero n
+    field_simp [hd_ne]
+    ring
 
 /-- **Multi-gate bilinear expectation theorem** over an arbitrary list of interleaved
     isometric gates `gates` for all `σ ∈ [0, 1]` and unit initial states `‖Φ₀‖ = 1`. -/
@@ -582,55 +882,10 @@ theorem noisyTrajectory_bilinear (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
     σ ^ (2 * gates.length) *
       (⟪idealGateTrajectory gates Φ₀, u⟫_ℝ * ⟪idealGateTrajectory gates Φ₀, v⟫_ℝ) +
     (1 - σ ^ (2 * gates.length)) / (d n : ℝ) * ⟪u, v⟫_ℝ := by
-  have := poissonAngleMeasure_d_isProbMeasure n σ hσ
-  induction gates generalizing Φ₀ with
-  | nil =>
-    simp
-  | cons U rest ih =>
-    simp only [noisyTrajectoryExpectation]
-    have hU : ‖U Φ₀‖ = 1 := by rw [U.norm_map]; exact hΦ₀
-    let W := idealGateIso rest
-    have hadj : ∀ (x y : E n), ⟪idealGateTrajectory rest x, y⟫_ℝ = ⟪x, W.symm y⟫_ℝ := by
-      intro x y
-      rw [← idealGateIso_apply, ← W.symm.inner_map_map (W x) y, W.symm_apply_apply]
-    have hquad_cont : ContinuousOn (fun Ψ : E n => ⟪Ψ, W.symm u⟫_ℝ * ⟪Ψ, W.symm v⟫_ℝ)
-        (unitSphere n) :=
-      ((continuous_id.inner continuous_const).mul
-        (continuous_id.inner continuous_const)).continuousOn
-    have hinner_eq : ∀ θ : ℝ,
-        ∫ e₂, noisyTrajectoryExpectation n σ rest (isotropicError (U Φ₀) e₂ θ)
-          (fun Ψ => ⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) ∂(perpSphereMeasure (U Φ₀)) =
-        σ ^ (2 * rest.length) *
-          (∫ e₂, ⟪isotropicError (U Φ₀) e₂ θ, W.symm u⟫_ℝ *
-            ⟪isotropicError (U Φ₀) e₂ θ, W.symm v⟫_ℝ ∂(perpSphereMeasure (U Φ₀))) +
-        (1 - σ ^ (2 * rest.length)) / (d n : ℝ) * ⟪u, v⟫_ℝ := by
-      intro θ
-      have hae : ∀ᵐ e₂ ∂(perpSphereMeasure (U Φ₀)),
-          noisyTrajectoryExpectation n σ rest (isotropicError (U Φ₀) e₂ θ)
-            (fun Ψ => ⟪Ψ, u⟫_ℝ * ⟪Ψ, v⟫_ℝ) =
-          σ ^ (2 * rest.length) *
-            (⟪isotropicError (U Φ₀) e₂ θ, W.symm u⟫_ℝ *
-              ⟪isotropicError (U Φ₀) e₂ θ, W.symm v⟫_ℝ) +
-          (1 - σ ^ (2 * rest.length)) / (d n : ℝ) * ⟪u, v⟫_ℝ := by
-        filter_upwards [ae_isotropicError_mem_sphere hU θ] with e₂ he₂
-        rw [ih (isotropicError (U Φ₀) e₂ θ) he₂, hadj, hadj]
-      rw [integral_congr_ae hae]
-      have hint1 := (integrable_perpSphere_of_continuousOn hU θ hquad_cont).const_mul
-        (σ ^ (2 * rest.length))
-      rw [integral_add hint1 (integrable_const _), integral_const_mul, integral_const]
-      simp
-    simp_rw [hinner_eq]
-    have hout1 := (integrable_outer_integral_of_continuousOn σ hσ hU hquad_cont).const_mul
-      (σ ^ (2 * rest.length))
-    rw [integral_add hout1 (integrable_const _), integral_const_mul, integral_const,
-        isotropicError_bilinear_secondMoment σ hσ (U Φ₀) hU (W.symm u) (W.symm v)]
-    simp only [smul_eq_mul, Measure.real, measure_univ, ENNReal.toReal_one, one_mul,
-               List.length_cons, idealGateTrajectory_cons]
-    rw [W.symm.inner_map_map u v, ← hadj (U Φ₀) u, ← hadj (U Φ₀) v,
-        show 2 * (rest.length + 1) = 2 * rest.length + 2 by omega, pow_add]
-    have hd_ne := cast_d_ne_zero n
-    field_simp [hd_ne]
-    ring
+  rw [← noisyTrajectoryHet_eq_uniform,
+      noisyTrajectoryHet_bilinear _ (mem_map_uniform_Icc hσ gates) Φ₀ hΦ₀ u v,
+      fidelityProd_map_uniform, idealGateTrajectoryHet_map_uniform,
+      ← pow_mul, mul_comm gates.length 2]
 
 /-- The expected squared overlap `E[⟪Ψ_G, Φ_G⟫²]` of the `G`-gate Markov trajectory with
     the ideal output `idealGateTrajectory gates Φ₀` equals
@@ -650,6 +905,36 @@ theorem noisyTrajectory_fidelity_eq_sequentialFidelity (σ : ℝ) (hσ : σ ∈ 
   field_simp [hd_ne]
   ring
 
+/-- **Heterogeneous multi-gate expected success probability theorem:** After any heterogeneous
+    schedule `steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ)` with `∀ p ∈ steps, p.2 ∈ [0, 1]`, the expected
+    measurement probability of outcome `w` along the pure-state Markov trajectory equals
+    `(fidelityProd steps) ^ 2 * succProb n (idealGateTrajectoryHet steps Φ₀) w +
+      (1 - (fidelityProd steps) ^ 2) / 2 ^ n`. -/
+theorem noisyTrajectoryHet_succProb
+    (steps : List ((E n ≃ₗᵢ[ℝ] E n) × ℝ))
+    (hsteps : ∀ p ∈ steps, p.2 ∈ Set.Icc 0 1)
+    (Φ₀ : E n) (hΦ₀ : ‖Φ₀‖ = 1) (w : Fin (2 ^ n)) :
+    noisyTrajectoryExpectationHet n steps Φ₀ (fun Ψ => succProb n Ψ w) =
+    (fidelityProd steps) ^ 2 * succProb n (idealGateTrajectoryHet steps Φ₀) w +
+      (1 - (fidelityProd steps) ^ 2) / (2 ^ n : ℝ) := by
+  set e₀ := stdBasisVec n (succProbIdx0 n w)
+  set e₁ := stdBasisVec n (succProbIdx1 n w)
+  have hcont₀ : Continuous (fun Ψ : E n => ⟪Ψ, e₀⟫_ℝ ^ 2) :=
+    (continuous_id.inner continuous_const).pow 2
+  have hcont₁ : Continuous (fun Ψ : E n => ⟪Ψ, e₁⟫_ℝ ^ 2) :=
+    (continuous_id.inner continuous_const).pow 2
+  simp only [succProb]
+  rw [noisyTrajectoryExpectationHet_add steps hsteps Φ₀ hΦ₀ hcont₀ hcont₁]
+  simp_rw [sq]
+  rw [noisyTrajectoryHet_bilinear steps hsteps Φ₀ hΦ₀ e₀ e₀,
+      noisyTrajectoryHet_bilinear steps hsteps Φ₀ hΦ₀ e₁ e₁]
+  have he₀ : ⟪e₀, e₀⟫_ℝ = 1 := by rw [real_inner_self_eq_norm_sq, stdBasisVec_norm, one_pow]
+  have he₁ : ⟪e₁, e₁⟫_ℝ = 1 := by rw [real_inner_self_eq_norm_sq, stdBasisVec_norm, one_pow]
+  have hN_ne : (2 ^ n : ℝ) ≠ 0 := by positivity
+  rw [he₀, he₁, cast_d n]
+  field_simp [hN_ne]
+  ring
+
 /-- **Multi-gate expected success probability theorem:** After any list `gates` of interleaved
     isometric gates (including `gates = []`) and for all `σ ∈ [0, 1]`, the expected measurement
     probability of outcome `w` along the pure-state Markov trajectory equals
@@ -660,23 +945,10 @@ theorem noisyTrajectory_succProb (σ : ℝ) (hσ : σ ∈ Set.Icc 0 1)
     noisyTrajectoryExpectation n σ gates Φ₀ (fun Ψ => succProb n Ψ w) =
     σ ^ (2 * gates.length) * succProb n (idealGateTrajectory gates Φ₀) w +
       (1 - σ ^ (2 * gates.length)) / (2 ^ n : ℝ) := by
-  set e₀ := stdBasisVec n (succProbIdx0 n w)
-  set e₁ := stdBasisVec n (succProbIdx1 n w)
-  have hcont₀ : Continuous (fun Ψ : E n => ⟪Ψ, e₀⟫_ℝ ^ 2) :=
-    (continuous_id.inner continuous_const).pow 2
-  have hcont₁ : Continuous (fun Ψ : E n => ⟪Ψ, e₁⟫_ℝ ^ 2) :=
-    (continuous_id.inner continuous_const).pow 2
-  simp only [succProb]
-  rw [noisyTrajectoryExpectation_add σ hσ gates Φ₀ hΦ₀ hcont₀ hcont₁]
-  simp_rw [sq]
-  rw [noisyTrajectory_bilinear σ hσ gates Φ₀ hΦ₀ e₀ e₀,
-      noisyTrajectory_bilinear σ hσ gates Φ₀ hΦ₀ e₁ e₁]
-  have he₀ : ⟪e₀, e₀⟫_ℝ = 1 := by rw [real_inner_self_eq_norm_sq, stdBasisVec_norm, one_pow]
-  have he₁ : ⟪e₁, e₁⟫_ℝ = 1 := by rw [real_inner_self_eq_norm_sq, stdBasisVec_norm, one_pow]
-  have hN_ne : (2 ^ n : ℝ) ≠ 0 := by positivity
-  rw [he₀, he₁, cast_d n]
-  field_simp [hN_ne]
-  ring
+  rw [← noisyTrajectoryHet_eq_uniform,
+      noisyTrajectoryHet_succProb _ (mem_map_uniform_Icc hσ gates) Φ₀ hΦ₀ w,
+      fidelityProd_map_uniform, idealGateTrajectoryHet_map_uniform,
+      ← pow_mul, mul_comm gates.length 2]
 
 end NoisyTrajectory
 
@@ -694,15 +966,21 @@ example (d : ℕ) (σ : ℝ) : sequentialFidelity d σ 0 = 1 := rfl
 example (d : ℕ) (σ : ℝ) : sequentialFidelity d σ 1 = stepLambda d σ := by
   simp [sequentialFidelity, stepTransition]
 
+#check @fidelityProd
 #check @idealGateTrajectory
+#check @idealGateTrajectoryHet
 #check @noisyTrajectoryExpectation
+#check @noisyTrajectoryExpectationHet
+#check @noisyTrajectoryHet_eq_uniform
 #check @noisyTrajectory_congr_unitSphere
 #check @noisyTrajectoryExpectation_const
 #check @noisyTrajectoryExpectation_const_mul
 #check @noisyTrajectoryExpectation_add
 #check @noisyTrajectoryExpectation_sub
+#check @noisyTrajectoryHet_bilinear
 #check @noisyTrajectory_bilinear
 #check @noisyTrajectory_fidelity_eq_sequentialFidelity
+#check @noisyTrajectoryHet_succProb
 #check @noisyTrajectory_succProb
 
 /--
@@ -724,6 +1002,18 @@ info: 'IsotropicGrover.sequential_mixture_formula' depends on axioms: [propext, 
 #print axioms sequential_mixture_formula
 
 /--
+info: 'IsotropicGrover.noisyTrajectoryHet_eq_uniform' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyTrajectoryHet_eq_uniform
+
+/--
+info: 'IsotropicGrover.noisyTrajectoryHet_bilinear' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyTrajectoryHet_bilinear
+
+/--
 info: 'IsotropicGrover.noisyTrajectory_bilinear' depends on axioms: [propext, Classical.choice, Quot.sound]
 -/
 #guard_msgs in
@@ -736,6 +1026,12 @@ info: 'IsotropicGrover.noisyTrajectory_fidelity_eq_sequentialFidelity' depends o
 -/
 #guard_msgs in
 #print axioms noisyTrajectory_fidelity_eq_sequentialFidelity
+
+/--
+info: 'IsotropicGrover.noisyTrajectoryHet_succProb' depends on axioms: [propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs in
+#print axioms noisyTrajectoryHet_succProb
 
 /--
 info: 'IsotropicGrover.noisyTrajectory_succProb' depends on axioms: [propext, Classical.choice, Quot.sound]

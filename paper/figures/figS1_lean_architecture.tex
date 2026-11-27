@@ -1,0 +1,148 @@
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  >=Latex,
+  font=\scriptsize,
+  execute at begin node={\hbadness=10000},
+  extbox/.style={
+    draw=#1!80!black,
+    line width=0.75pt,
+    rounded corners=3pt,
+    fill=#1!9,
+    text width=3.95cm,
+    inner sep=4.5pt,
+    align=left
+  },
+  modbox/.style={
+    draw=oiGray!80,
+    line width=0.65pt,
+    rounded corners=2.5pt,
+    fill=#1,
+    text width=2.92cm,
+    minimum height=1.06cm,
+    inner sep=3.8pt,
+    align=center
+  },
+  dep/.style={->, line width=0.65pt, oiGray!90},
+  extdep/.style={->, line width=0.75pt, densely dashed}
+]
+  % Background container for IsotropicGroverProof
+  \fill[oiGray!4, rounded corners=4pt] (5.18, 0.38) rectangle (16.15, 7.95);
+  \draw[oiGray!55, line width=0.65pt, rounded corners=4pt] (5.18, 0.38) rectangle (16.15, 7.95);
+  \node[anchor=west, font=\scriptsize\bfseries, oiBlack] at (5.34, 7.72)
+    {\texttt{IsotropicGroverProof} zero-custom-axiom library (11 verified submodules + barrel \texttt{Basic})};
+
+  % ==================== Left Column: Three External Ecosystem Layers ====================
+  \node[extbox=oiBlue] (ext1) at (2.22, 6.25) {%
+    {\bfseries Layer 1: \texttt{Mathlib}}\\[2pt]
+    Real spheres, Haar \& 1D FTC\\
+    \texttt{EuclideanSpace}, \texttt{Metric.sphere},\\
+    \texttt{Measure.haar}, \texttt{intervalIntegral}
+  };
+
+  \node[extbox=oiGreen] (ext2) at (2.22, 3.65) {%
+    {\bfseries Layer 2: \texttt{Physlib} (\texttt{QuantumInfo})}\\[2pt]
+    Quantum states, CPTP \& POVMs\\
+    \texttt{Ket}, \texttt{MState}, \texttt{CPTPMap}, \texttt{POVM}
+  };
+
+  \node[extbox=oiOrange] (ext3) at (2.22, 1.25) {%
+    {\bfseries Layer 3: \texttt{QuantumComputation}}\\[2pt]
+    Syntactic circuits \& Grover\\
+    \texttt{Circuit}, \texttt{PrimitiveGate},\\
+    \texttt{Circuit.size}, \texttt{Circuit.count}, \texttt{Grover}
+  };
+
+  % ==================== Right Grid: 11 Submodules + Barrel Basic ====================
+  % Row 1 (y = 6.85)
+  \node[modbox=oiSky!12] (defs) at (6.88, 6.85) {%
+    {\bfseries \texttt{Defs}}\\[1pt]
+    \texttt{E}, \texttt{unitSphere}, \texttt{succProb}
+  };
+  \node[modbox=oiSky!12] (iso) at (10.62, 6.85) {%
+    {\bfseries \texttt{IsotropicError}}\\[1pt]
+    \texttt{poissonAngleMeasure}, 1D FTC
+  };
+  \node[modbox=oiSky!12] (comp) at (14.36, 6.85) {%
+    {\bfseries \texttt{Composition}}\\[1pt]
+    \texttt{composedMeasure}, $\sigma^G$ moment
+  };
+
+  % Row 2 (y = 5.15)
+  \node[modbox=oiSky!12] (cross) at (6.88, 5.15) {%
+    {\bfseries \texttt{CrossTerm}}\\[1pt]
+    \texttt{perpSphereMeasure}, reflections
+  };
+  \node[modbox=oiSky!12] (sec) at (10.62, 5.15) {%
+    {\bfseries \texttt{SecondMoment}}\\[1pt]
+    \texttt{P\_perp}, $(d - 1)$ cancellation
+  };
+  \node[modbox=oiSky!12] (geg) at (14.36, 5.15) {%
+    {\bfseries \texttt{Gegenbauer}}\\[1pt]
+    harmonic trace, \texttt{f₂\_formula}
+  };
+
+  % Row 3 (y = 3.35)
+  \node[modbox=oiSky!18] (seq) at (6.88, 3.35) {%
+    {\bfseries \texttt{Sequential}}\\[1pt]
+    Markov chain, het.\ schedules
+  };
+  \node[modbox=oiSky!18] (main) at (10.62, 3.35) {%
+    {\bfseries \texttt{MainTheorem}}\\[1pt]
+    \texttt{isotropicGrover\_main}
+  };
+  \node[modbox=oiSky!18] (lim) at (14.36, 3.35) {%
+    {\bfseries \texttt{LimitingCases}}\\[1pt]
+    monotonicity, $[0, 1]$ limits
+  };
+
+  % Row 4 (y = 1.45)
+  \node[modbox=oiGreen!13] (qchan) at (6.88, 1.45) {%
+    {\bfseries \texttt{QuantumChannel}}\\[1pt]
+    \texttt{depolarizingChannel}, \texttt{Circuit.count}
+  };
+  \node[modbox=oiOrange!15] (grover) at (10.62, 1.45) {%
+    {\bfseries \texttt{GroverCircuit}}\\[1pt]
+    1--$M$ targets, 1q \& 2q circuits
+  };
+  \node[modbox=oiPurple!16, draw=oiPurple!80!black, line width=0.8pt] (basic) at (14.36, 1.45) {%
+    {\bfseries \texttt{Basic}}\\[1pt]
+    barrel audit (\texttt{propext},\\
+    \texttt{Classical.choice}, \texttt{Quot.sound})
+  };
+
+  % ==================== Internal Module Import Arrows ====================
+  % Row 1
+  \draw[dep] (defs.east) -- (iso.west);
+  \draw[dep] (iso.east) -- (comp.west);
+
+  % Row 1 -> Row 2
+  \draw[dep] (comp.south) -- (geg.north);
+  \draw[dep] ([xshift=-0.35cm]comp.south) -- ++(0, -0.30) -| (cross.north);
+  \draw[dep] (cross.east) -- (sec.west);
+
+  % Row 2 -> Row 3
+  \draw[dep] (sec.south) -- (main.north);
+  \draw[dep] ([xshift=-0.35cm]sec.south) -- ++(0, -0.28) -| ([xshift=-0.22cm]seq.north);
+  \draw[dep] ([xshift=-0.25cm]geg.south) -- ++(0, -0.44) -| ([xshift=0.22cm]seq.north);
+  \draw[dep] ([xshift=-0.25cm]geg.south) -- ++(0, -0.44) -| ([xshift=0.28cm]main.north);
+  \draw[dep] (main.east) -- (lim.west);
+  \draw[dep] ([yshift=-0.22cm]seq.east) -- ++(0.24, 0) -- ++(0, -0.48) -| ([xshift=-0.35cm]lim.south);
+
+  % Row 3 -> Row 4
+  \draw[dep] (seq.south) -- (qchan.north);
+  \draw[dep] (main.south) -- (grover.north);
+  \draw[dep] (qchan.east) -- (grover.west);
+  \draw[dep] (grover.east) -- (basic.west);
+  \draw[dep] (lim.south) -- (basic.north);
+
+  % ==================== External Ecosystem Import Arrows ====================
+  \draw[extdep, oiBlue!85!black] ([yshift=0.35cm]ext1.east) -- ++(0.44, 0) |- (defs.west);
+  \draw[extdep, oiBlue!85!black] ([yshift=-0.20cm]ext1.east) -- ++(0.44, 0) |- (cross.west);
+  \draw[extdep, oiGreen!80!black] (ext2.east) -- ++(0.62, 0) |- ([yshift=0.18cm]qchan.west);
+  \draw[extdep, oiOrange!85!black] ([yshift=0.22cm]ext3.east) -- ++(0.80, 0) |- ([yshift=-0.06cm]qchan.west);
+  \draw[extdep, oiOrange!85!black] ([yshift=-0.26cm]ext3.east) -- ++(0.80, 0) -- ++(0, -0.34) -| (grover.south);
+\end{tikzpicture}
+\caption{Three-layer dependency architecture of the \texttt{IsotropicGroverProof} formalization in Lean~4 (\texttt{v4.35.0}). Dashed colored arrows denote imports from external formal libraries---\texttt{Mathlib} (blue), \texttt{Physlib}/\texttt{QuantumInfo} (green), and \texttt{QuantumComputation} from \emph{formal-quantum-computation} (orange)---while solid gray arrows trace internal imports across the eleven proof submodules into the root barrel \texttt{Basic}. Every theorem compiled through \texttt{Basic} depends solely on Lean's three standard foundational axioms.}
+\label{fig:lean-architecture}
+\end{figure}

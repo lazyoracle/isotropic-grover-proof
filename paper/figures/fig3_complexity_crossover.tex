@@ -1,0 +1,116 @@
+\begin{figure*}[t]
+\centering
+\begin{tikzpicture}[font=\footnotesize]
+  % ---------- Panel (a): Expected Oracle Queries Q(n) ----------
+  \begin{axis}[
+    name=fig3a,
+    width=7.8cm,
+    height=5.35cm,
+    ymode=log,
+    log basis y=10,
+    xmin=4, xmax=50,
+    ymin=1, ymax=1e16,
+    restrict y to domain*=0:18,
+    xtick={4, 10, 20, 30, 40, 50},
+    ytick={1e0, 1e3, 1e6, 1e9, 1e12, 1e15},
+    grid=major,
+    grid style={oiGray!22, line width=0.35pt},
+    tick label style={font=\scriptsize},
+    label style={font=\footnotesize},
+    title style={font=\footnotesize, yshift=-2pt},
+    axis line style={line width=0.55pt},
+    xlabel={Register size $n = \log_2 N$ (qubits)},
+    ylabel={Expected oracle queries $Q(n)$},
+    title={(a) Repeat-until-success query complexity ($M = 1$)},
+    legend style={
+      at={(0.025, 0.975)},
+      anchor=north west,
+      draw=oiGray!55,
+      fill=white,
+      fill opacity=0.94,
+      text opacity=1,
+      font=\scriptsize,
+      inner sep=2pt,
+      row sep=-1pt
+    },
+    legend cell align=left
+  ]
+    \addplot[oiGray, dotted, line width=1.0pt] table[x=n, y=Q_classical] {data/fig3a_queries.dat};
+    \addlegendentry{Classical $N$}
+
+    \addplot[oiBlack, solid, line width=0.85pt] table[x=n, y=Q_ideal] {data/fig3a_queries.dat};
+    \addlegendentry{Ideal $\approx 0.69\sqrt{N}$}
+
+    \addplot[oiBlue, solid, line width=1.05pt] table[x=n, y=Q_opt_s99999] {data/fig3a_queries.dat};
+    \addlegendentry{$\sigma = 0.99999$ ($K_{\mathrm{opt}}$)}
+
+    \addplot[oiBlue, dashed, line width=0.8pt, forget plot] table[x=n, y=Q_naive_s99999] {data/fig3a_queries.dat};
+
+    \addplot[oiGreen, solid, line width=1.05pt] table[x=n, y=Q_opt_s9999] {data/fig3a_queries.dat};
+    \addlegendentry{$\sigma = 0.9999$ ($K_{\mathrm{opt}}$)}
+
+    \addplot[oiGreen, dashed, line width=0.8pt, forget plot] table[x=n, y=Q_naive_s9999] {data/fig3a_queries.dat};
+
+    \addplot[oiVermilion, solid, line width=1.05pt] table[x=n, y=Q_opt_s999] {data/fig3a_queries.dat};
+    \addlegendentry{$\sigma = 0.999$ ($K_{\mathrm{opt}}$)}
+
+    \addplot[oiVermilion, dashed, line width=0.8pt, forget plot] table[x=n, y=Q_naive_s999] {data/fig3a_queries.dat};
+
+    \addlegendimage{oiGray!90!black, dashed, line width=0.8pt}
+    \addlegendentry{Dashed: naive $K_{\mathrm{ideal}}$}
+
+    % Slope annotations placed in unobstructed whitespace
+    \node[oiBlack, font=\scriptsize, anchor=north west] at (axis cs:34, 8e3) {$\propto N^{1/2}$};
+    \node[oiVermilion!90!black, font=\scriptsize, anchor=north west] at (axis cs:40.5, 2.5e9) {$\propto N$};
+    \node[oiGray!95!black, font=\scriptsize, anchor=west] at (axis cs:36.2, 2.2e14) {$\propto N^{3/2}$};
+  \end{axis}
+
+  % ---------- Panel (b): Analytical Growth Rate b(\sigma, M) ----------
+  \begin{axis}[
+    name=fig3b,
+    at={($(fig3a.east)+(1.55cm,0)$)},
+    anchor=west,
+    width=7.8cm,
+    height=5.35cm,
+    xmode=log,
+    xmin=1e-6, xmax=2e-1,
+    ymin=1.0, ymax=9.2,
+    xtick={1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1},
+    ytick={1, 2, 4, 6, 8},
+    grid=major,
+    grid style={oiGray!22, line width=0.35pt},
+    tick label style={font=\scriptsize},
+    label style={font=\footnotesize},
+    title style={font=\footnotesize, yshift=-2pt},
+    axis line style={line width=0.55pt},
+    xlabel={Per-gate infidelity $1 - \sigma$},
+    ylabel={Per-qubit overhead base $b(\sigma, M)$},
+    title={(b) Analytical repetition growth rate across target counts $M$},
+    legend style={
+      at={(0.975, 0.97)},
+      anchor=north east,
+      draw=oiGray!55,
+      fill=white,
+      font=\scriptsize,
+      inner sep=2pt,
+      row sep=-1pt
+    },
+    legend cell align=left
+  ]
+    % Asymptotic decoherent plateau reference b = 2
+    \addplot[oiGray, dotted, line width=0.85pt, domain=1e-6:2e-1, samples=2] {2.0};
+    \addlegendentry{Limit $b = 2$}
+
+    \addplot[oiBlue, solid, line width=1.1pt] table[x=one_minus_sigma, y=b_M1] {data/fig3b_growth_rate.dat};
+    \addlegendentry{$M = 1$}
+
+    \addplot[oiGreen, dashed, line width=1.1pt] table[x=one_minus_sigma, y=b_M4] {data/fig3b_growth_rate.dat};
+    \addlegendentry{$M = 4$}
+
+    \addplot[oiVermilion, dashdotted, line width=1.1pt] table[x=one_minus_sigma, y=b_M16] {data/fig3b_growth_rate.dat};
+    \addlegendentry{$M = 16$}
+  \end{axis}
+\end{tikzpicture}
+\caption{Asymptotic query-complexity crossover and multi-target repetition growth under primitive linear-$n$ Grover synthesis ($G(n, K) = n + K(28n - 38)$). (a) Expected oracle queries $Q(n, K) = K / p_e(n, K)$ for $M = 1$ comparing optimal early stopping $K_{\mathrm{opt}}$ (solid curves) against naive $K_{\mathrm{ideal}}$ stopping (dashed curves), the noiseless Zalka--BBHT baseline $\approx 0.69\sqrt{N}$ (black solid), and classical random sampling $N$ (gray dotted) at $\sigma = 0.99999$ (blue), $0.9999$ (green), and $0.999$ (vermilion). (b) Per-qubit exponential base $b(\sigma, M)$ extracted from three-point interpolation $k(n) = a b^n + c$ across $n \in \{7, 10, 13\}$ for $M = 1$ (blue solid), $M = 4$ (green dashed), and $M = 16$ (vermilion dash-dotted), converging to $b \approx 2$ at large $1 - \sigma$.}
+\label{fig:complexity-crossover}
+\end{figure*}
